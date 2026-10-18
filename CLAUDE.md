@@ -5,6 +5,20 @@
 - Setting: the world of *Dungeon Crawler Carl*, with an original crawler and story. References to the books are welcome (Borant, the Syndicate, viewers, achievements, loot box tiers). Do not draw characters from the books as sprites and do not quote passages from the books.
 - Work in small playable steps, one feature per chat.
 
+## Workflow (do this without being asked)
+
+- **Start of every session**, before touching code (also when an older chat is resumed): pull the latest `main`, read `GDD.md` and this file. Tell the user in one sentence whether anything changed since the session's last known state.
+- **After every finished, working step**: run `npm run check` and `npm run build`, then commit and push without asking. Never push something broken.
+- **Before every push**, fetch first. If changes from another chat conflict, do not overwrite them; tell the user briefly what collides.
+- **After every push**, update the playable artifact.
+- **New design decisions** go into the GDD decision log after a short confirmation from the user.
+
+## Missing prerequisites
+
+- **Small missing asset** (sprite, texture, text): point it out and ask whether to create it right here or in the matching milestone chat.
+- **Missing system from another milestone** (e.g. items from M3 for a merchant in M7): name it and ask whether to switch there first or build a simple placeholder that gets replaced later.
+- Mark placeholders with `// TODO(M#)` in code and list them in the GDD under open questions.
+
 ## Code rules
 
 - `src/engine/` stays game-independent. Game content and rules go in `src/game/`.
