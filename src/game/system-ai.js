@@ -16,9 +16,31 @@ export const LINES = {
   bumpObject: [
     'Something is in the way. That something is not impressed.',
   ],
-  chest: [
-    'A chest! Opening chests requires the Inventory System, which management has not finished installing. Please hold.',
-    'The chest remains closed. Somewhere, a Syndicate accountant smiles.',
+  chestOpen: [
+    'The chest creaks open. The viewers lean in.',
+    'You open the chest. A sponsor somewhere pays for the privilege of watching.',
+    'Chest opened. The System has helpfully moved its contents into your inventory before you could touch anything.',
+  ],
+  chestEmpty: [
+    'The chest is empty. You emptied it. Staring will not refill it.',
+    'Still empty. Borant does not do refills.',
+  ],
+  lootCommon: [
+    'Mostly garbage. But it is YOUR garbage now.',
+    'Our analysts rate this haul as "technically loot".',
+  ],
+  lootGood: [
+    'Ooh, something shiny. The chat is mildly interested.',
+    'Not bad, Crawler. Do not let it go to your head. Your head is fragile.',
+  ],
+  lootGreat: [
+    'Look at that! Somebody in accounting is going to be very upset.',
+  ],
+  lootLegendary: [
+    'LEGENDARY! The audience gasps. Mostly because they bet against you.',
+  ],
+  inventoryHint: [
+    'Press I to inspect your inventory. The System keeps it somewhere you cannot see. Do not ask where.',
   ],
   barrel: [
     'A barrel. It contains: barrel. Smashing comes in a future patch.',

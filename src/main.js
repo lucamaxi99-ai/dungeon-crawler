@@ -21,6 +21,9 @@ import {
 } from './game/hud.js';
 import { bindInput } from './game/input.js';
 import { line } from './game/system-ai.js';
+import { Inventory } from './game/inventory.js';
+import { ITEMS, RARITY_ORDER } from './game/items.js';
+import { rollLoot } from './game/loot.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -34,6 +37,7 @@ const textures = buildTextures();
 const level = new Level(TEST_FLOOR);
 const player = new Player(level.start);
 const log = new MessageLog();
+const inventory = new Inventory();
 const state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
 
 const isWall = (x, y) => level.wall(x, y) !== 0;
@@ -100,8 +104,25 @@ function interact() {
   if (w === WALL.STAIRS) return log.push(line('stairs'), 'warn');
   if (w === WALL.POSTER) return log.push(line('poster'), 'info');
   const o = level.objectAt(f.x, f.y);
+  if (o && o.type === 'chest') return openChest(o);
   if (o) return log.push(line(o.type));
   if (!w) log.push(line('nothing'), 'info');
+}
+
+// Opens a chest: plays the lid animation and moves the loot straight into
+// the inventory. Loot is seeded per chest, so a floor always holds the same.
+function openChest(o) {
+  if (o.flags.openedAt != null) return log.push(line('chestEmpty'), 'info');
+  o.flags.openedAt = performance.now();
+  const loot = rollLoot(o.loot || 'chest', level.seed * 7919 + o.y * level.w + o.x);
+  inventory.gold += loot.gold;
+  for (const { id, n } of loot.items) inventory.add(id, n);
+  log.push(line('chestOpen'));
+  const names = loot.items.map(({ id, n }) => (n > 1 ? `${n}x ${ITEMS[id].name}` : ITEMS[id].name));
+  log.push(`Loot: ${[...names, `${loot.gold} gold`].join(', ')}.`, 'info');
+  const best = Math.max(0, ...loot.items.map(({ id }) => RARITY_ORDER.indexOf(ITEMS[id].rarity)));
+  const verdict = ['lootCommon', 'lootGood', 'lootGood', 'lootGreat', 'lootLegendary'][best];
+  log.push(line(verdict));
 }
 
 // Cycles AUTO -> 960 -> 640 -> 320 -> AUTO.
@@ -140,10 +161,14 @@ const status = {
 };
 
 function spriteList(time) {
-  const list = level.objects.map((o) => ({
-    x: o.x + 0.5, y: o.y + 0.5,
-    img: frameAt(SPRITES[o.type].anim, time, o.x * 3 + o.y),
-  }));
+  const list = level.objects.map((o) => {
+    const spr = SPRITES[o.type];
+    const opened = spr.open && o.flags.openedAt != null;
+    return {
+      x: o.x + 0.5, y: o.y + 0.5,
+      img: opened ? frameAt(spr.open, time - o.flags.openedAt) : frameAt(spr.anim, time, o.x * 3 + o.y),
+    };
+  });
   for (const d of decor) list.push({ x: d.x, y: d.y, lift: d.lift, img: frameAt(SPRITES[d.type].anim, time, d.phase) });
   return list;
 }
@@ -195,7 +220,7 @@ requestAnimationFrame(loop);
 
 // Debug handle for the browser console and automated tests.
 window.game = {
-  level, player, log, state, onAction, light, stats,
+  level, player, log, state, onAction, light, stats, inventory,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),
 };

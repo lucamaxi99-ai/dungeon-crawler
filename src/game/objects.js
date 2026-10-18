@@ -53,51 +53,92 @@ function slab(p, x0, y0, x1, y1, mat, fn) {
 }
 
 // Wooden chest with a rounded lid, iron straps and a brass lock.
-export function paintChest() {
-  const W = 46, H = 36;
+// stage: 'closed', 'ajar' (lid lifted, loot glowing in the gap), 'full'
+// (lid up, coins inside) or 'empty' (lid up, nothing left). All stages share
+// one canvas size so the opening animation doesn't jump; the room above the
+// closed lid is for the opened one.
+export const CHEST_STAGES = ['closed', 'ajar', 'full', 'empty'];
+
+export function paintChest(stage = 'closed') {
+  const W = 46, OY = 14, H = 36 + OY;
   const p = new Painter(W, H, { seed: 41 });
-  const id = { wood: 0, iron: 1, brass: 2 };
-  const LID0 = 3, LID1 = 16, X0 = 3, X1 = 43;
+  const id = { wood: 0, iron: 1, brass: 2, dark: 3, glint: 4, inner: 5 };
+  const X0 = 3, X1 = 43, LID1 = 16 + OY;
+  const open = stage === 'full' || stage === 'empty';
+  const lift = stage === 'ajar' ? 4 : 0;
+  const LID0 = 3 + OY - lift, LIDB = LID1 - lift;
   // Lid: a half cylinder along x, seen from the front.
   const lid = (x, y) => {
-    const t = Math.min(1, Math.max(0, (y - LID0) / (LID1 - LID0)));
+    const t = Math.min(1, Math.max(0, (y - LID0) / (LIDB - LID0)));
     const a = t * Math.PI * 0.5;
     const ends = Math.min(x - X0, X1 - x) < 1.5 ? (x < W / 2 ? -0.35 : 0.35) : 0;
     return [ends, -Math.cos(a), Math.sin(a) + 0.15, 6 + Math.sin(a) * 4];
   };
   const body = (x) => [Math.min(x - X0, X1 - x) < 1.5 ? (x < W / 2 ? -0.4 : 0.4) : 0, 0.05, 1, 10];
-  slab(p, X0, LID0, X1, LID1, id.wood, lid);
-  // Round off the lid's upper corners.
-  p.erase((x, y) => y < LID0 + 4 && Math.hypot(Math.max(0, X0 + 4 - x, x - (X1 - 5)), LID0 + 4 - y) > 4.2);
-  slab(p, X0, LID1, X1, H, id.wood, body);
-  // Lid rim band
-  slab(p, X0, LID1 - 1, X1, LID1 + 2, id.iron, (x) => [0, -0.35, 1, 12]);
-  // Straps over lid and body
-  for (const sx of [8, 35]) {
-    slab(p, sx, LID0, sx + 3, LID1, id.iron, (x, y) => { const n = lid(x, y); return [n[0] + (x - sx - 1.5) * 0.25, n[1], n[2], n[3] + 1.2]; });
-    slab(p, sx, LID1, sx + 3, H, id.iron, (x) => [(x - sx - 1.5) * 0.3, 0, 1, 11.5]);
+  const straps = [8, 35];
+
+  if (!open) {
+    slab(p, X0, LID0, X1, LIDB, id.wood, lid);
+    // Round off the lid's upper corners.
+    p.erase((x, y) => y < LID0 + 4 && y < LIDB && Math.hypot(Math.max(0, X0 + 4 - x, x - (X1 - 5)), LID0 + 4 - y) > 4.2);
+    slab(p, X0, LIDB - 1, X1, LIDB + 1, id.iron, () => [0, -0.35, 1, 12]);
+    for (const sx of straps) {
+      slab(p, sx, LID0, sx + 3, LIDB, id.iron, (x, y) => { const n = lid(x, y); return [n[0] + (x - sx - 1.5) * 0.25, n[1], n[2], n[3] + 1.2]; });
+    }
+    if (lift) {
+      // The gap under the lifted lid: loot light spilling out.
+      slab(p, X0 + 1, LIDB + 1, X1 - 1, LID1, id.glint, () => [0, 0, 1, 8]);
+    }
+  } else {
+    // Lid swung back: we see its inside standing up behind the body.
+    const T = LID1 - 25;
+    slab(p, X0 + 1, T, X1 - 1, LID1 - 6, id.inner, (x, y) => [0, (y - (T + 9)) * 0.06, 1, 2]);
+    p.erase((x, y) => y < T + 3 && Math.hypot(Math.max(0, X0 + 4 - x, x - (X1 - 5)), T + 3 - y) > 3.2);
+    for (const sx of straps) slab(p, sx, T, sx + 3, LID1 - 6, id.iron, (x) => [(x - sx - 1.5) * 0.3, 0, 1, 3]);
+    // Back rim, the inner back wall and the dark inside of the box.
+    slab(p, X0 + 1, LID1 - 7, X1 - 1, LID1 - 6, id.iron, () => [0, -0.6, 0.8, 4]);
+    slab(p, X0 + 1, LID1 - 6, X1 - 1, LID1 - 4, id.inner, () => [0, 0.5, 0.7, 4.5]);
+    slab(p, X0 + 1, LID1 - 4, X1 - 1, LID1, id.dark, () => [0, 0, 1, 5]);
+    if (stage === 'full') {
+      for (let k = 0; k < 10; k++) {
+        const cx = 7 + k * 3.5 + (k % 2) * 0.8, cy = LID1 - 2.5 + (k % 3 === 0 ? -1 : 0.4);
+        p.ellipse(cx, cy, 2.4, 1.3, id.glint, { z: 6 + k * 0.1, depth: 0.8 });
+      }
+      p.ellipse(18, LID1 - 4.2, 2, 1.7, id.glint, { z: 7 });
+      p.ellipse(29, LID1 - 3.8, 1.6, 1.6, id.glint, { z: 7 });
+    }
+    // Front rim band.
+    slab(p, X0, LID1 - 1, X1, LID1 + 2, id.iron, () => [0, -0.35, 1, 12]);
   }
+
+  slab(p, X0, LID1 + (open ? 2 : 1), X1, H, id.wood, body);
+  for (const sx of straps) slab(p, sx, LID1 + (open ? 2 : 1), sx + 3, H, id.iron, (x) => [(x - sx - 1.5) * 0.3, 0, 1, 11.5]);
   // Corner caps
   for (const [cx, cy] of [[X0 + 1.5, H - 2], [X1 - 1.5, H - 2]]) p.ellipse(cx, cy, 2.2, 2.2, id.iron, { z: 12 });
-  // Lock plate and hasp
-  slab(p, 20, 13, 27, 23, id.brass, (x, y) => [(x - 23.5) * 0.12, (y - 18) * 0.08, 1, 13]);
-  p.decal(22, 16, 25, 21, (x, y) => {
-    const dx = x - 23, dy = y - 17.5;
-    if (Math.hypot(dx, dy) < 1.1) return C.BLACK;
-    return Math.abs(dx) < 0.6 && dy > 0 && dy < 3.2 ? C.BLACK : -1;
-  });
+  // Lock plate and hasp (the hasp hangs open once the lid is up).
+  slab(p, 20, LID1 - 3 + (open ? 5 : 0), 27, LID1 + 7, id.brass, (x, y) => [(x - 23.5) * 0.12, (y - LID1 - 2) * 0.08, 1, 13]);
+  if (!open) {
+    p.decal(22, LID1, 25, LID1 + 5, (x, y) => {
+      const dx = x - 23, dy = y - LID1 - 1.5;
+      if (Math.hypot(dx, dy) < 1.1) return C.BLACK;
+      return Math.abs(dx) < 0.6 && dy > 0 && dy < 3.2 ? C.BLACK : -1;
+    });
+  }
   // Plank seams and nail heads
   p.decal(X0, 0, X1, H, (x, y) => {
-    if ((y === 23 || y === 30) && x > X0 + 1 && x < X1 - 2) return C.SOOT;
-    if (y === 9 && x > X0 + 1 && x < X1 - 2 && (x < 8 || x > 10) && (x < 35 || x > 37)) return C.WOOD_D;
+    if ((y === LID1 + 7 || y === LID1 + 14) && x > X0 + 1 && x < X1 - 2) return C.SOOT;
+    if (!open && y === LID0 + 6 && x > X0 + 1 && x < X1 - 2 && (x < 8 || x > 10) && (x < 35 || x > 37)) return C.WOOD_D;
     return -1;
   });
-  for (const sx of [9, 36]) for (const ny of [20, 27, 33]) p.dot(sx, ny, C.STEEL_L);
+  for (const sx of [9, 36]) for (const ny of [LID1 + 4, LID1 + 11, LID1 + 17]) p.dot(sx, ny, C.STEEL_L);
   return p.shade([
     { ramp: [C.SOOT, C.WOOD_D, C.WOOD, C.WOOD_L, C.LEATHER], rough: 0.22, outline: C.BLACK },
     M.iron,
     { ramp: [C.RUST, C.AMBER, C.GOLD, C.YELLOW], spec: C.HOT, shine: 0.7, outline: C.SOOT },
-  ], { name: 'chest' });
+    { ramp: [C.BLACK, C.SOOT], flat: true },
+    { ramp: [C.AMBER, C.YELLOW, C.HOT], glow: true, spec: C.WHITE, shine: 0.6 },
+    { ramp: [C.BLACK, C.SOOT, C.WOOD_D, C.WOOD], rough: 0.25, outline: C.BLACK },
+  ], { name: `chest_${stage}` });
 }
 
 // Wooden barrel: bulging staves, four iron hoops. Seen from slightly below

@@ -105,7 +105,7 @@ function cellColor(level, x, y) {
   if (w === WALL.POSTER) return C.LEATHER;
   if (w) return C.STONE_M;
   const o = level.objectAt(x, y);
-  if (o && o.type === 'chest') return C.GOLD;
+  if (o && o.type === 'chest') return o.flags.openedAt != null ? C.RUST : C.GOLD;
   if (o && o.type === 'brazier') return C.RED;
   if (o && o.type === 'coldBrazier') return C.SKY;
   return C.DUSK;

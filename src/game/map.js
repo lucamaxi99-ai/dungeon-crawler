@@ -55,6 +55,9 @@ export const TEST_FLOOR = {
     { x: 2, y: 11, w: 6, h: 5, floor: 'PLANKS', ceil: 'BEAMS', ambient: 0.1, tint: 'torch' },    // storeroom
     { x: 13, y: 17, w: 5, h: 3, floor: 'VAULT', ceil: 'VAULT', ambient: 0.08, tint: 'cold' },    // stairwell crypt
   ],
+  // Loot table per container ("x,y"); chests without an entry use 'chest'.
+  loot: { '15,4': 'richChest' },
+  seed: 1,
   torches: [
     [3, 1, 'N'],
     [5, 11, 'N'],
@@ -75,6 +78,7 @@ const tintId = (name) => {
 export class Level {
   constructor(def) {
     this.name = def.name;
+    this.seed = def.seed ?? 1;
     this.h = def.rows.length;
     this.w = def.rows[0].length;
     const n = this.w * this.h;
@@ -92,7 +96,11 @@ export class Level {
       if (row.length !== this.w) throw new Error(`Map row ${y} has length ${row.length}, expected ${this.w}`);
       [...row].forEach((ch, x) => {
         if (ch in WALL_CHARS) this.walls[y * this.w + x] = WALL_CHARS[ch];
-        else if (ch in OBJECT_CHARS) this.objects.push({ type: OBJECT_CHARS[ch], x, y, flags: {} });
+        else if (ch in OBJECT_CHARS) {
+          const o = { type: OBJECT_CHARS[ch], x, y, flags: {} };
+          if (o.type === 'chest') o.loot = def.loot?.[`${x},${y}`] ?? 'chest';
+          this.objects.push(o);
+        }
         else if (ch === '@') this.start = { x, y, dir: def.startDir ?? 0 };
         else if (ch !== '.') throw new Error(`Unknown map char '${ch}' at ${x},${y}`);
       });
