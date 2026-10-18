@@ -137,3 +137,85 @@ export function planks(size, seed, { colors, gap, plank = 8, vertical = false })
   }
   return tex;
 }
+
+// ------------------------------------------------------------ noise
+// Tileable noise for higher-resolution textures. All functions return
+// Float32Array(size*size) with values roughly in [0, 1].
+
+// Smooth value noise on a `cells` x `cells` lattice that wraps around.
+export function valueNoise(size, seed, cells) {
+  const r = rng(seed);
+  const lat = Float32Array.from({ length: cells * cells }, r);
+  const out = new Float32Array(size * size);
+  const s = (t) => t * t * (3 - 2 * t);
+  for (let y = 0; y < size; y++) {
+    const fy = (y / size) * cells, iy = Math.floor(fy), ty = s(fy - iy);
+    const y0 = iy % cells, y1 = (iy + 1) % cells;
+    for (let x = 0; x < size; x++) {
+      const fx = (x / size) * cells, ix = Math.floor(fx), tx = s(fx - ix);
+      const x0 = ix % cells, x1 = (ix + 1) % cells;
+      const a = lat[y0 * cells + x0], b = lat[y0 * cells + x1];
+      const c = lat[y1 * cells + x0], d = lat[y1 * cells + x1];
+      out[y * size + x] = (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+    }
+  }
+  return out;
+}
+
+// Fractal noise: octaves of value noise, each twice as fine and half as strong.
+export function fbm(size, seed, { base = 4, octaves = 4, gain = 0.5 } = {}) {
+  const out = new Float32Array(size * size);
+  let amp = 1, total = 0, cells = base;
+  for (let o = 0; o < octaves && cells <= size; o++) {
+    const n = valueNoise(size, seed + o * 101, cells);
+    for (let i = 0; i < out.length; i++) out[i] += n[i] * amp;
+    total += amp;
+    amp *= gain;
+    cells *= 2;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= total;
+  return out;
+}
+
+// Tileable Voronoi cells (cobblestones, scales, cracked earth).
+// With `jitter` set, points sit on a jittered grid (count rounded to a
+// square), which gives evenly sized cells; otherwise they are random.
+// Returns { id: Int32Array, edge: Float32Array (distance to the nearest
+// border in pixels), dist: Float32Array (distance to own center), count }.
+export function voronoi(size, seed, count, jitter = null) {
+  const r = rng(seed);
+  let pts;
+  if (jitter === null) {
+    pts = Array.from({ length: count }, () => [r() * size, r() * size]);
+  } else {
+    const g = Math.round(Math.sqrt(count)), cell = size / g;
+    pts = [];
+    for (let j = 0; j < g; j++) for (let i = 0; i < g; i++) {
+      pts.push([(i + 0.5 + (r() - 0.5) * 2 * jitter) * cell, (j + 0.5 + (r() - 0.5) * 2 * jitter) * cell]);
+    }
+    count = pts.length;
+  }
+  const id = new Int32Array(size * size), edge = new Float32Array(size * size), dist = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let d1 = Infinity, d2 = Infinity, best = 0;
+      for (let i = 0; i < count; i++) {
+        let ddx = Math.abs(x + 0.5 - pts[i][0]), ddy = Math.abs(y + 0.5 - pts[i][1]);
+        if (ddx > size / 2) ddx = size - ddx;
+        if (ddy > size / 2) ddy = size - ddy;
+        const d = Math.hypot(ddx, ddy);
+        if (d < d1) { d2 = d1; d1 = d; best = i; } else if (d < d2) d2 = d;
+      }
+      const k = y * size + x;
+      id[k] = best; edge[k] = (d2 - d1) / 2; dist[k] = d1;
+    }
+  }
+  return { id, edge, dist, count };
+}
+
+// Glow mask (like sprites) for textures: colors that ignore lighting.
+export function glowMask(colors) {
+  const m = new Uint8Array(256);
+  for (const c of colors) m[c] = 1;
+  return m;
+}

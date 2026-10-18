@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dungeon Grafik-Prototyp</title>
+  <meta name="claude:viewport-fit-sides" content="cover">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="proto.css">
+</head>
+<body>
+  <header class="bar">
+    <h1>Dungeon Grafik-Prototyp</h1>
+    <p>Derselbe Showroom im alten und im neuen Look. Jeder Schalter einzeln umschaltbar, Bildrate wird live gemessen.</p>
+  </header>
+
+  <main class="layout">
+    <section class="play" aria-label="Spielansicht">
+      <canvas id="view" tabindex="0" aria-label="3D-Ansicht. Steuerung: W S vor zurück, A D seitwärts, Q E drehen."></canvas>
+
+      <div class="under">
+        <dl class="stats" aria-live="off">
+          <div><dt>FPS</dt><dd id="fps">–</dd></div>
+          <div><dt>ms / Bild</dt><dd id="ms">–</dd></div>
+          <div><dt>Auflösung</dt><dd id="pixels">–</dd></div>
+        </dl>
+        <nav id="pad" aria-label="Steuerung">
+          <button type="button" data-action="turnLeft" aria-label="Links drehen">&#x21B6;</button>
+          <button type="button" data-action="forward" aria-label="Vorwärts">&#x25B2;</button>
+          <button type="button" data-action="turnRight" aria-label="Rechts drehen">&#x21B7;</button>
+          <button type="button" data-action="left" aria-label="Seitwärts links">&#x25C0;</button>
+          <button type="button" data-action="back" aria-label="Zurück">&#x25BC;</button>
+          <button type="button" data-action="right" aria-label="Seitwärts rechts">&#x25B6;</button>
+        </nav>
+      </div>
+
+      <section class="panel settings" aria-label="Grafik-Einstellungen">
+        <div class="presets">
+          <h2>Look</h2>
+          <button type="button" data-preset="classic" id="preset-classic">Klassisch (Stand M2)</button>
+          <button type="button" data-preset="modern" id="preset-modern">Neu</button>
+        </div>
+        <div class="switches">
+          <label>Auflösung
+            <select id="res" data-setting="res">
+              <option value="320">320 × 140</option>
+              <option value="640">640 × 280</option>
+              <option value="960">960 × 420</option>
+            </select>
+          </label>
+          <label>Texturen
+            <select id="tex" data-setting="tex">
+              <option value="32">32 px (alt)</option>
+              <option value="64">64 px (neu)</option>
+            </select>
+          </label>
+          <label>Farben
+            <select id="colors" data-setting="colors">
+              <option value="32">32</option>
+              <option value="64">64</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="light" data-setting="light"> Farbiges Licht</label>
+          <label class="check"><input type="checkbox" id="lantern" data-setting="lantern"> Laterne des Spielers</label>
+          <label class="check"><input type="checkbox" id="dither" data-setting="dither"> Dithering</label>
+          <label class="check"><input type="checkbox" id="ao" data-setting="ao"> Schatten in Ecken</label>
+        </div>
+        <p class="hint">Die Exponate sind immer die neuen Sprites. „Texturen alt“ tauscht nur Wände und Böden.</p>
+      </section>
+    </section>
+
+    <aside class="side">
+      <section class="panel card" id="card" aria-live="polite">
+        <div class="card-head">
+          <h2 id="card-name">Kein Exponat im Blick</h2>
+          <span class="badge" id="card-rating" hidden></span>
+        </div>
+        <p class="meta" id="card-meta"></p>
+        <canvas id="zoom" class="zoom" aria-label="Nahansicht des Sprites" hidden></canvas>
+        <p id="card-note"></p>
+      </section>
+
+      <section class="panel" aria-label="Exponate">
+        <h2>Exponate</h2>
+        <p class="hint">Klick bringt dich direkt davor. Einschätzung, wie gut ich so etwas allein hinbekomme.</p>
+        <ol class="exhibits" id="exhibits"></ol>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="src/proto/main.js"></script>
+</body>
+</html>

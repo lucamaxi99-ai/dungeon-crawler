@@ -1,6 +1,7 @@
 // Bundles the game and the sprite editor into self-contained HTML files:
 //   dist/dungeon-crawler.html, dist/artifact.html            (game)
 //   dist/sprite-forge.html,   dist/sprite-forge-artifact.html (editor)
+//   dist/proto.html,          dist/proto-artifact.html        (graphics prototype)
 // The *artifact* variants are for Claude artifacts, which wrap the page in
 // their own document skeleton.
 
@@ -53,4 +54,8 @@ await bundlePage({
 await bundlePage({
   html: 'editor.html', css: 'editor.css', entry: 'src/editor/main.js',
   out: 'sprite-forge.html', artifactOut: 'sprite-forge-artifact.html',
+});
+await bundlePage({
+  html: 'proto.html', css: 'proto.css', entry: 'src/proto/main.js',
+  out: 'proto.html', artifactOut: 'proto-artifact.html',
 });
