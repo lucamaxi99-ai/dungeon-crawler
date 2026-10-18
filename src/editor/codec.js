@@ -2,7 +2,7 @@
 // defineSprite (one frame) or defineFrames (several), plus optional
 // animation() and recolor() lines. Also parses such code back in.
 
-import { C } from '../engine/palette.js';
+import { C, PALETTE_SIZE } from '../engine/palette.js';
 import { spriteToAscii, defineFrames, KEY_CHARS } from '../engine/sprite.js';
 
 export const COLOR_NAME = Object.fromEntries(Object.entries(C).map(([k, v]) => [v, k]));
@@ -101,7 +101,7 @@ function parseKey(src) {
   while ((e = re.exec(m[1]))) {
     const ch = e[1] ?? e[2] ?? e[3];
     const idx = e[4] !== undefined ? C[e[4]] : Number(e[5]);
-    if (idx === undefined || Number.isNaN(idx) || idx > 31) {
+    if (idx === undefined || Number.isNaN(idx) || idx >= PALETTE_SIZE) {
       throw new Error(`Unknown color for key '${ch}'.`);
     }
     key[ch] = idx;

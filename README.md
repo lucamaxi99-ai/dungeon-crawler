@@ -28,6 +28,14 @@ Shortcuts: B pencil, E eraser, G fill, L line, R box, I pick, M mirror drawing,
 H / V flip, arrows move pixels, [ ] switch frames, Ctrl+Z / Ctrl+Y undo/redo,
 right click erases.
 
+### Graphics prototype (branch `proto/hd-look`)
+
+`proto.html` (or `dist/proto.html`) shows a showroom floor in the classic look
+and in a higher-detail look: 640×280, 64 px textures, 64 colors, colored light
+per cell, dithering, corner shadows. Every switch can be flipped on its own and
+the frame time is measured live. The exhibits are example sprites, rated by how
+well Claude can produce them alone.
+
 ### Controls
 
 | Key | Action |

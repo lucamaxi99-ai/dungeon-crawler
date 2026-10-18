@@ -149,7 +149,11 @@ export function flip(target) {
 //   m moss_d M moss  G green  i lime
 //   N navy  B blue_d  c blue  p sky  I ice
 //   1 2 3 4 stone_d, stone, stone_m, stone_l
-export const KEY_CHARS = 'knhuaovbdwletjrRfgymMGiNBcpI1234';
+// Extended palette (32-63), four per ramp:
+//   x s S X skin   P U A O plum..neon   T C D E teal..mint   F H J K steel
+//   Q V W Y gravel   Z 5 6 7 gore, rust, amber, hot   8 9 @ $ violet..lilac
+//   % & * + white, soot, parchment, wine
+export const KEY_CHARS = 'knhuaovbdwletjrRfgymMGiNBcpI1234' + 'xsSXPUAOTCDEFHJKQVWYZ567' + '89@$%&*+';
 
 // Turns one or more frames back into ASCII rows plus a key, the inverse of
 // defineFrames. Only colors that are used end up in the key. Returns
