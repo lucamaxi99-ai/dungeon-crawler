@@ -141,6 +141,26 @@ export function paintChest(stage = 'closed') {
   ], { name: `chest_${stage}` });
 }
 
+// Leather sack tied with a cord: what the crawler leaves behind when
+// dropping items. Small, so it reads as "something on the floor".
+export function paintBag() {
+  const W = 26, H = 22;
+  const p = new Painter(W, H, { seed: 53 });
+  const id = { sack: 0, cord: 1 };
+  p.ellipse(13, 15, 11, 7, id.sack, { z: 4, depth: 0.9 });           // belly
+  p.ellipse(13, 10, 7.5, 5, id.sack, { z: 5, depth: 0.8 });           // shoulder
+  p.capsule(13, 7, 2.6, 13, 4, 2.2, id.sack, { z0: 8 });              // neck
+  p.ellipse(10.5, 2.6, 2.6, 1.8, id.sack, { z: 8, depth: 0.6 });      // flaps above the knot
+  p.ellipse(15.5, 2.4, 2.8, 1.8, id.sack, { z: 8, depth: 0.6 });
+  p.capsule(9.5, 6.4, 0.9, 16.5, 6.4, 0.9, id.cord, { z0: 12 });      // cord
+  p.capsule(16, 6.6, 0.7, 18.5, 11, 0.6, id.cord, { z0: 11 });        // loose end
+  p.decal(4, 12, 22, 20, (x, y) => ((x * 7 + y * 3) % 11 === 0 && y > 13 ? C.WOOD_D : -1));
+  return p.shade([
+    { ramp: [C.SOOT, C.WOOD_D, C.WOOD, C.LEATHER, C.TAN], rough: 0.2, outline: C.BLACK },
+    { ramp: [C.WOOD_D, C.GRAVEL_M, C.GRAVEL_L, C.PARCHMENT], outline: C.SOOT },
+  ], { name: 'bag' });
+}
+
 // Wooden barrel: bulging staves, four iron hoops. Seen from slightly below
 // the rim, so top and bottom edges curve outward.
 export function paintBarrel() {

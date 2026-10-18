@@ -73,6 +73,14 @@ export class Inventory {
     return e.id;
   }
 
+  // Takes an equipped item out of its slot without putting it in the bag
+  // (for dropping it straight from the paper doll).
+  takeEquipped(slot) {
+    const e = this.equip[slot];
+    this.equip[slot] = null;
+    return e;
+  }
+
   // Uses a consumable from the bag. Returns the item id or null.
   // TODO(M4): healing does nothing until hit points exist.
   use(index) {

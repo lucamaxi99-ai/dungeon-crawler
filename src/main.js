@@ -24,6 +24,7 @@ import { line } from './game/system-ai.js';
 import { Inventory } from './game/inventory.js';
 import { ITEMS, RARITY_ORDER } from './game/items.js';
 import { rollLoot } from './game/loot.js';
+import { InventoryScreen } from './game/inventory-ui.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -38,6 +39,7 @@ const level = new Level(TEST_FLOOR);
 const player = new Player(level.start);
 const log = new MessageLog();
 const inventory = new Inventory();
+const invScreen = new InventoryScreen(inventory);
 const state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
 
 const isWall = (x, y) => level.wall(x, y) !== 0;
@@ -91,6 +93,7 @@ const world = {
       o.flags.seen = true;
       log.push(line('bones'), 'info');
     }
+    if (level.bagAt(x, y)) log.push(line('bagHere'), 'info');
     if (!state.saidFirstSteps && player.steps >= 12) {
       state.saidFirstSteps = true;
       log.push(line('firstSteps'));
@@ -100,13 +103,81 @@ const world = {
 
 function interact() {
   const f = player.front();
+  const frontBag = level.bagAt(f.x, f.y);
+  if (frontBag) return pickUp(frontBag);
   const w = level.wall(f.x, f.y);
   if (w === WALL.STAIRS) return log.push(line('stairs'), 'warn');
   if (w === WALL.POSTER) return log.push(line('poster'), 'info');
   const o = level.objectAt(f.x, f.y);
   if (o && o.type === 'chest') return openChest(o);
   if (o) return log.push(line(o.type));
+  const ownBag = level.bagAt(player.x, player.y);
+  if (ownBag) return pickUp(ownBag);
   if (!w) log.push(line('nothing'), 'info');
+}
+
+const itemLabel = ({ id, n }) => (n > 1 ? `${n}x ${ITEMS[id].name}` : ITEMS[id].name);
+
+// ------------------------------------------------------------ inventory
+
+function pickUp(bag) {
+  for (const { id, n } of bag.items) inventory.add(id, n);
+  level.removeObject(bag);
+  log.push(`Picked up: ${bag.items.map(itemLabel).join(', ')}.`, 'info');
+  log.push(line('pickup'));
+}
+
+// Drops a stack into a bag on the floor: in front of the player if there is
+// room, otherwise on the player's own cell. Items join a bag already there.
+function dropStack(stack) {
+  const f = player.front();
+  const free = (x, y) => level.inside(x, y) && !level.wall(x, y) && !(level.objectAt(x, y) && SPRITES[level.objectAt(x, y).type].solid);
+  const cell = free(f.x, f.y) ? f : { x: player.x, y: player.y };
+  let bag = level.bagAt(cell.x, cell.y);
+  if (!bag) {
+    bag = { type: 'bag', x: cell.x, y: cell.y, flags: {}, items: [] };
+    level.objects.push(bag);
+  }
+  const same = ITEMS[stack.id].stack && bag.items.find((s) => s.id === stack.id);
+  if (same) same.n += stack.n; else bag.items.push({ ...stack });
+  log.push(`Dropped: ${itemLabel(stack)}.`, 'info');
+  log.push(line('drop'));
+}
+
+// SPACE / X inside the inventory screen.
+function inventoryCommand(cmd) {
+  const sel = invScreen.selection();
+  if (!sel.stack) return;
+  const def = ITEMS[sel.stack.id];
+  if (cmd === 'drop') {
+    const stack = sel.where === 'slot' ? inventory.takeEquipped(sel.slot) : inventory.take(sel.index);
+    return dropStack(stack);
+  }
+  if (sel.where === 'slot') {
+    inventory.unequip(sel.slot);
+    log.push(`Unequipped: ${def.name}.`, 'info');
+    return log.push(line('unequip'));
+  }
+  if (def.kind === 'gear') {
+    const r = inventory.equipFromBag(sel.index);
+    log.push(`Equipped: ${def.name}${r.swapped ? ` (instead of ${ITEMS[r.swapped].name})` : ''}.`, 'info');
+    return log.push(line('equip'));
+  }
+  if (def.kind === 'consumable') {
+    inventory.use(sel.index);
+    log.push(`Used: ${def.name}.`, 'info');
+    // TODO(M4): heal by def.heal once the player has hit points.
+    return log.push(line(def.heal ? 'noHealth' : 'use'));
+  }
+  log.push(line('look'));
+}
+
+function onInventoryAction(action) {
+  const dir = { forward: 'up', back: 'down', left: 'left', turnLeft: 'left', right: 'right', turnRight: 'right' }[action];
+  if (dir) return invScreen.move(dir);
+  if (action === 'interact') return inventoryCommand('interact');
+  if (action === 'drop') return inventoryCommand('drop');
+  if (action === 'inventory' || action === 'close') return invScreen.toggle();
 }
 
 // Opens a chest: plays the lid animation and moves the loot straight into
@@ -123,6 +194,7 @@ function openChest(o) {
   const best = Math.max(0, ...loot.items.map(({ id }) => RARITY_ORDER.indexOf(ITEMS[id].rarity)));
   const verdict = ['lootCommon', 'lootGood', 'lootGood', 'lootGreat', 'lootLegendary'][best];
   log.push(line(verdict));
+  if (!state.saidInventoryHint) { state.saidInventoryHint = true; log.push(line('inventoryHint'), 'info'); }
 }
 
 // Cycles AUTO -> 960 -> 640 -> 320 -> AUTO.
@@ -141,6 +213,14 @@ function showNotice() {
 
 function onAction(action) {
   if (action === 'quality') return cycleQuality();
+  if (action === 'inventory' && !invScreen.open) {
+    state.showMap = false;
+    player.queued = null;
+    return invScreen.toggle();
+  }
+  if (invScreen.open) return onInventoryAction(action);
+  if (action === 'close') { state.showMap = false; return; }
+  if (action === 'drop') return;
   if (action === 'map') { state.showMap = !state.showMap; return; }
   if (state.showMap) return;
   if (action === 'interact') return interact();
@@ -148,6 +228,32 @@ function onAction(action) {
 }
 
 bindInput(onAction);
+
+// Mouse and touch on the inventory screen: tap selects, a second tap on the
+// same thing uses it, the buttons do what their keys do, the wheel scrolls.
+function hudPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return {
+    x: Math.floor(((e.clientX - r.left) / r.width) * HUD_W),
+    y: Math.floor(((e.clientY - r.top) / r.height) * (OVERLAY_H + PANEL_H)),
+  };
+}
+canvas.addEventListener('pointerdown', (e) => {
+  if (!invScreen.open) return;
+  e.preventDefault();
+  const p = hudPoint(e);
+  if (p.y >= OVERLAY_H) return;
+  const target = invScreen.hit(p.x, p.y);
+  if (!target) return;
+  if (target.kind === 'button') return onAction(target.id);
+  if (target.kind === 'outside') return;
+  if (invScreen.select(target)) inventoryCommand('interact');
+});
+canvas.addEventListener('wheel', (e) => {
+  if (!invScreen.open) return;
+  e.preventDefault();
+  invScreen.select({ kind: 'scroll', delta: Math.sign(e.deltaY) });
+}, { passive: false });
 log.push(line('welcome'));          // greeting
 log.push(line('welcome'), 'info');  // controls hint
 
@@ -202,7 +308,8 @@ function loop(now) {
   if (next >= 0) { setResolution(next); showNotice(); }
   if (state.notice && now > state.noticeUntil) state.notice = null;
 
-  drawOverlay(overlayFb, { level, player, showMap: state.showMap, notice: state.notice });
+  drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice });
+  invScreen.draw(overlayFb, now);
   drawPanel(panelFb, { log, level, player, status });
   viewFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
   overlayFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
@@ -220,7 +327,7 @@ requestAnimationFrame(loop);
 
 // Debug handle for the browser console and automated tests.
 window.game = {
-  level, player, log, state, onAction, light, stats, inventory,
+  level, player, log, state, onAction, light, stats, inventory, invScreen,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),
 };

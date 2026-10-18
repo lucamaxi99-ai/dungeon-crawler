@@ -4,7 +4,7 @@
 export const LINES = {
   welcome: [
     'Welcome, Crawler, to the first floor of the World Dungeon. Borant Corporation thanks you for your involuntary participation.',
-    'Controls: W/S move, A/D sidestep, Q/E turn, SPACE interact, M map, G broadcast quality.',
+    'Controls: W/S move, A/D sidestep, Q/E turn, SPACE interact, I inventory, M map, G broadcast quality.',
   ],
   bumpWall: [
     'That is a wall. Walls are load-bearing. Please stop licking them.',
@@ -38,6 +38,38 @@ export const LINES = {
   ],
   lootLegendary: [
     'LEGENDARY! The audience gasps. Mostly because they bet against you.',
+  ],
+  equip: [
+    'Equipped. You look marginally less doomed.',
+    'Fashion choice logged. The viewers have opinions.',
+    'Equipped. Our stylists have been notified and are crying.',
+  ],
+  unequip: [
+    'Removed. Back into the void it goes.',
+    'Unequipped. The System will hold it for you. Probably.',
+  ],
+  use: [
+    'Consumed. Your body has been informed.',
+    'Down the hatch. The audience winces on your behalf.',
+  ],
+  // TODO(M4): replace once hit points exist.
+  noHealth: [
+    'Hit points are not installed yet, so you feel exactly as healthy as before. Refreshing, though.',
+  ],
+  look: [
+    'You stare at it. It stares back. Nobody wins.',
+    'Junk. Valuable junk, perhaps, once someone invents a shop.',
+  ],
+  drop: [
+    'Dropped. Littering is a crime on the surface. Down here it is content.',
+    'You leave it in a bag on the floor. A rat is already interested.',
+  ],
+  pickup: [
+    'Picked up. Finders keepers, says the System, which keeps everything.',
+    'Back in your inventory. The rat is devastated.',
+  ],
+  bagHere: [
+    'A bag lies here. SPACE picks it up.',
   ],
   inventoryHint: [
     'Press I to inspect your inventory. The System keeps it somewhere you cannot see. Do not ask where.',

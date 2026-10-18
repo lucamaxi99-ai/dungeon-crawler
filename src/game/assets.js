@@ -4,7 +4,7 @@
 
 import { animation, recolor, rampMap } from '../engine/sprite.js';
 import { FIRE_COLORS, COLD_COLORS } from './materials.js';
-import { paintBrazier, paintWallTorch, paintChest, paintBarrel, paintBones } from './objects.js';
+import { paintBrazier, paintWallTorch, paintChest, paintBarrel, paintBones, paintBag } from './objects.js';
 import { LIGHT_PRESETS } from './lights.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
@@ -32,6 +32,7 @@ export const SPRITES = {
   brazier: { anim: brazier, solid: true, light: LIGHT_PRESETS.brazier },
   coldBrazier: { anim: recolor(brazier, coldMap, 'cold'), solid: true, light: LIGHT_PRESETS.coldBrazier },
   bones: { anim: animation(paintBones()), solid: false },
+  bag: { anim: animation(paintBag()), solid: false },
   torch: { anim: torch, wall: true, light: LIGHT_PRESETS.torch },
   coldTorch: { anim: recolor(torch, coldMap, 'cold'), wall: true, light: LIGHT_PRESETS.coldTorch },
 };

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { ITEMS, RARITY, SLOTS } from '../src/game/items.js';
 import { LOOT_TABLES, rollLoot } from '../src/game/loot.js';
 import { Inventory } from '../src/game/inventory.js';
+import { ICONS, ICON } from '../src/game/icons.js';
 
 // Catalogue sanity: valid rarity, gear fits a slot, text present.
 const slotKinds = new Set(SLOTS.map((s) => s.accepts));
@@ -15,6 +16,9 @@ for (const def of Object.values(ITEMS)) {
     assert.ok(!def.stack, `${def.id}: gear must not stack`);
   }
   assert.ok(def.name && def.desc, `${def.id}: needs a name and a description`);
+  const ic = ICONS[def.id];
+  assert.ok(ic, `${def.id}: no inventory icon`);
+  assert.ok(ic.w === ICON && ic.h === ICON, `${def.id}: icon is ${ic.w}x${ic.h}, expected ${ICON}x${ICON}`);
 }
 // Every slot has at least one item that fits.
 for (const s of SLOTS) assert.ok(Object.values(ITEMS).some((d) => d.slot === s.accepts), `nothing fits slot ${s.id}`);
@@ -67,6 +71,10 @@ assert.equal(inv.use(inv.bag.findIndex((s) => s.id === 'potion')), 'potion');
 assert.equal(inv.count('potion'), 2);
 assert.equal(inv.use(inv.bag.findIndex((s) => s.id === 'shiv')), null, 'gear cannot be used');
 assert.equal(inv.equipFromBag(inv.bag.findIndex((s) => s.id === 'potion')), null, 'potions cannot be equipped');
+
+assert.equal(inv.takeEquipped('ring1').id, 'regretRing');
+assert.equal(inv.equip.ring1, null);
+assert.equal(inv.count('regretRing'), 0, 'taking from a slot does not put it in the bag');
 
 const taken = inv.take(inv.bag.findIndex((s) => s.id === 'potion'));
 assert.deepEqual(taken, { id: 'potion', n: 2 });

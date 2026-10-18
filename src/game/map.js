@@ -154,6 +154,16 @@ export class Level {
   }
 
   objectAt(x, y) {
-    return this.objects.find((o) => o.x === x && o.y === y) || null;
+    return this.objects.find((o) => o.x === x && o.y === y && o.type !== 'bag') || this.bagAt(x, y);
+  }
+
+  // Dropped items lie in bags; at most one bag per cell.
+  bagAt(x, y) {
+    return this.objects.find((o) => o.x === x && o.y === y && o.type === 'bag') || null;
+  }
+
+  removeObject(o) {
+    const i = this.objects.indexOf(o);
+    if (i >= 0) this.objects.splice(i, 1);
   }
 }

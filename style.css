@@ -42,7 +42,7 @@ main {
 
 #pad {
   display: grid;
-  grid-template-columns: repeat(3, 56px) 72px;
+  grid-template-columns: repeat(3, 56px) 72px 72px;
   gap: 6px;
   touch-action: none;
   user-select: none;
