@@ -40,6 +40,7 @@
         <div class="presets">
           <h2>Look</h2>
           <button type="button" data-preset="classic" id="preset-classic">Klassisch (Stand M2)</button>
+          <button type="button" data-preset="mix" id="preset-mix">Mix</button>
           <button type="button" data-preset="modern" id="preset-modern">Neu</button>
         </div>
         <div class="switches">
@@ -62,12 +63,18 @@
               <option value="64">64</option>
             </select>
           </label>
+          <label>Sprites
+            <select id="spr" data-setting="spr">
+              <option value="32">32 px (grob)</option>
+              <option value="64">64 px (fein)</option>
+            </select>
+          </label>
           <label class="check"><input type="checkbox" id="light" data-setting="light"> Farbiges Licht</label>
           <label class="check"><input type="checkbox" id="lantern" data-setting="lantern"> Laterne des Spielers</label>
           <label class="check"><input type="checkbox" id="dither" data-setting="dither"> Dithering</label>
           <label class="check"><input type="checkbox" id="ao" data-setting="ao"> Schatten in Ecken</label>
         </div>
-        <p class="hint">Die Exponate sind immer die neuen Sprites. „Texturen alt“ tauscht nur Wände und Böden.</p>
+        <p class="hint">„Mix“ ist die neue Umgebung mit groben 32er-Sprites. „Texturen alt“ tauscht nur Wände und Böden.</p>
       </section>
     </section>
 

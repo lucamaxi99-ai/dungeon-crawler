@@ -10,6 +10,10 @@ import { Painter } from '../engine/paint.js';
 
 const UNIT = 64;
 const hd = (s) => ({ ...s, unit: UNIT });
+const lo = (s) => ({ ...s, unit: UNIT / 2 });
+
+// Resolution of the painted sprites: 1 = 64 px per wall height, 0.5 = 32 px.
+let S = 1;
 
 // ------------------------------------------------------------ hand drawn
 
@@ -95,6 +99,54 @@ const sword = hd(defineSprite({
   ],
 }));
 
+// The same two items drawn by hand at half resolution (32 px per wall).
+const potionSmall = lo(defineSprite({
+  name: 'potion_small',
+  key: { k: C.BLACK, d: C.WOOD, S: C.STEEL_L, s: C.STEEL, h: C.STEEL_D, W: C.WHITE, f: C.FIRE, r: C.RED, R: C.BLOOD, j: C.BLOOD_D },
+  rows: [
+    '...kkk...',
+    '...kdk...',
+    '...kSk...',
+    '..kShsk..',
+    '.kSWhhsk.',
+    'kSfffffRk',
+    'kSrrrrrRk',
+    'ksrrrrRjk',
+    'kjRrrRRjk',
+    '.kjRRRjk.',
+    '..kkkkk..',
+  ],
+}));
+
+const swordSmall = lo(defineSprite({
+  name: 'sword_small',
+  key: {
+    k: C.BLACK, G: C.YELLOW, g: C.GOLD, a: C.RUST, e: C.LEATHER,
+    2: C.STEEL, 3: C.STEEL_M, 4: C.STEEL_L, W: C.WHITE, t: C.GRAVEL_D, V: C.GRAVEL, Q: C.GRAVEL_M,
+  },
+  rows: [
+    '..kkk..',
+    '..kGk..',
+    '..kek..',
+    '..kek..',
+    'kkkkkkk',
+    'kGgggak',
+    '.k432k.',
+    '.k432k.',
+    '.kW32k.',
+    '.k432k.',
+    '.k432k.',
+    '.k432k.',
+    '.k422k.',
+    '.k432k.',
+    '.k432k.',
+    '.k432k.',
+    '.tk3kt.',
+    'tVVVVVt',
+    'ttVQVtt',
+  ],
+}));
+
 // ------------------------------------------------------------ materials
 
 const M = {
@@ -133,7 +185,7 @@ function frames(n, fn) {
 
 function coinPile() {
   const { list, id } = mats('coin', 'ruby', 'emerald');
-  const p = new Painter(44, 24, { seed: 7 });
+  const p = new Painter(44, 24, { seed: 7, scale: S });
   let s = 11;
   const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   // Mound: coins further down sit further forward; each new coin lies on
@@ -160,7 +212,7 @@ function slime() {
   const { list, id } = mats('slime');
   return frames(4, (f, n) => {
     const t = Math.sin((f / n) * Math.PI * 2);
-    const p = new Painter(44, 36, { seed: 3 });
+    const p = new Painter(44, 36, { seed: 3, scale: S });
     const rx = 18 + t * 1.6, ry = 13 - t * 1.4;
     const cy = 35 - ry;
     p.ellipse(22, cy, rx, ry, id.slime, { depth: 0.9 });
@@ -193,7 +245,7 @@ function slime() {
 function rat() {
   const { list, id } = mats('fur', 'pink');
   return frames(2, (f) => {
-    const p = new Painter(48, 28, { seed: 5 });
+    const p = new Painter(48, 28, { seed: 5, scale: S });
     const sway = f ? 2 : -1;
     // Tail: chain of tapering capsules curving away behind.
     let px = 35, py = 18;
@@ -227,7 +279,7 @@ function rat() {
 function spider() {
   const { list, id } = mats('chitin', 'cloth');
   return frames(2, (f) => {
-    const p = new Painter(60, 34, { seed: 9 });
+    const p = new Painter(60, 34, { seed: 9, scale: S });
     const cx = 30;
     // Legs: four per side, knee up, foot down. Back legs first (further away).
     for (let i = 3; i >= 0; i--) {
@@ -261,7 +313,7 @@ function spider() {
 function skeleton() {
   const { list, id } = mats('bone', 'rust', 'wood', 'iron');
   return frames(2, (f) => {
-    const p = new Painter(48, 62, { seed: 13 });
+    const p = new Painter(48, 62, { seed: 13, scale: S });
     const cx = 22;
     const tilt = f ? 0.8 : 0;
     // Legs
@@ -320,7 +372,7 @@ function skeleton() {
 function goblin() {
   const { list, id } = mats('gob', 'leather', 'cloth', 'steel', 'wood');
   return frames(3, (f) => {
-    const p = new Painter(48, 56, { seed: 17 });
+    const p = new Painter(48, 56, { seed: 17, scale: S });
     const cx = 24, breathe = [0, 0.7, 0.3][f], stab = [0, -1, -2.5][f];
     // Legs and big feet.
     for (const s of [-1, 1]) {
@@ -391,7 +443,7 @@ const TIERS = [
 function lootBox(tier, f) {
   const body = { ramp: tier.body, outline: C.BLACK, rough: 0.1 };
   const trim = { ramp: tier.trim, spec: C.WHITE, shine: 0.7, outline: C.BLACK };
-  const p = new Painter(34, 32, { seed: 21 });
+  const p = new Painter(34, 32, { seed: 21, scale: S });
   // Cube in three-quarter view: front, top and right faces with fixed normals.
   const F = [[3, 12], [23, 12], [23, 31], [3, 31]];
   const T = [[3, 12], [10, 4], [31, 4], [23, 12]];
@@ -438,7 +490,7 @@ const fireMats = () => FIRE_COLORS.map((c) => ({ ramp: [c], flat: true, glow: tr
 
 function brazier() {
   return frames(4, (f) => {
-    const p = new Painter(40, 50, { seed: 23 });
+    const p = new Painter(40, 50, { seed: 23, scale: S });
     const base = { iron: 0, coal: 1 };
     // Tripod legs
     p.capsule(12, 30, 1.6, 6, 49, 1.3, base.iron, { z0: 2 });
@@ -460,7 +512,7 @@ function brazier() {
 
 function wallTorch() {
   return frames(4, (f) => {
-    const p = new Painter(16, 30, { seed: 29 });
+    const p = new Painter(16, 30, { seed: 29, scale: S });
     p.capsule(8, 29, 1.6, 8, 15, 2, 0, { z0: 3 });            // handle
     p.capsule(4, 22, 1, 12, 22, 1, 1, { z0: 6 });              // bracket
     p.ellipse(8, 14, 3.4, 1.8, 1, { z: 6 });
@@ -478,7 +530,7 @@ function portrait() {
   const hair = { ramp: [C.PLUM_D, C.PLUM, C.VIOLET, C.VIOLET_M], spec: C.LILAC, shine: 0.5, outline: C.BLACK };
   const suit = { ramp: [C.BLACK, C.NIGHT, C.SHADOW, C.DUSK], outline: C.BLACK };
   const shirt = { ramp: [C.GRAVEL_L, C.PARCHMENT, C.BONE, C.WHITE], outline: C.GRAVEL };
-  const p = new Painter(40, 50, { seed: 31 });
+  const p = new Painter(40, 50, { seed: 31, scale: S });
   // Shoulders and suit
   p.ellipse(20, 51, 20, 11, 2, { z: 0, depth: 0.5 });
   p.poly([[16, 40], [24, 40], [20, 49]], 3, { z: 8, normal: [0, -0.2, 1] });
@@ -521,14 +573,16 @@ function portrait() {
 
 // ------------------------------------------------------------ registry
 
-export function buildSprites() {
+export function buildSprites(scale = 1) {
+  S = scale;
+  const small = scale < 1;
   const brazierFrames = brazier();
   const fire = animation(brazierFrames, { frameMs: 110 });
   const coldMap = rampMap(FIRE_COLORS, [C.NAVY, C.BLUE_D, C.BLUE, C.SKY, C.ICE]);
   const goblinAnim = animation(goblin(), { frameMs: 380, mode: 'pingpong' });
   return {
-    potion: animation(potion),
-    sword: animation(sword),
+    potion: animation(small ? potionSmall : potion),
+    sword: animation(small ? swordSmall : sword),
     coins: animation(coinPile()),
     slime: animation(slime(), { frameMs: 160 }),
     rat: animation(rat(), { frameMs: 260 }),

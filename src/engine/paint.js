@@ -23,8 +23,13 @@ function hash(x, y, seed) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+// scale: paint the same figure at a different resolution. All coordinates,
+// radii and depths passed in stay in the original units; 0.5 gives a sprite
+// with half the pixels in each direction (a chunkier, older look).
 export class Painter {
-  constructor(w, h, { seed = 1 } = {}) {
+  constructor(w, h, { seed = 1, scale = 1 } = {}) {
+    this.s = scale;
+    w = Math.ceil(w * scale); h = Math.ceil(h * scale);
     this.w = w; this.h = h; this.seed = seed;
     const n = w * h;
     this.z = new Float32Array(n).fill(-Infinity);
@@ -35,7 +40,8 @@ export class Painter {
     this.over = new Int16Array(n).fill(-1);  // color decals applied after shading
   }
 
-  write(x, y, z, nx, ny, nz, mat) {
+  // Raw pixel write (pixel coordinates, scaled depth).
+  put(x, y, z, nx, ny, nz, mat) {
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
     const i = y * this.w + x;
     if (z <= this.z[i]) return;
@@ -43,9 +49,18 @@ export class Painter {
     this.over[i] = -1;
   }
 
+  // Pixel write in original units (used for hand-made effects like flames).
+  write(x, y, z, nx, ny, nz, mat) {
+    const s = this.s;
+    this.put(Math.floor(x * s), Math.floor(y * s), z * s, nx, ny, nz, mat);
+  }
+
   // Ellipsoid seen from the front. depth scales how far it bulges toward
   // the viewer (relative to its radii); z is its base distance.
   ellipse(cx, cy, rx, ry, mat, { z = 0, depth = 1 } = {}) {
+    const k = this.s;
+    cx *= k; cy *= k; z *= k;
+    rx = Math.max(rx * k, 0.55); ry = Math.max(ry * k, 0.55);
     const rz = Math.min(rx, ry) * depth;
     for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
       for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
@@ -54,7 +69,7 @@ export class Painter {
         if (d2 > 1) continue;
         const dz = Math.sqrt(1 - d2);
         const [nx, ny, nz] = norm3([dx / rx, dy / ry, dz / Math.max(rz, 0.01)]);
-        this.write(x, y, z + dz * rz, nx, ny, nz, mat);
+        this.put(x, y, z + dz * rz, nx, ny, nz, mat);
       }
     }
     return this;
@@ -63,6 +78,9 @@ export class Painter {
   // Tapered capsule from (x0, y0) radius r0 to (x1, y1) radius r1: limbs,
   // tails, bones. z0/z1 interpolate along the length.
   capsule(x0, y0, r0, x1, y1, r1, mat, { z0 = 0, z1 = z0, depth = 1 } = {}) {
+    const k = this.s;
+    x0 *= k; y0 *= k; x1 *= k; y1 *= k; z0 *= k; z1 *= k;
+    r0 = Math.max(r0 * k, 0.55); r1 = Math.max(r1 * k, 0.55);
     const minX = Math.floor(Math.min(x0 - r0, x1 - r1)), maxX = Math.ceil(Math.max(x0 + r0, x1 + r1));
     const minY = Math.floor(Math.min(y0 - r0, y1 - r1)), maxY = Math.ceil(Math.max(y0 + r0, y1 + r1));
     const vx = x1 - x0, vy = y1 - y0, len2 = vx * vx + vy * vy || 1e-6;
@@ -77,7 +95,7 @@ export class Painter {
         if (d > r) continue;
         const dz = Math.sqrt(1 - (d / r) ** 2);
         const [nx, ny, nz] = norm3([ox / r, oy / r, dz / depth]);
-        this.write(x, y, z0 + (z1 - z0) * t + dz * r * depth, nx, ny, nz, mat);
+        this.put(x, y, z0 + (z1 - z0) * t + dz * r * depth, nx, ny, nz, mat);
       }
     }
     return this;
@@ -85,6 +103,9 @@ export class Painter {
 
   // Filled polygon with a fixed normal (flat faces: blades, box sides, cloth).
   poly(points, mat, { z = 0, normal = [0, 0, 1], zFn = null } = {}) {
+    const k = this.s;
+    points = points.map(([x, y]) => [x * k, y * k]);
+    z *= k;
     const n = norm3(normal);
     const ys = points.map((p) => p[1]);
     const y0 = Math.floor(Math.min(...ys)), y1 = Math.ceil(Math.max(...ys));
@@ -98,7 +119,7 @@ export class Painter {
       xs.sort((a, b) => a - b);
       for (let k = 0; k + 1 < xs.length; k += 2) {
         for (let x = Math.ceil(xs[k] - 0.5); x < Math.ceil(xs[k + 1] - 0.5); x++) {
-          this.write(x, y, zFn ? zFn(x, y) : z, n[0], n[1], n[2], mat);
+          this.put(x, y, zFn ? zFn(x / k, y / k) * k : z, n[0], n[1], n[2], mat);
         }
       }
     }
@@ -107,11 +128,13 @@ export class Painter {
 
   // 1 px line (whiskers, strings, cracks).
   line(x0, y0, x1, y1, mat, { z = 0, normal = [0, 0, 1] } = {}) {
+    const k = this.s;
+    x0 *= k; y0 *= k; x1 *= k; y1 *= k; z *= k;
     const n = norm3(normal);
     const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
     for (let s = 0; s <= steps; s++) {
       const t = s / steps;
-      this.write(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), z, n[0], n[1], n[2], mat);
+      this.put(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), z, n[0], n[1], n[2], mat);
     }
     return this;
   }
@@ -119,7 +142,7 @@ export class Painter {
   // Paints a fixed palette color on top of whatever surface is there
   // (eyes, patterns, text). Only where something has been drawn.
   dot(x, y, color) {
-    x = Math.round(x); y = Math.round(y);
+    x = Math.floor((Math.round(x) + 0.5) * this.s); y = Math.floor((Math.round(y) + 0.5) * this.s);
     if (x < 0 || y < 0 || x >= this.w || y >= this.h) return this;
     const i = y * this.w + x;
     if (this.mat[i] >= 0) this.over[i] = color;
@@ -128,10 +151,14 @@ export class Painter {
 
   // Decal by function over a rectangle: fn(x, y) -> color or -1.
   decal(x0, y0, x1, y1, fn) {
-    for (let y = Math.floor(y0); y <= y1; y++) {
-      for (let x = Math.floor(x0); x <= x1; x++) {
-        const c = fn(x, y);
-        if (c >= 0) this.dot(x, y, c);
+    const k = this.s;
+    for (let y = Math.floor(y0 * k); y <= y1 * k; y++) {
+      for (let x = Math.floor(x0 * k); x <= x1 * k; x++) {
+        // fn sees original coordinates (pixel centre mapped back).
+        const c = fn((x + 0.5) / k - 0.5, (y + 0.5) / k - 0.5);
+        if (c < 0 || x < 0 || y < 0 || x >= this.w || y >= this.h) continue;
+        const i = y * this.w + x;
+        if (this.mat[i] >= 0) this.over[i] = c;
       }
     }
     return this;
@@ -141,7 +168,7 @@ export class Painter {
   erase(fn) {
     for (let y = 0; y < this.h; y++) {
       for (let x = 0; x < this.w; x++) {
-        if (fn(x, y)) { const i = y * this.w + x; this.mat[i] = -1; this.z[i] = -Infinity; this.over[i] = -1; }
+        if (fn((x + 0.5) / this.s - 0.5, (y + 0.5) / this.s - 0.5)) { const i = y * this.w + x; this.mat[i] = -1; this.z[i] = -Infinity; this.over[i] = -1; }
       }
     }
     return this;
@@ -153,7 +180,7 @@ export class Painter {
   //   rough?: noise amount, outline?: palette index for the selective outline
   //   glow?: true (ignores lighting in the game), flat?: true (no shading)
   // }
-  shade(materials, { name = 'painted', unit = 64, light = LIGHT, ambient = 0.28, dither = 0.55, outline = true, glowColors = [] } = {}) {
+  shade(materials, { name = 'painted', unit = Math.round(64 * this.s), light = LIGHT, ambient = 0.28, dither = 0.55, outline = true, glowColors = [] } = {}) {
     const { w, h } = this;
     const L = norm3(light);
     const H = norm3([L[0], L[1], L[2] + 1]);
@@ -182,7 +209,7 @@ export class Painter {
           for (const [dx, dy] of [[-2, -2], [0, -2], [2, -2], [-2, 0], [2, 0], [0, 2], [-1, -3], [1, -3]]) {
             const xx = x + dx, yy = y + dy;
             if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-            if (this.z[yy * w + xx] > this.z[i] + 2.5) occl++;
+            if (this.z[yy * w + xx] > this.z[i] + 2.5 * this.s) occl++;
           }
           v *= 1 - Math.min(0.45, occl * 0.12);
           if (M.rough) v += (hash(x, y, this.seed + m) - 0.5) * M.rough;
@@ -214,7 +241,7 @@ export class Painter {
             const j = yy * w + xx;
             // Outer outline, or an inner edge where a part in front covers us.
             if (this.mat[j] < 0) { edge = true; break; }
-            if (this.mat[j] !== m && this.z[j] > this.z[i] + 1.5) { edge = true; break; }
+            if (this.mat[j] !== m && this.z[j] > this.z[i] + 1.5 * this.s) { edge = true; break; }
           }
           if (edge) out[i] = oc;
         }

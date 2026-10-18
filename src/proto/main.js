@@ -22,8 +22,8 @@ PALETTE_HEX.forEach((hex, i) => document.documentElement.style.setProperty(`--c$
 
 // ------------------------------------------------------------ assets
 
-const sprites = buildSprites();
-const hdTex = buildHdTextures(sprites.portrait);
+const spriteSets = { 64: buildSprites(1), 32: buildSprites(0.5) };
+const hdTex = buildHdTextures(spriteSets[64].portrait);
 const classic = buildClassicTextures();
 const level = buildLevel();
 const map = level.map;
@@ -45,24 +45,27 @@ const light = new LightMap(map.w, map.h, isWall, TINTS.length);
 for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a.h - 1, a.ambient, a.tint);
 for (const l of level.lights) light.addLight(l);
 
-// Objects in the world.
+// Objects in the world. The animation is looked up in the current sprite
+// set each frame, so the 32/64 px switch applies instantly.
 const objects = [];
-for (const d of level.decor) objects.push({ ...d, anim: sprites[d.anim || d.type], phase: Math.floor(d.x * 3 + d.y) });
+for (const d of level.decor) objects.push({ ...d, key: d.anim || d.type, phase: Math.floor(d.x * 3 + d.y) });
 for (const [id, spot] of Object.entries(EXHIBIT_SPOTS)) {
   if (spot.decor || spot.wall) continue;
   if (id === 'lootboxes') {
-    sprites.lootboxes.forEach((anim, i) => objects.push({ type: id, x: spot.x + i + 0.5, y: spot.y + 0.5, anim, phase: i, solid: true }));
+    spriteSets[64].lootboxes.forEach((_, i) => objects.push({ type: id, key: id, index: i, x: spot.x + i + 0.5, y: spot.y + 0.5, phase: i, solid: true }));
     continue;
   }
-  objects.push({ type: id, x: spot.x + 0.5, y: spot.y + 0.5, anim: sprites[id], phase: spot.x, solid: true });
+  objects.push({ type: id, key: id, x: spot.x + 0.5, y: spot.y + 0.5, phase: spot.x, solid: true });
 }
+const animOf = (o, set) => (o.index !== undefined ? set[o.key][o.index] : set[o.key]);
 const solid = new Set(objects.filter((o) => o.solid).map((o) => `${Math.floor(o.x)},${Math.floor(o.y)}`));
 
 // ------------------------------------------------------------ settings
 
 const PRESETS = {
-  classic: { res: 320, tex: 32, colors: 32, light: false, lantern: false, dither: false, ao: false },
-  modern: { res: 640, tex: 64, colors: 64, light: true, lantern: true, dither: true, ao: true },
+  classic: { res: 320, tex: 32, colors: 32, light: false, lantern: false, dither: false, ao: false, spr: 32 },
+  mix: { res: 640, tex: 64, colors: 64, light: true, lantern: true, dither: true, ao: true, spr: 32 },
+  modern: { res: 640, tex: 64, colors: 64, light: true, lantern: true, dither: true, ao: true, spr: 64 },
 };
 const settings = { ...PRESETS.modern };
 
@@ -113,10 +116,11 @@ for (const el of document.querySelectorAll('[data-setting]')) {
     const k = el.dataset.setting;
     settings[k] = el.type === 'checkbox' ? el.checked : Number(el.value);
     rebuild();
+    updateExhibitCard(true);
   });
 }
 for (const b of document.querySelectorAll('[data-preset]')) {
-  b.addEventListener('click', () => { Object.assign(settings, PRESETS[b.dataset.preset]); rebuild(); });
+  b.addEventListener('click', () => { Object.assign(settings, PRESETS[b.dataset.preset]); rebuild(); updateExhibitCard(true); });
 }
 
 // ------------------------------------------------------------ player
@@ -166,9 +170,9 @@ function exhibitHere() {
   }) || null;
 }
 
-function updateExhibitCard() {
+function updateExhibitCard(force = false) {
   const e = exhibitHere();
-  if (e === current) return;
+  if (e === current && !force) return;
   current = e;
   for (const b of document.querySelectorAll('[data-exhibit]')) b.classList.toggle('here', b.dataset.exhibit === e?.id);
   const card = $('card');
@@ -182,7 +186,8 @@ function updateExhibitCard() {
   }
   card.dataset.empty = 'false';
   $('card-name').textContent = e.name;
-  $('card-meta').textContent = `${e.technique} · ${e.size} · ${e.frames} ${e.frames === 1 ? 'Bild' : 'Bilder'}`;
+  const img = zoomSprites(e.id, 0)[0];
+  $('card-meta').textContent = `${e.technique} · ${img.w} × ${img.h} px · ${e.frames} ${e.frames === 1 ? 'Bild' : 'Bilder'}`;
   $('card-note').textContent = e.note;
   $('card-rating').hidden = false;
   $('card-rating').dataset.rating = e.rating;
@@ -197,6 +202,7 @@ const zbctx = zoomBuf.getContext('2d');
 
 function zoomSprites(id, t) {
   if (!id) return [];
+  const sprites = spriteSets[settings.spr];
   if (id === 'lootboxes') return sprites.lootboxes.map((a, i) => frameAt(a, t, i));
   if (id === 'goblin') return [frameAt(sprites.goblin, t), frameAt(sprites.goblinShaman, t, 1)];
   if (id === 'brazier') return [frameAt(sprites.brazier, t), frameAt(sprites.coldBrazier, t, 2)];
@@ -226,7 +232,9 @@ function drawZoom(t) {
     ox += img.w + gap;
   }
   zbctx.putImageData(id, 0, 0);
-  const scale = Math.max(1, Math.min(6, Math.floor(Math.min(360 / w, 200 / h))));
+  // Same world size for both sprite sets: 32 px sprites get twice the zoom.
+  const base = Math.max(1, Math.min(6, Math.floor(Math.min(360 / (w * (64 / (imgs[0].unit || 64))), 200 / (h * (64 / (imgs[0].unit || 64)))))));
+  const scale = base * (64 / (imgs[0].unit || 64));
   if (zoomCanvas.width !== w * scale || zoomCanvas.height !== h * scale) {
     zoomCanvas.width = w * scale; zoomCanvas.height = h * scale;
   }
@@ -254,7 +262,8 @@ function loop(now) {
   if (settings.light) light.update(now, dyn);
 
   const set = settings.tex === 64 ? hdSet : classicSet;
-  const list = objects.map((o) => ({ x: o.x, y: o.y, lift: o.lift || 0, img: frameAt(o.anim, now, o.phase) }));
+  const sprSet = spriteSets[settings.spr];
+  const list = objects.map((o) => ({ x: o.x, y: o.y, lift: o.lift || 0, img: frameAt(animOf(o, sprSet), now, o.phase) }));
   caster.render(fb, { map: set.map, walls: set.walls, flats: set.flats, sprites: list, light }, cam, now);
   fb.present(ctx);
   renderMs += performance.now() - t0;
