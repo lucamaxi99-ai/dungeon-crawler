@@ -16,6 +16,18 @@ ASCII-defined sprites rendered by a small raycaster into an indexed framebuffer.
   (ES modules need a web server; double-clicking `index.html` will not work).
 - **Single file**: `npm install && npm run build` → `dist/dungeon-crawler.html`.
 
+### Sprite editor (Borant Sprite Forge)
+
+Open `editor.html` (same server as the game, or `dist/sprite-forge.html` after a
+build). Draw with the game palette, mirror, animate frames, build recolor
+variants and see the sprite in a dungeon room at three distances. **Copy code**
+gives you a `defineSprite` / `defineFrames` block for `src/game/assets.js`;
+**Import** reads such code (or plain ASCII rows) back in.
+
+Shortcuts: B pencil, E eraser, G fill, L line, R box, I pick, M mirror drawing,
+H / V flip, arrows move pixels, [ ] switch frames, Ctrl+Z / Ctrl+Y undo/redo,
+right click erases.
+
 ### Controls
 
 | Key | Action |
@@ -38,7 +50,8 @@ src/engine/               generic, game-independent
   framebuffer.js          indexed 320x200 buffer, present to canvas
   raycaster.js            walls, floor/ceiling, billboard sprites, fog of war
   font.js                 3x5 pixel font
-  sprite.js               ASCII sprite definitions, recolor, mirror
+  sprite.js               ASCII sprites, frames, animation, recolor/mirror/flip,
+                          ASCII export (spriteToAscii)
   texgen.js               seeded procedural textures (bricks, rock, planks, overlays)
 src/game/                 this game's content and rules
   assets.js               all textures and sprites
@@ -47,8 +60,12 @@ src/game/                 this game's content and rules
   hud.js                  message log, minimap, map overlay
   input.js                keyboard and touch
   system-ai.js            the System AI's lines
-tools/build.mjs           bundle into one HTML file
+editor.html, editor.css   sprite editor page
+src/editor/               the sprite editor (doc model, code export/import,
+                          raycaster preview, UI)
+tools/build.mjs           bundle game and editor into single HTML files
 tools/check-map.mjs       map validation (reachability)
+tools/test-sprites.mjs    sprite engine and editor round-trip tests
 ```
 
 The design document (GDD) lives in the Claude project and is the source of truth

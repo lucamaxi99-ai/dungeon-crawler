@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Borant Sprite Forge</title>
+  <meta name="claude:viewport-fit-sides" content="cover">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">
+      <h1>Borant Sprite Forge</h1>
+      <p>Asset department, floor 1. Every pixel is a palette index.</p>
+    </div>
+    <div class="bar-actions">
+      <button type="button" data-act="undo" id="undo" title="Undo (Ctrl+Z)">Undo</button>
+      <button type="button" data-act="redo" id="redo" title="Redo (Ctrl+Y)">Redo</button>
+      <button type="button" data-act="new" id="new">New</button>
+      <label class="select">
+        <span class="sr">Load a sprite from the game</span>
+        <select id="load-game">
+          <option value="">Load from game…</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="forge">
+    <section class="panel tools" aria-label="Tools">
+      <h2>Tools</h2>
+      <div class="toolgrid">
+        <button type="button" data-tool="pencil" id="t-pencil"><b>B</b> Pencil</button>
+        <button type="button" data-tool="eraser" id="t-eraser"><b>E</b> Eraser</button>
+        <button type="button" data-tool="fill" id="t-fill"><b>G</b> Fill</button>
+        <button type="button" data-tool="line" id="t-line"><b>L</b> Line</button>
+        <button type="button" data-tool="rect" id="t-rect"><b>R</b> Box</button>
+        <button type="button" data-tool="picker" id="t-picker"><b>I</b> Pick</button>
+      </div>
+
+      <h2>Symmetry</h2>
+      <label class="check"><input type="checkbox" id="sym-x"> Draw mirrored left/right <kbd>M</kbd></label>
+      <label class="check"><input type="checkbox" id="sym-y"> Draw mirrored top/bottom</label>
+
+      <h2>Transform</h2>
+      <div class="btnrow">
+        <button type="button" data-act="flipH" id="flip-h" title="H">Flip ↔</button>
+        <button type="button" data-act="flipV" id="flip-v" title="V">Flip ↕</button>
+        <button type="button" data-act="mirrorLeft" id="mirror-left">Left → right</button>
+      </div>
+      <div class="nudge" aria-label="Move pixels">
+        <button type="button" data-act="shiftU" id="shift-u" aria-label="Move up">↑</button>
+        <button type="button" data-act="shiftL" id="shift-l" aria-label="Move left">←</button>
+        <button type="button" data-act="shiftD" id="shift-d" aria-label="Move down">↓</button>
+        <button type="button" data-act="shiftR" id="shift-r" aria-label="Move right">→</button>
+      </div>
+      <label class="check"><input type="checkbox" id="all-frames"> Apply to all frames</label>
+
+      <h2>Canvas</h2>
+      <div class="size">
+        <label>W <input type="number" id="size-w" min="1" max="64" inputmode="numeric"></label>
+        <label>H <input type="number" id="size-h" min="1" max="64" inputmode="numeric"></label>
+        <button type="button" data-act="resize" id="resize">Resize</button>
+      </div>
+      <p class="hint">32 px = one wall high. Resizing keeps the sprite standing on the floor.</p>
+      <label class="check"><input type="checkbox" id="grid" checked> Grid</label>
+      <label class="check"><input type="checkbox" id="onion"> Onion skin (previous frame)</label>
+    </section>
+
+    <section class="stage" aria-label="Canvas">
+      <div class="stage-wrap" id="stage-wrap">
+        <canvas id="canvas" aria-label="Sprite canvas. Left click draws, right click erases."></canvas>
+      </div>
+      <div class="statusline">
+        <span id="coords">Hover the canvas</span>
+        <span id="status" role="status"></span>
+      </div>
+
+      <div class="panel frames-panel">
+        <div class="frames-head">
+          <h2>Frames <span id="frame-count" class="count"></span></h2>
+          <div class="btnrow">
+            <button type="button" data-act="addFrame" id="frame-add">Add</button>
+            <button type="button" data-act="dupFrame" id="frame-dup">Duplicate</button>
+            <button type="button" data-act="delFrame" id="frame-del">Delete</button>
+            <button type="button" data-act="frameLeft" id="frame-left" aria-label="Move frame left">◀</button>
+            <button type="button" data-act="frameRight" id="frame-right" aria-label="Move frame right">▶</button>
+          </div>
+        </div>
+        <div class="frames" id="frames"></div>
+        <div class="anim">
+          <label>Frame time <input type="number" id="frame-ms" min="20" max="2000" step="10" inputmode="numeric"> ms</label>
+          <label>Mode
+            <select id="frame-mode">
+              <option value="loop">loop</option>
+              <option value="pingpong">pingpong</option>
+              <option value="once">once</option>
+            </select>
+          </label>
+          <span class="hint">Switch frames with <kbd>[</kbd> <kbd>]</kbd></span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel" aria-label="Palette">
+        <h2>Palette</h2>
+        <div class="current">
+          <span class="swatch big" id="cur-swatch"></span>
+          <div>
+            <strong id="cur-name"></strong>
+            <span id="cur-meta" class="meta"></span>
+          </div>
+        </div>
+        <div class="palette" id="palette"></div>
+        <label class="check"><input type="checkbox" id="glow"> Glow: this color ignores distance shading</label>
+        <p class="hint">Dot = used in the sprite. Star = glows.</p>
+      </section>
+
+      <section class="panel" aria-label="Dungeon preview">
+        <h2>In the dungeon</h2>
+        <canvas id="preview" class="preview" aria-label="Sprite rendered in a dungeon room at three distances"></canvas>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="play" checked> Animate</label>
+          <label class="check"><input type="checkbox" id="show-variant"> Show variant</label>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Recolor variant">
+        <h2>Recolor variant</h2>
+        <div id="swaps" class="swaps"></div>
+        <div class="btnrow">
+          <button type="button" data-act="addSwap" id="add-swap">Add swap for current color</button>
+          <button type="button" data-act="bake" id="bake">Apply to sprite</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <section class="io">
+    <div class="panel">
+      <div class="io-head">
+        <h2>Export</h2>
+        <label>Name <input type="text" id="name" spellcheck="false" autocomplete="off"></label>
+        <button type="button" data-act="copy" id="copy" class="primary">Copy code</button>
+      </div>
+      <textarea id="code" readonly spellcheck="false" aria-label="Generated sprite code"></textarea>
+      <p class="hint">Paste into <code>src/game/assets.js</code> and register it in <code>SPRITES</code>. Single frames export as <code>defineSprite</code>, several as <code>defineFrames</code> plus <code>animation</code>.</p>
+    </div>
+    <div class="panel">
+      <div class="io-head">
+        <h2>Import</h2>
+        <button type="button" data-act="import" id="import">Import</button>
+      </div>
+      <textarea id="import-text" spellcheck="false" aria-label="Sprite code to import" placeholder="Paste defineSprite / defineFrames code, or plain ASCII rows using the default key (k = BLACK, f = FIRE, …)."></textarea>
+      <p class="error" id="import-error" role="alert"></p>
+    </div>
+  </section>
+
+  <script type="module" src="src/editor/main.js"></script>
+</body>
+</html>

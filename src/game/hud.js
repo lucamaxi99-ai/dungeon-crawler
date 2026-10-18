@@ -53,6 +53,7 @@ function cellColor(level, x, y) {
   const o = level.objectAt(x, y);
   if (o && o.type === 'chest') return C.GOLD;
   if (o && o.type === 'brazier') return C.RED;
+  if (o && o.type === 'coldBrazier') return C.SKY;
   return C.DUSK;
 }
 

@@ -8,6 +8,7 @@ import { Player } from './game/player.js';
 import { MessageLog, drawHud, SCREEN_W, SCREEN_H, VIEW_H } from './game/hud.js';
 import { bindInput } from './game/input.js';
 import { line } from './game/system-ai.js';
+import { frameAt } from './engine/sprite.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -73,9 +74,8 @@ log.push(line('welcome'), 'info');  // controls hint
 
 function spriteList(time) {
   return level.objects.map((o) => {
-    const def = SPRITES[o.type];
-    const frame = def.frameMs ? Math.floor(time / def.frameMs + o.x * 3 + o.y) % def.frames.length : 0;
-    return { x: o.x + 0.5, y: o.y + 0.5, img: def.frames[frame] };
+    const img = frameAt(SPRITES[o.type].anim, time, o.x * 3 + o.y);
+    return { x: o.x + 0.5, y: o.y + 0.5, img };
   });
 }
 

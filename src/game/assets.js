@@ -2,7 +2,7 @@
 // Wall textures are referenced by index from the map (1..n).
 
 import { C } from '../engine/palette.js';
-import { defineSprite } from '../engine/sprite.js';
+import { defineSprite, defineFrames, animation, recolor, rampMap } from '../engine/sprite.js';
 import { bricks, rock, overlay, planks, px, get } from '../engine/texgen.js';
 import { drawText } from '../engine/font.js';
 
@@ -157,43 +157,45 @@ const BRAZIER_BASE = [
   '.kkkkkkkkkk.',
 ];
 
-const brazierA = defineSprite({
-  name: 'brazier_a',
+const brazierFrames = defineFrames({
+  name: 'brazier',
   key: FIRE_KEY,
   glow: 'rfgy',
-  rows: [
-    '.....y......',
-    '.....yy.....',
-    '....ygy.....',
-    '...yggy..y..',
-    '...gffgy.yg.',
-    '..yfffggygf.',
-    '..gfrrfgffg.',
-    '.gfrrrffrrfg',
-    '.frrrrrrrrrf',
-    '..rrrrrrrr..',
-    ...BRAZIER_BASE,
+  frames: [
+    [
+      '.....y......',
+      '.....yy.....',
+      '....ygy.....',
+      '...yggy..y..',
+      '...gffgy.yg.',
+      '..yfffggygf.',
+      '..gfrrfgffg.',
+      '.gfrrrffrrfg',
+      '.frrrrrrrrrf',
+      '..rrrrrrrr..',
+      ...BRAZIER_BASE,
+    ],
+    [
+      '......y.....',
+      '......yy....',
+      '.y...ygy....',
+      '.yg..yggy...',
+      '..gy.gffgy..',
+      '..gfygfffgy.',
+      '..gffrrfgfg.',
+      '.gfrrrfrrrfg',
+      '.frrrrrrrrrf',
+      '..rrrrrrrr..',
+      ...BRAZIER_BASE,
+    ],
   ],
 });
+const brazier = animation(brazierFrames, { frameMs: 140 });
 
-const brazierB = defineSprite({
-  name: 'brazier_b',
-  key: FIRE_KEY,
-  glow: 'rfgy',
-  rows: [
-    '......y.....',
-    '......yy....',
-    '.y...ygy....',
-    '.yg..yggy...',
-    '..gy.gffgy..',
-    '..gfygfffgy.',
-    '..gffrrfgfg.',
-    '.gfrrrfrrrfg',
-    '.frrrrrrrrrf',
-    '..rrrrrrrr..',
-    ...BRAZIER_BASE,
-  ],
-});
+// Recolor variant: same brazier, cold blue "sponsored" flame.
+const FIRE_RAMP = [C.RED, C.FIRE, C.GOLD, C.YELLOW];
+const COLD_RAMP = [C.BLUE_D, C.BLUE, C.SKY, C.ICE];
+const coldBrazier = recolor(brazier, rampMap(FIRE_RAMP, COLD_RAMP), 'cold');
 
 const bones = defineSprite({
   name: 'bones',
@@ -209,9 +211,11 @@ const bones = defineSprite({
   ],
 });
 
+// Every object type has an animation (single-frame ones just never change).
 export const SPRITES = {
-  chest: { frames: [chest], solid: true },
-  barrel: { frames: [barrel], solid: true },
-  brazier: { frames: [brazierA, brazierB], solid: true, frameMs: 140 },
-  bones: { frames: [bones], solid: false },
+  chest: { anim: animation(chest), solid: true },
+  barrel: { anim: animation(barrel), solid: true },
+  brazier: { anim: brazier, solid: true },
+  coldBrazier: { anim: coldBrazier, solid: true },
+  bones: { anim: animation(bones), solid: false },
 };

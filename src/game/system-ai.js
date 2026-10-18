@@ -26,6 +26,10 @@ export const LINES = {
   brazier: [
     'A brazier. It is hot. This information is complimentary.',
   ],
+  coldBrazier: [
+    'A brazier burning blue. The flame is sponsored. The warmth was cut from the budget.',
+    'Cold fire. Borant calls it "atmospheric". Accounting calls it "cheaper".',
+  ],
   bones: [
     'The remains of a previous Crawler. Viewer rating: two stars. Would not watch again.',
     'You step on someone who did not read the tutorial.',

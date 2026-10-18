@@ -3,12 +3,12 @@
 // Legend:
 //   r rough rock   # stone bricks   m mossy bricks   S stairwell   P Borant poster
 //   . floor        @ player start
-//   C chest        b barrel         f brazier        x bones
+//   C chest        b barrel         f brazier        F cold brazier   x bones
 
 import { WALL } from './assets.js';
 
 const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER };
-const OBJECT_CHARS = { C: 'chest', b: 'barrel', f: 'brazier', x: 'bones' };
+const OBJECT_CHARS = { C: 'chest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
 
 export const TEST_FLOOR = {
   name: 'Floor 1',
@@ -33,7 +33,7 @@ export const TEST_FLOOR = {
     'rmmmmmmmmmmmm.mmmmmmmrrr',
     'rrrrrrrrrrrr#.#####rrrrr',
     'rrrrrrrrrrrr#.....#rrrrr',
-    'rrrrrrrrrrrr#f.x.f#rrrrr',
+    'rrrrrrrrrrrr#F.x.F#rrrrr',
     'rrrrrrrrrrrr###S###rrrrr',
     'rrrrrrrrrrrrrrrrrrrrrrrr',
     'rrrrrrrrrrrrrrrrrrrrrrrr',
