@@ -26,3 +26,13 @@ html = html
 await mkdir(new URL('dist/', root), { recursive: true });
 await writeFile(new URL('dist/dungeon-crawler.html', root), html);
 console.log(`dist/dungeon-crawler.html  ${(html.length / 1024).toFixed(1)} KB`);
+
+// Artifact variant: claude.ai wraps the page in its own document skeleton,
+// so drop doctype/html/head/body and the viewport meta it provides.
+const artifact = html
+  .replace(/<!doctype html>\s*/i, '')
+  .replace(/<\/?(html|head|body)[^>]*>\s*/gi, '')
+  .replace(/<meta charset[^>]*>\s*/i, '')
+  .replace(/<meta name="viewport"[^>]*>\s*/i, '');
+await writeFile(new URL('dist/artifact.html', root), artifact);
+console.log(`dist/artifact.html         ${(artifact.length / 1024).toFixed(1)} KB`);
