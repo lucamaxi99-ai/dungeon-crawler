@@ -56,9 +56,30 @@ export class FrameBuffer {
     }
   }
 
-  present(ctx) {
+  // Converts palette indices to RGBA. TRANSPARENT (and any index without a
+  // palette color) becomes fully transparent.
+  toImage() {
     const px = this.pixels, out = this.image32;
-    for (let i = 0; i < px.length; i++) out[i] = RGBA32[px[i]];
-    ctx.putImageData(this.image, 0, 0);
+    for (let i = 0; i < px.length; i++) out[i] = RGBA32[px[i]] || 0;
+    return this.image;
+  }
+
+  present(ctx) {
+    ctx.putImageData(this.toImage(), 0, 0);
+  }
+
+  // Draws the buffer scaled into a rectangle of another canvas (nearest
+  // neighbour), alpha-blended so TRANSPARENT pixels show what is below.
+  // Lets several buffers of different resolution share one screen.
+  presentScaled(ctx, dx, dy, dw, dh) {
+    if (!this.canvas) {
+      this.canvas = typeof OffscreenCanvas !== 'undefined'
+        ? new OffscreenCanvas(this.width, this.height)
+        : Object.assign(document.createElement('canvas'), { width: this.width, height: this.height });
+      this.canvasCtx = this.canvas.getContext('2d');
+    }
+    this.canvasCtx.putImageData(this.toImage(), 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.canvas, dx, dy, dw, dh);
   }
 }

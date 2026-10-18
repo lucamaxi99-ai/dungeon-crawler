@@ -7,6 +7,8 @@
 import { C } from '../engine/palette.js';
 import { defineSprite, animation, recolor, rampMap } from '../engine/sprite.js';
 import { Painter } from '../engine/paint.js';
+import { M, mats, frames, FIRE_COLORS, COLD_COLORS } from '../game/materials.js';
+import { paintBrazier, paintWallTorch } from '../game/objects.js';
 
 const UNIT = 64;
 const hd = (s) => ({ ...s, unit: UNIT });
@@ -146,40 +148,6 @@ const swordSmall = lo(defineSprite({
     'ttVQVtt',
   ],
 }));
-
-// ------------------------------------------------------------ materials
-
-const M = {
-  gold: { ramp: [C.RUST, C.AMBER, C.GOLD, C.YELLOW], spec: C.HOT, shine: 0.8, outline: C.WOOD_D },
-  coin: { ramp: [C.WOOD_D, C.RUST, C.AMBER, C.GOLD, C.YELLOW], spec: C.HOT, shine: 0.15, outline: C.WOOD_D },
-  steel: { ramp: [C.STEEL_D, C.STEEL, C.STEEL_M, C.STEEL_L], spec: C.WHITE, shine: 0.6, outline: C.BLACK },
-  rust: { ramp: [C.SOOT, C.RUST, C.STEEL, C.STEEL_M], rough: 0.35, outline: C.BLACK },
-  bone: { ramp: [C.GRAVEL, C.GRAVEL_M, C.GRAVEL_L, C.PARCHMENT, C.BONE], outline: C.SOOT, rough: 0.12 },
-  slime: { ramp: [C.TEAL_D, C.TEAL, C.TEAL_M, C.MINT], spec: C.WHITE, shine: 1, outline: C.NIGHT },
-  fur: { ramp: [C.SOOT, C.GRAVEL_D, C.GRAVEL, C.GRAVEL_M, C.GRAVEL_L], rough: 0.3, outline: C.BLACK },
-  pink: { ramp: [C.SKIN_D, C.SKIN, C.SKIN_M, C.SKIN_L], outline: C.SOOT },
-  chitin: { ramp: [C.BLACK, C.NIGHT, C.SHADOW, C.DUSK, C.ASH], spec: C.FOG, shine: 0.5, outline: C.BLACK },
-  gob: { ramp: [C.MOSS_D, C.MOSS, C.GREEN, C.LIME], outline: C.SOOT, rough: 0.08 },
-  leather: { ramp: [C.SOOT, C.WOOD_D, C.WOOD, C.LEATHER], rough: 0.2, outline: C.BLACK },
-  cloth: { ramp: [C.SOOT, C.GORE, C.BLOOD, C.RED], rough: 0.15, outline: C.BLACK },
-  wood: { ramp: [C.SOOT, C.WOOD_D, C.WOOD, C.WOOD_L], rough: 0.2, outline: C.BLACK },
-  iron: { ramp: [C.BLACK, C.STEEL_D, C.STEEL, C.STEEL_M], spec: C.STEEL_L, shine: 0.4, outline: C.BLACK },
-  stone: { ramp: [C.SOOT, C.STONE_D, C.STONE, C.STONE_M, C.STONE_L], rough: 0.2, outline: C.BLACK },
-  coal: { ramp: [C.BLOOD_D, C.BLOOD, C.RED, C.FIRE], glow: true, rough: 0.6 },
-  ruby: { ramp: [C.GORE, C.BLOOD, C.RED, C.FIRE], spec: C.WHITE, shine: 1, outline: C.BLACK },
-  emerald: { ramp: [C.TEAL_D, C.TEAL, C.TEAL_M, C.MINT], spec: C.WHITE, shine: 1, outline: C.BLACK },
-};
-
-// Turns the M object into an indexed list for Painter.shade.
-function mats(...names) {
-  const list = names.map((n) => (typeof n === 'string' ? M[n] : n));
-  const id = Object.fromEntries(names.map((n, i) => [typeof n === 'string' ? n : `m${i}`, i]));
-  return { list, id };
-}
-
-function frames(n, fn) {
-  return Array.from({ length: n }, (_, i) => fn(i, n));
-}
 
 // ------------------------------------------------------------ coins
 
@@ -466,61 +434,6 @@ function lootBox(tier, f) {
   return p.shade([body, trim], { name: `loot_${tier.id}_${f}`, glowColors: [g, C.WHITE] });
 }
 
-// ------------------------------------------------------------ fire
-
-function flame(p, cx, baseY, width, height, t, matIds) {
-  // Flame intensity field: tapering teardrop plus moving noise.
-  for (let y = Math.floor(baseY - height); y <= baseY; y++) {
-    for (let x = Math.floor(cx - width); x <= Math.ceil(cx + width); x++) {
-      const v = (baseY - y) / height;                // 0 at base, 1 at tip
-      const half = width * Math.pow(1 - v, 0.6) * (0.75 + 0.25 * Math.sin(v * 7 + t * 2.1));
-      const dx = Math.abs(x + 0.5 - cx - Math.sin(v * 4 + t * 1.7) * v * width * 0.35);
-      if (dx > half) continue;
-      const n = Math.sin(x * 1.3 + t * 3.1) * Math.cos(y * 0.9 - t * 4.3) * 0.18;
-      const heat = (1 - dx / half) * (1 - v * 0.8) + n;
-      if (heat < 0.08) continue;
-      const k = heat > 0.75 ? 4 : heat > 0.55 ? 3 : heat > 0.35 ? 2 : heat > 0.18 ? 1 : 0;
-      p.write(x, y, 30 + heat * 5, 0, 0, 1, matIds[k]);
-    }
-  }
-}
-
-const FIRE_COLORS = [C.BLOOD, C.RED, C.FIRE, C.AMBER, C.YELLOW];
-const fireMats = () => FIRE_COLORS.map((c) => ({ ramp: [c], flat: true, glow: true }));
-
-function brazier() {
-  return frames(4, (f) => {
-    const p = new Painter(40, 50, { seed: 23, scale: S });
-    const base = { iron: 0, coal: 1 };
-    // Tripod legs
-    p.capsule(12, 30, 1.6, 6, 49, 1.3, base.iron, { z0: 2 });
-    p.capsule(28, 30, 1.6, 34, 49, 1.3, base.iron, { z0: 2 });
-    p.capsule(20, 31, 1.8, 20, 49, 1.4, base.iron, { z0: 6 });
-    p.capsule(9, 42, 1, 31, 42, 1, base.iron, { z0: 5 });
-    // Bowl and rim
-    p.ellipse(20, 27, 15, 7, base.iron, { z: 4, depth: 0.7 });
-    p.erase((x, y) => y < 25);
-    p.ellipse(20, 25, 15, 2.6, base.iron, { z: 8, depth: 0.3 });
-    p.ellipse(20, 24.8, 12.5, 1.8, base.coal, { z: 9, depth: 0.3 });
-    const fm = [2, 3, 4, 5, 6];
-    flame(p, 20, 24, 11, 22, f * 1.57, fm);
-    flame(p, 13, 24, 4, 10, f * 1.57 + 2, fm);
-    flame(p, 27, 24, 4.5, 12, f * 1.57 + 4, fm);
-    return p.shade([M.iron, M.coal, ...fireMats()], { name: `brazier_hd_${f}` });
-  });
-}
-
-function wallTorch() {
-  return frames(4, (f) => {
-    const p = new Painter(16, 30, { seed: 29, scale: S });
-    p.capsule(8, 29, 1.6, 8, 15, 2, 0, { z0: 3 });            // handle
-    p.capsule(4, 22, 1, 12, 22, 1, 1, { z0: 6 });              // bracket
-    p.ellipse(8, 14, 3.4, 1.8, 1, { z: 6 });
-    flame(p, 8, 13, 4.5, 13, f * 1.57, [2, 3, 4, 5, 6]);
-    return p.shade([M.wood, M.iron, ...fireMats()], { name: `torch_${f}` });
-  });
-}
-
 // ------------------------------------------------------------ portrait
 
 // The hardest case: a human face, front view. Invented sponsor rep, not a
@@ -576,9 +489,9 @@ function portrait() {
 export function buildSprites(scale = 1) {
   S = scale;
   const small = scale < 1;
-  const brazierFrames = brazier();
+  const brazierFrames = paintBrazier(S);
   const fire = animation(brazierFrames, { frameMs: 110 });
-  const coldMap = rampMap(FIRE_COLORS, [C.NAVY, C.BLUE_D, C.BLUE, C.SKY, C.ICE]);
+  const coldMap = rampMap(FIRE_COLORS, COLD_COLORS);
   const goblinAnim = animation(goblin(), { frameMs: 380, mode: 'pingpong' });
   return {
     potion: animation(small ? potionSmall : potion),
@@ -594,8 +507,8 @@ export function buildSprites(scale = 1) {
     lootboxes: TIERS.map((t) => animation([lootBox(t, 0), lootBox(t, 1), lootBox(t, 2)], { frameMs: 220 })),
     brazier: fire,
     coldBrazier: recolor(fire, coldMap, 'cold'),
-    torch: animation(wallTorch(), { frameMs: 100 }),
-    coldTorch: recolor(animation(wallTorch(), { frameMs: 100 }), coldMap, 'cold'),
+    torch: animation(paintWallTorch(S), { frameMs: 100 }),
+    coldTorch: recolor(animation(paintWallTorch(S), { frameMs: 100 }), coldMap, 'cold'),
     portrait: portrait(),
   };
 }

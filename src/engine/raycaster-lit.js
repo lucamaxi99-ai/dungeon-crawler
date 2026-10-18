@@ -6,7 +6,8 @@
 //   - ambient occlusion where floor meets wall
 //   - ordered dithering between shade levels
 //   - glowing texels on walls and sprites (neon, runes, flames)
-//   - sprites carry their own resolution (img.unit = pixels per world unit)
+//   - sprites carry their own resolution (img.unit = pixels per world unit, default 64)
+//   - optional fog-of-war: cells the rays pass marked in scene.seen
 //
 // All shading goes through lit shade tables (lighting.js), so every pixel
 // stays a palette index.
@@ -21,7 +22,8 @@ export class LitRaycaster {
   // tables: result of buildLitTables(). lighting: use the light map.
   // dither: ordered dithering between levels. fogFar: distance where the
   // view is fully dark.
-  constructor({ x = 0, y = 0, w, h, fov = 66, tables, lighting = true, dither = true, ao = true, fogFar = 12 }) {
+  constructor({ x = 0, y = 0, w, h, fov = 66, tables, lighting = true, dither = true, ao = true, fogFar = 12, sightRange = 9 }) {
+    this.sightRange = sightRange;
     this.vx = x; this.vy = y; this.vw = w; this.vh = h;
     this.fov = (fov * Math.PI) / 180;
     this.planeLen = Math.tan(this.fov / 2);
@@ -92,7 +94,8 @@ export class LitRaycaster {
     return light.tint[cy * light.w + cx];
   }
 
-  // scene: { map, walls: [tex], flats: [tex], sprites: [{x, y, img, lift?, emissive?}], light? }
+  // scene: { map, walls: [tex], flats: [tex], sprites: [{x, y, img, lift?, emissive?}], light?, seen? }
+  // seen: Uint8Array(map.w * map.h), cells within sightRange get set to 1.
   render(fb, scene, cam, time = 0) {
     this.prepare(scene.map);
     this.light = this.lighting ? scene.light || null : null;
@@ -118,6 +121,9 @@ export class LitRaycaster {
     const horizon = vh / 2;
     const T = this.tables.table, LV = this.tables.levels;
     const useAo = this.ao;
+    const seen = scene.seen, MW = map.w, MH = map.h, sight = this.sightRange;
+    const mark = (x, y) => { if (x >= 0 && y >= 0 && x < MW && y < MH) seen[y * MW + x] = 1; };
+    if (seen) mark(Math.floor(cam.x), Math.floor(cam.y));
 
     for (let col = 0; col < vw; col++) {
       const camX = (2 * (col + 0.5)) / vw - 1;
@@ -130,9 +136,11 @@ export class LitRaycaster {
       let sdy = rdy < 0 ? (cam.y - my) * ddy : (my + 1 - cam.y) * ddy;
       let side = 0, hit = 0;
       for (let i = 0; i < 96; i++) {
+        const near = (sdx < sdy ? sdx : sdy) < sight;
         if (sdx < sdy) { sdx += ddx; mx += stepX; side = 0; }
         else { sdy += ddy; my += stepY; side = 1; }
         hit = map.wall(mx, my);
+        if (seen && near) mark(mx, my);
         if (hit) break;
       }
       if (!hit) { zbuf[col] = 1e30; wallBottom[col] = horizon | 0; continue; }
@@ -266,7 +274,7 @@ export class LitRaycaster {
 
     for (const { s, depth, lateral } of list) {
       const img = s.img;
-      const unit = img.unit || 32;
+      const unit = img.unit || 64;
       const scale = projDist / depth / unit;        // screen px per sprite px
       const sw = img.w * scale, sh = img.h * scale;
       const cx = (vw / 2) * (1 + lateral / depth);

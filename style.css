@@ -30,10 +30,10 @@ main {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 
-/* 320x200 shown at 4:3, like a DOS monitor (non-square pixels). */
+/* 960x600 with square pixels (16:10): fine 3D view, coarse 3x pixel HUD. */
 #screen {
-  width: min(100%, calc((100vh - 140px) * 4 / 3), 1280px);
-  aspect-ratio: 4 / 3;
+  width: min(100%, calc((100vh - 140px) * 16 / 10), 1440px);
+  aspect-ratio: 16 / 10;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   border: 2px solid var(--edge);

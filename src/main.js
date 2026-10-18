@@ -1,27 +1,70 @@
 // Entry point: wires engine, level, player, HUD and input together.
+//
+// Screen layout (960 x 600, square pixels):
+//   3D view   960 x 420, rendered at 960x420, 640x280 or 320x140 and scaled
+//             up; the resolution follows the frame rate (AutoResolution).
+//   overlay   320 x 140 HUD pixels, scaled 3x over the view.
+//   panel     320 x 60 HUD pixels, scaled 3x under the view.
 
 import { FrameBuffer } from './engine/framebuffer.js';
-import { Raycaster } from './engine/raycaster.js';
-import { buildTextures, SPRITES, TEX, WALL } from './game/assets.js';
+import { LitRaycaster } from './engine/raycaster-lit.js';
+import { buildLitTables, LightMap } from './engine/lighting.js';
+import { AutoResolution } from './engine/resolution.js';
+import { frameAt } from './engine/sprite.js';
+import { buildTextures, SPRITES, WALL } from './game/assets.js';
+import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
 import { Player } from './game/player.js';
-import { MessageLog, drawHud, SCREEN_W, SCREEN_H, VIEW_H } from './game/hud.js';
+import {
+  MessageLog, drawPanel, drawOverlay,
+  HUD_W, OVERLAY_H, PANEL_H, SCREEN_W, SCREEN_H, VIEW_H,
+} from './game/hud.js';
 import { bindInput } from './game/input.js';
 import { line } from './game/system-ai.js';
-import { frameAt } from './engine/sprite.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
 canvas.height = SCREEN_H;
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false });
+ctx.imageSmoothingEnabled = false;
 
-const fb = new FrameBuffer(SCREEN_W, SCREEN_H);
-const caster = new Raycaster({ x: 0, y: 0, w: SCREEN_W, h: VIEW_H, fov: 66, fog: 1.55, texSize: TEX });
+// ------------------------------------------------------------ world
+
 const textures = buildTextures();
 const level = new Level(TEST_FLOOR);
 const player = new Player(level.start);
 const log = new MessageLog();
-const state = { showMap: false, bumps: 0, saidFirstSteps: false };
+const state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
+
+const isWall = (x, y) => level.wall(x, y) !== 0;
+const light = new LightMap(level.w, level.h, isWall, TINTS.length);
+for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a.h - 1, a.ambient, a.tint);
+for (const l of level.lights) light.addLight(l);
+
+const decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
+
+// ------------------------------------------------------------ renderer
+
+const tables = buildLitTables({ tints: TINTS, levels: 32, maxBright: 1.5 });
+const STEPS = [{ w: 960, h: 420 }, { w: 640, h: 280 }, { w: 320, h: 140 }];
+const res = new AutoResolution(STEPS);
+let viewFb, caster;
+
+function setResolution(index) {
+  const { w, h } = STEPS[index];
+  viewFb = new FrameBuffer(w, h);
+  caster = new LitRaycaster({ w, h, fov: 66, tables, lighting: true, dither: true, ao: true, fogFar: 16 });
+}
+setResolution(res.index);
+
+const overlayFb = new FrameBuffer(HUD_W, OVERLAY_H);
+const panelFb = new FrameBuffer(HUD_W, PANEL_H);
+
+// Fixed resolution from the URL for testing: ?res=640
+const fixed = STEPS.findIndex((s) => String(s.w) === new URLSearchParams(location.search).get('res'));
+if (fixed >= 0) setResolution(res.setMode(fixed));
+
+// ------------------------------------------------------------ rules
 
 const world = {
   canEnter(x, y) {
@@ -61,7 +104,22 @@ function interact() {
   if (!w) log.push(line('nothing'), 'info');
 }
 
+// Cycles AUTO -> 960 -> 640 -> 320 -> AUTO.
+function cycleQuality() {
+  const order = ['auto', 0, 1, 2];
+  const next = order[(order.indexOf(res.mode) + 1) % order.length];
+  setResolution(res.setMode(next));
+  showNotice();
+}
+
+function showNotice() {
+  const { w, h } = res.step;
+  state.notice = `${res.mode === 'auto' ? 'AUTO ' : ''}${w}X${h}`;
+  state.noticeUntil = performance.now() + 2500;
+}
+
 function onAction(action) {
+  if (action === 'quality') return cycleQuality();
   if (action === 'map') { state.showMap = !state.showMap; return; }
   if (state.showMap) return;
   if (action === 'interact') return interact();
@@ -72,37 +130,72 @@ bindInput(onAction);
 log.push(line('welcome'));          // greeting
 log.push(line('welcome'), 'info');  // controls hint
 
+// ------------------------------------------------------------ loop
+
+// Nothing is built yet for these; the panel shows them empty.
+const status = {
+  hp: null, hpMax: null,   // TODO(M4)
+  timeLeft: null,          // TODO(M5)
+  viewers: null,           // TODO(M6)
+};
+
 function spriteList(time) {
-  return level.objects.map((o) => {
-    const img = frameAt(SPRITES[o.type].anim, time, o.x * 3 + o.y);
-    return { x: o.x + 0.5, y: o.y + 0.5, img };
-  });
+  const list = level.objects.map((o) => ({
+    x: o.x + 0.5, y: o.y + 0.5,
+    img: frameAt(SPRITES[o.type].anim, time, o.x * 3 + o.y),
+  }));
+  for (const d of decor) list.push({ x: d.x, y: d.y, lift: d.lift, img: frameAt(SPRITES[d.type].anim, time, d.phase) });
+  return list;
 }
 
+const stats = { fps: 0, renderMs: 0 };
 let last = performance.now();
+let statFrames = 0, statTime = 0, statRender = 0;
+
 function loop(now) {
-  const dt = Math.min(100, now - last);
+  const frameMs = now - last;
+  const dt = Math.min(100, frameMs);
   last = now;
 
   const queued = player.update(dt);
   if (queued) onAction(queued);
 
   const cam = player.camera();
-  fb.clear(0);
-  caster.render(fb, {
+  const t0 = performance.now();
+  light.update(now, [{ ...LANTERN, x: cam.x, y: cam.y }]);
+  caster.render(viewFb, {
     map: level,
     walls: textures.walls,
-    floor: textures.floor,
-    ceiling: textures.ceiling,
+    flats: textures.flats,
     sprites: spriteList(now),
+    light,
     seen: level.seen,
-  }, cam);
-  drawHud(fb, { log, level, player, showMap: state.showMap });
-  fb.present(ctx);
+  }, cam, now);
+  const renderMs = performance.now() - t0;
 
+  const next = res.sample(renderMs, frameMs, now);
+  if (next >= 0) { setResolution(next); showNotice(); }
+  if (state.notice && now > state.noticeUntil) state.notice = null;
+
+  drawOverlay(overlayFb, { level, player, showMap: state.showMap, notice: state.notice });
+  drawPanel(panelFb, { log, level, player, status });
+  viewFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
+  overlayFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
+  panelFb.presentScaled(ctx, 0, VIEW_H, SCREEN_W, SCREEN_H - VIEW_H);
+
+  statFrames++; statTime += frameMs; statRender += renderMs;
+  if (statTime > 1000) {
+    stats.fps = Math.round((statFrames * 1000) / statTime);
+    stats.renderMs = +(statRender / statFrames).toFixed(1);
+    statFrames = 0; statTime = 0; statRender = 0;
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
 // Debug handle for the browser console and automated tests.
-window.game = { level, player, log, state, onAction };
+window.game = {
+  level, player, log, state, onAction, light, stats,
+  get resolution() { return { mode: res.mode, ...res.step }; },
+  setResolution: (mode) => setResolution(res.setMode(mode)),
+};

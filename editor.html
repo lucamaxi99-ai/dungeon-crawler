@@ -65,7 +65,7 @@
         <label>H <input type="number" id="size-h" min="1" max="64" inputmode="numeric"></label>
         <button type="button" data-act="resize" id="resize">Resize</button>
       </div>
-      <p class="hint">32 px = one wall high. Resizing keeps the sprite standing on the floor.</p>
+      <p class="hint">64 px = one wall high (max 64 × 64). Resizing keeps the sprite standing on the floor.</p>
       <label class="check"><input type="checkbox" id="grid" checked> Grid</label>
       <label class="check"><input type="checkbox" id="onion"> Onion skin (previous frame)</label>
     </section>
@@ -116,7 +116,7 @@
           </div>
         </div>
         <div class="palette" id="palette"></div>
-        <label class="check"><input type="checkbox" id="glow"> Glow: this color ignores distance shading</label>
+        <label class="check"><input type="checkbox" id="glow"> Glow: this color ignores light and darkness</label>
         <p class="hint">Dot = used in the sprite. Star = glows.</p>
       </section>
 

@@ -9,6 +9,7 @@ const KEYS = {
   KeyE: 'turnRight', ArrowRight: 'turnRight',
   Space: 'interact', Enter: 'interact',
   KeyM: 'map',
+  KeyG: 'quality',
 };
 
 export function bindInput(onAction, root = document) {

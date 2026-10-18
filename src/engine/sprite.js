@@ -6,10 +6,11 @@
 //     rows: ['..kk..', '.kwwk.', ...],
 //   })
 //
-// A sprite is a plain object { name, w, h, data, glow }:
+// A sprite is a plain object { name, w, h, data, glow, unit }:
 //   data  Uint8Array of palette indices, TRANSPARENT for holes
 //   glow  null or a Uint8Array(256) mask; glow[c] = 1 means color c ignores
 //         distance shading (flames, magic runes, eyes in the dark)
+//   unit  pixels per world unit: 64 means a 64 px tall sprite is one wall high
 //
 // Animations are { frames, frameMs, mode } where mode is 'loop', 'pingpong'
 // or 'once'. Use frameAt() to pick the frame for a point in time.
@@ -27,7 +28,7 @@ function glowMaskFor(key, glow) {
   return mask;
 }
 
-export function defineSprite({ key, rows, glow = '', name = 'sprite' }) {
+export function defineSprite({ key, rows, glow = '', name = 'sprite', unit = 64 }) {
   const h = rows.length;
   const w = Math.max(...rows.map((r) => r.length));
   const data = new Uint8Array(w * h).fill(TRANSPARENT);
@@ -39,15 +40,15 @@ export function defineSprite({ key, rows, glow = '', name = 'sprite' }) {
       data[y * w + x] = key[ch];
     }
   }
-  return { name, w, h, data, glow: glowMaskFor(key, glow) };
+  return { name, w, h, data, glow: glowMaskFor(key, glow), unit };
 }
 
 // Several frames sharing one key. All frames must have the same size so the
 // sprite doesn't jump around while it animates.
 //
 //   defineFrames({ name: 'torch', key, glow: 'fy', frames: [[...rows], [...rows]] })
-export function defineFrames({ key, frames, glow = '', name = 'sprite' }) {
-  const list = frames.map((rows, i) => defineSprite({ key, rows, glow, name: `${name}_${i}` }));
+export function defineFrames({ key, frames, glow = '', name = 'sprite', unit = 64 }) {
+  const list = frames.map((rows, i) => defineSprite({ key, rows, glow, name: `${name}_${i}`, unit }));
   const { w, h } = list[0];
   list.forEach((f, i) => {
     if (f.w !== w || f.h !== h) {

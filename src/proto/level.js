@@ -1,18 +1,10 @@
 // The prototype "showroom" floor: five rooms with their own materials and
 // light moods, connected by corridors. Built from room rectangles in code.
 
-import { WALL_HD, FLAT_HD } from './textures.js';
+import { WALL as WALL_HD, FLAT as FLAT_HD } from '../game/textures.js';
+import { TINT, TINTS } from '../game/lights.js';
 
-// Light colors, index into the lit shade tables (see TINTS in main.js).
-export const TINT = { NEUTRAL: 0, TORCH: 1, COLD: 2, SEWER: 3, NEON: 4, RUNE: 5 };
-export const TINTS = [
-  [1, 1, 1],          // neutral
-  [1.2, 0.95, 0.72],  // torch fire
-  [0.62, 0.82, 1.25], // cold blue
-  [0.8, 1.15, 0.72],  // sewer green
-  [1.22, 0.62, 1.15], // neon pink
-  [0.85, 0.72, 1.3],  // rune violet
-];
+export { TINT, TINTS };
 
 const W = 34, H = 22;
 

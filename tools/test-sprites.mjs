@@ -2,7 +2,7 @@
 // ASCII round trip that the pixel editor relies on.
 
 import assert from 'node:assert/strict';
-import { C } from '../src/engine/palette.js';
+import { C, PALETTE_SIZE } from '../src/engine/palette.js';
 import { TRANSPARENT } from '../src/engine/framebuffer.js';
 import {
   defineSprite, defineFrames, animation, frameIndex, recolor, rampMap,
@@ -49,7 +49,7 @@ function roundTrip(list) {
   const back = defineFrames({ key: a.key, glow: a.glow, frames: a.frames });
   list.forEach((f, i) => {
     assert.deepEqual([...back[i].data], [...f.data], `${f.name} data`);
-    for (let c = 0; c < 32; c++) {
+    for (let c = 0; c < PALETTE_SIZE; c++) {
       if (f.data.includes(c)) assert.equal(!!back[i].glow?.[c], !!f.glow?.[c], `${f.name} glow ${c}`);
     }
   });

@@ -1,4 +1,4 @@
-// 64x64 textures for the high-detail prototype. All procedural and seeded.
+// 64x64 wall, floor and ceiling textures. All procedural and seeded.
 // Technique: build a height field (noise, block bevels, cell domes), light
 // it from the top left ("emboss"), then pick from a color ramp with a little
 // ordered dithering.
@@ -246,6 +246,38 @@ function neonScreen() {
     }
   }
   t.glow = glowMask([C.NEON, C.WHITE, C.LILAC, C.PLUM, C.MAGENTA]);
+  return t;
+}
+
+// Borant recruitment poster: parchment nailed onto the stone wall.
+function borantPoster() {
+  const t = stoneWall();
+  const grain = normalize(fbm(S, 61, { base: 8, octaves: 3 }));
+  const r = rng(62);
+  const x0 = 5, x1 = 59, y0 = 7, y1 = 55;
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      // Torn, uneven edge and a curled lower right corner.
+      const e = Math.min(x - x0, y - y0, x1 - 1 - x, y1 - 1 - y);
+      if (e === 0 && r() < 0.35) continue;
+      if (x - x0 + (y1 - y) < 7) continue;
+      let v = 0.62 + (grain[y * S + x] - 0.5) * 0.45 - (e < 2 ? 0.25 : 0);
+      if ((x * 7 + y * 13) % 29 === 0) v -= 0.2; // stains
+      t.data[y * S + x] = pick([C.WOOD, C.LEATHER, C.TAN, C.PARCHMENT], v, x, y, 0.8);
+    }
+  }
+  // Curl shadow and back side.
+  for (let k = 0; k < 7; k++) { set(t, x1 - 7 + k, y1 - 1 - k, C.WOOD_D); if (k) set(t, x1 - 7 + k, y1 - k, C.SOOT); }
+  bigText(t, 'BORANT', 9, 11, C.BLOOD);
+  for (let x = 9; x < 55; x++) { set(t, x, 23, C.BLOOD_D); }
+  smallText(t, 'NOW HIRING', 12, 27, C.GORE);
+  smallText(t, 'CRAWLERS', 16, 34, C.GORE);
+  // Fine print nobody reads.
+  for (let line = 0; line < 3; line++) {
+    for (let x = 10; x < 52; x++) if ((x * 3 + line * 5) % 7 > 1) set(t, x, 42 + line * 3, C.WOOD);
+  }
+  // Nails
+  for (const [x, y] of [[7, 9], [56, 9], [7, 52]]) { set(t, x, y, C.STEEL_L); set(t, x + 1, y + 1, C.SOOT); }
   return t;
 }
 
@@ -503,28 +535,34 @@ export function framedPortrait(img) {
 
 // ------------------------------------------------------------ registry
 
-export const WALL_HD = { STONE: 1, ROCK: 2, MOSSY: 3, STAIRS: 4, NEON: 5, DOOR: 6, RUNES: 7, PORTRAIT: 8 };
-export const FLAT_HD = { COBBLE: 0, WET: 1, PLANKS: 2, CARPET: 3, GRAVEL: 4, BEAMS: 5, VAULT: 6, CAVE: 7, STEEL: 8 };
+// Wall ids (map cells, 0 = open) and flat ids (floor/ceiling per cell).
+export const WALL = { STONE: 1, ROCK: 2, MOSSY: 3, STAIRS: 4, NEON: 5, DOOR: 6, RUNES: 7, PORTRAIT: 8, POSTER: 9 };
+export const FLAT = { COBBLE: 0, WET: 1, PLANKS: 2, CARPET: 3, GRAVEL: 4, BEAMS: 5, VAULT: 6, CAVE: 7, STEEL: 8 };
 
-export function buildHdTextures(portraitImg) {
+// Texture size in pixels (one wall = 64 x 64).
+export const TEX = S;
+
+// portraitImg: optional engine sprite shown in the PORTRAIT wall's frame.
+export function buildTextures(portraitImg = null) {
   const walls = [];
-  walls[WALL_HD.STONE] = stoneWall();
-  walls[WALL_HD.ROCK] = caveRock();
-  walls[WALL_HD.MOSSY] = mossyWall();
-  walls[WALL_HD.STAIRS] = stairwell();
-  walls[WALL_HD.NEON] = neonScreen();
-  walls[WALL_HD.DOOR] = door();
-  walls[WALL_HD.RUNES] = runeWall();
-  walls[WALL_HD.PORTRAIT] = portraitImg ? framedPortrait(portraitImg) : stoneWall();
+  walls[WALL.STONE] = stoneWall();
+  walls[WALL.ROCK] = caveRock();
+  walls[WALL.MOSSY] = mossyWall();
+  walls[WALL.STAIRS] = stairwell();
+  walls[WALL.NEON] = neonScreen();
+  walls[WALL.DOOR] = door();
+  walls[WALL.RUNES] = runeWall();
+  walls[WALL.PORTRAIT] = portraitImg ? framedPortrait(portraitImg) : stoneWall();
+  walls[WALL.POSTER] = borantPoster();
   const flats = [];
-  flats[FLAT_HD.COBBLE] = cobbles();
-  flats[FLAT_HD.WET] = wetFlagstones();
-  flats[FLAT_HD.PLANKS] = planksFloor();
-  flats[FLAT_HD.CARPET] = carpet();
-  flats[FLAT_HD.GRAVEL] = gravel();
-  flats[FLAT_HD.BEAMS] = beamCeiling();
-  flats[FLAT_HD.VAULT] = vaultCeiling();
-  flats[FLAT_HD.CAVE] = caveCeiling();
-  flats[FLAT_HD.STEEL] = steelCeiling();
+  flats[FLAT.COBBLE] = cobbles();
+  flats[FLAT.WET] = wetFlagstones();
+  flats[FLAT.PLANKS] = planksFloor();
+  flats[FLAT.CARPET] = carpet();
+  flats[FLAT.GRAVEL] = gravel();
+  flats[FLAT.BEAMS] = beamCeiling();
+  flats[FLAT.VAULT] = vaultCeiling();
+  flats[FLAT.CAVE] = caveCeiling();
+  flats[FLAT.STEEL] = steelCeiling();
   return { walls, flats };
 }
