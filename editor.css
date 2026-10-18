@@ -298,7 +298,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 .preview {
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 320 / 140;
   image-rendering: pixelated;
   background: var(--edge-d);
   display: block;
