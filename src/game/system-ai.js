@@ -99,6 +99,20 @@ export const LINES = {
     'And that is how you die. Ratings spiked. Borant thanks you for your sacrifice.',
     'Deceased. Somewhere a sponsor is quietly peeling your name off a banner.',
   ],
+  // A run starts on Borant Encore after a death (GDD 2.1). {n} rerun number.
+  rerun: [
+    'Soul backup restored. Welcome back to Borant Encore, Crawler. Rerun number {n}. The audience loves a classic.',
+    'Fresh body installed. Soul backup loaded with only minor corruption. Rerun {n} is now live on Borant Encore.',
+    'Rerun {n}. Same soul, new body, lower budget. Borant Encore thanks you for your continued involuntary participation.',
+  ],
+  // Previously on Borant Encore. {k} killer phrase, {d} floor.
+  previously: [
+    'Previously on Borant Encore: {k}, floor {d}. Try to vary the ending.',
+    'Last episode: killed by {k} on floor {d}. The fans have already made a montage.',
+  ],
+  previouslyWon: [
+    'Previously on Borant Encore: you survived the season. Ratings demanded you do it again.',
+  ],
   restart: [
     'A new Crawler enters the dungeon. The last one is already a meme. Try not to become a sequel.',
     'New run, new floors, new victim. Borant reminds you that every Crawler is unique and replaceable.',

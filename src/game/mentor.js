@@ -119,8 +119,29 @@ export function paintOzzlePoses() {
 // ------------------------------------------------------------ lines
 
 // What Ozzle says. {p} points, {n} loot boxes, {k} kills, {v} viewers,
-// {d} floor. All lines are original.
+// {d} floor, {r} rerun number, {c} what killed the crawler last time,
+// {t} how often that has happened. All lines are original.
 export const MENTOR_LINES = {
+  // First visit of a rerun (GDD 2.1): Ozzle remembers every death.
+  rerunExplain: [
+    'You died. Don\'t look so surprised. Borant restored your soul backup into a fresh body. Welcome to Borant Encore, the rerun channel. I remember everything. Lucky me.',
+  ],
+  rerunDeath: [
+    'Rerun number {r}. Last time it was {c} on floor {d}. I added a mark to the wall. It\'s a big wall. Don\'t make me prove it.',
+    'New body, same face. Last episode ended with {c} on floor {d}. The fans called it a cliffhanger. It was a floor.',
+    'Oh, it\'s you. Again. Floor {d}, {c}, very dramatic. Rerun {r}. The wall is getting crowded.',
+  ],
+  rerunSame: [
+    '{c} again? That\'s {t} times now. At this point it\'s a relationship.',
+    '{c}. Again. {t} times. I\'m starting to think you like it.',
+  ],
+  rerunRecord: [
+    'Floor {d} last time. Deeper than you ever got before. Then you died, but still. Progress. I\'ve heard of it.',
+    'You made it to floor {d} last run. New personal best. I\'d clap, but I\'d have to put the mug down.',
+  ],
+  rerunWon: [
+    'You survived the whole season and Borant put you right back in. That\'s what they call a reward around here.',
+  ],
   firstVisit: [
     'Oh good. Another one. I\'m Ozzle, your Borant-appointed guide. Time stops in here, so take as long as you like. Please don\'t.',
   ],
@@ -215,10 +236,14 @@ export function mentorLine(topic, vars = {}) {
 }
 
 // What Ozzle says when the crawler walks in, most urgent first.
-// ctx: { visits (before this one), floorVisits, depth, hpShare, points,
-//        boxes, kills, viewers, newSponsor (name, or null) }
+// ctx: { visits (before this one, this run), floorVisits, depth, hpShare,
+//        points, boxes, kills, viewers, newSponsor (name, or null),
+//        rerun (0 for the premiere), met (has met the crawler before),
+//        explained (has explained reruns), last ({ won, depth, killer, record }),
+//        timesKilled (how often last.killer has done it) }
 export function mentorGreeting(ctx) {
   const v = { p: ctx.points, n: ctx.boxes, k: ctx.kills, v: ctx.viewers, d: ctx.depth, s: ctx.newSponsor };
+  if (!ctx.visits && ctx.rerun > 0 && ctx.met && ctx.last) return rerunGreeting(ctx);
   if (!ctx.visits) return mentorLine('firstVisit', v);
   if (ctx.hpShare <= 0.35) return mentorLine('lowHp', v);
   if (ctx.points > 0) return mentorLine('points', v);
@@ -231,3 +256,24 @@ export function mentorGreeting(ctx) {
   if (ctx.viewers < 60) return mentorLine('smallAudience', v);
   return mentorLine('welcomeBack', v);
 }
+
+// "How did it end": 'the floor collapse', or 'a giant rat'.
+export function killerPhrase(killer) {
+  if (!killer) return 'something';
+  if (/^the /i.test(killer)) return killer;
+  const k = killer.toLowerCase();
+  return `${/^[aeiou]/.test(k) ? 'an' : 'a'} ${k}`;
+}
+
+// The first Safe Room of a rerun: Ozzle remembers how the last one ended.
+function rerunGreeting(ctx) {
+  const { last } = ctx;
+  const v = { r: ctx.rerun, d: last.depth, c: killerPhrase(last.killer), t: ctx.timesKilled };
+  if (!ctx.explained) return mentorLine('rerunExplain', v);
+  if (last.won) return mentorLine('rerunWon', v);
+  if (last.record) return mentorLine('rerunRecord', v);
+  if (ctx.timesKilled >= 2) return capitalize(mentorLine('rerunSame', v));
+  return mentorLine('rerunDeath', v);
+}
+
+const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);

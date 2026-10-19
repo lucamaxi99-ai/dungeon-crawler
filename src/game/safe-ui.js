@@ -201,11 +201,12 @@ export class SafeRoomScreen {
     return null;
   }
 
-  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers }
+  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers, deaths }
   draw(fb, now, info) {
     if (!this.open) return;
     if (this.pending && now >= this.pending.at) this.talk(this.pending.line, now);
     fb.blit(this.backdrop, 0, 0);
+    drawTally(fb, info.deaths || 0);
     this.drawOzzle(fb, now);
     if (this.page === 'achievements') return this.drawAchievements(fb, info);
     this.drawBubble(fb, now);
@@ -334,6 +335,25 @@ export class SafeRoomScreen {
     }
     drawText(fb, 'ESC BACK', LIST.x, 126, C.ASH);
   }
+}
+
+// Ozzle's tally of dead crawlers, chalked on the wallpaper between the
+// poster and the bar: one stroke per death (of this soul, GDD 2.1), in
+// groups of five. The wall holds 50; after that he gave up counting.
+export const TALLY = { x: 55, y: 45, cols: 2, rows: 5, max: 50 };
+export function drawTally(fb, deaths) {
+  const n = Math.min(deaths, TALLY.max);
+  for (let i = 0; i < n; i++) {
+    const g = Math.floor(i / 5), k = i % 5;
+    const gx = TALLY.x + (g % TALLY.cols) * 9, gy = TALLY.y + Math.floor(g / TALLY.cols) * 9;
+    const chalk = (g + k) % 3 ? C.FOG : C.ASH;
+    if (k < 4) {
+      fb.rect(gx + k * 2, gy + (k & 1), 1, 6 - (k & 1), chalk);
+    } else {
+      for (let t = 0; t < 8; t++) fb.set(gx - 1 + t, gy + 5 - Math.floor(t * 5 / 8), C.BONE);
+    }
+  }
+  if (deaths > TALLY.max) drawText(fb, '+', TALLY.x + 6, TALLY.y + TALLY.rows * 9, C.BONE);
 }
 
 // The reward column: box tier, item, or a dash.

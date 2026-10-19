@@ -14,7 +14,7 @@ export function gameOverReady(dead, now) {
   return now - dead.at >= READY_MS;
 }
 
-// dead: { at, won, killer, depth, level, steps, kills, gold, comment, viewers, achievements }
+// dead: { at, won, killer, depth, level, steps, kills, gold, comment, viewers, achievements, record, nextRerun }
 export function drawGameOver(fb, dead, now) {
   const t = now - dead.at;
   const fade = Math.min(1, t / FADE_MS);
@@ -49,9 +49,20 @@ export function drawGameOver(fb, dead, now) {
     const show = `PEAK VIEWERS ${dead.viewers}   ACHIEVEMENTS ${dead.achievements}`;
     drawText(fb, show, (W - textWidth(show)) >> 1, y, C.NEON);
   }
+  // Borant Encore (GDD 2.1): the soul goes back on the shelf for the rerun.
+  if (dead.record) {
+    y += 10;
+    const rec = `NEW PERSONAL RECORD: FLOOR ${dead.depth}`;
+    drawText(fb, rec, (W - textWidth(rec)) >> 1, y, C.GOLD);
+  }
+  if (dead.nextRerun) {
+    y += dead.record ? 8 : 10;
+    const next = `SOUL BACKUP SAVED. RERUN ${dead.nextRerun} IN PREPARATION`;
+    drawText(fb, next, (W - textWidth(next)) >> 1, y, C.TEAL_M);
+  }
 
   if (gameOverReady(dead, now) && Math.floor(now / 500) % 2 === 0) {
-    const hint = 'SPACE OR TAP FOR A NEW RUN';
+    const hint = dead.nextRerun ? 'SPACE OR TAP TO START THE RERUN' : 'SPACE OR TAP FOR A NEW RUN';
     drawText(fb, hint, (W - textWidth(hint)) >> 1, H - 16, C.FOG);
   }
 }

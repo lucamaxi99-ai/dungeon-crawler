@@ -23,7 +23,7 @@ import {
   HUD_W, OVERLAY_H, PANEL_H, SCREEN_W, SCREEN_H, VIEW_H,
 } from './game/hud.js';
 import { bindInput } from './game/input.js';
-import { line } from './game/system-ai.js';
+import { line, LINES } from './game/system-ai.js';
 import { Inventory } from './game/inventory.js';
 import { ITEMS, RARITY_ORDER } from './game/items.js';
 import { rollLoot } from './game/loot.js';
@@ -43,7 +43,8 @@ import { AchievementPopups } from './game/achievement-ui.js';
 import { boxName, BOX_TIERS, openBox } from './game/lootboxes.js';
 import { Viewers, VIEWERS, formatViewers } from './game/viewers.js';
 import { SafeRoomScreen } from './game/safe-ui.js';
-import { mentorGreeting, mentorLine } from './game/mentor.js';
+import { mentorGreeting, mentorLine, killerPhrase } from './game/mentor.js';
+import { Profile, browserStorage } from './game/profile.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
 import { sponsorFor, SPONSOR_TIERS, SPONSOR_CHEST_AT } from './game/sponsors.js';
 
@@ -63,11 +64,13 @@ const isWall = (x, y) => level.wall(x, y) !== 0;
 // Everything that belongs to one run: the crawler and its pockets survive
 // from floor to floor; level, light and enemies are rebuilt on every floor.
 // Runs are permadeath: dying (or winning) starts a new run with a new seed,
-// a fresh crawler and new floors. A story mode with a checkpoint per floor
-// may come later.
+// a fresh crawler and new floors. In the story every new run is a rerun on
+// Borant Encore (GDD 2.1); the profile is what survives (profile.js).
 // URL parameters for testing: ?seed=123 fixes the run, ?floor=test plays
-// the hand-built test floor.
+// the hand-built test floor, ?fresh=1 forgets the profile.
 const params = new URLSearchParams(location.search);
+const profile = new Profile(browserStorage());
+if (params.get('fresh') === '1') profile.reset();
 let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd, countdown;
 let dead = null; // { at, won, killer, depth, level, steps, kills, gold, comment } when the run is over
 let card = null; // title card between floors (floor-ui.js)
@@ -80,6 +83,9 @@ const safe = new SafeRoomScreen();
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
   run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0, boxesOpened: 0, sponsors: [], sponsorsTold: 0 };
+  run.number = profile.startRun();
+  run.rerun = profile.rerun;
+  run.last = profile.last; // how the previous run ended (null for the premiere)
   inventory = new Inventory();
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
@@ -96,6 +102,7 @@ function newRun() {
 // Builds floor `depth` of the current run and puts the crawler at its start.
 function enterFloor(depth) {
   run.depth = depth;
+  profile.reached(depth);
   // Popular crawlers find a sponsored chest on every new floor.
   const sponsored = depth > 1 && viewers.count >= SPONSOR_CHEST_AT;
   const def = params.get('floor') === 'test' ? TEST_FLOOR : generateFloor(depth, run.seed + depth * 7919, { sponsored });
@@ -246,9 +253,11 @@ function endRun({ won = false, killer = '', comment = line(won ? 'victory' : 'de
   state.showMap = false;
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
+  const { record } = profile.endRun({ won, depth: run.depth, killer, level: crawler.level, kills: crawler.kills });
   dead = {
     at: performance.now(), won, killer, depth: run.depth, level: crawler.level, steps: player.steps, kills: crawler.kills,
     gold: inventory.gold, comment, viewers: formatViewers(viewers.peak), achievements: ach.unlocked.length,
+    record, nextRerun: profile.runs,
   };
   log.push(comment);
 }
@@ -373,7 +382,11 @@ function enterSafeRoom() {
     hpShare: crawler.hp / crawler.hpMax, points: crawler.points, boxes: ach.boxes.length,
     kills: crawler.kills, viewers: viewers.shown,
     newSponsor: run.sponsors.length > run.sponsorsTold ? run.sponsors[run.sponsors.length - 1] : null,
+    rerun: run.rerun, last: run.last, met: profile.hasSeen('ozzleMet'), explained: profile.hasSeen('rerunExplained'),
+    timesKilled: run.last ? profile.timesKilledBy(run.last.killer) : 0,
   });
+  if (!run.safeVisits && run.rerun > 0 && run.last && profile.hasSeen('ozzleMet')) profile.see('rerunExplained');
+  profile.see('ozzleMet');
   run.sponsorsTold = run.sponsors.length;
   run.safeVisits++;
   level.safeRoom.visits++;
@@ -946,12 +959,20 @@ canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   invScreen.select({ kind: 'scroll', delta: Math.sign(e.deltaY) });
 }, { passive: false });
-log.push(line('welcome'));          // greeting
-log.push(line('welcome'), 'info');  // controls hint
+// The System's opening words: a welcome for the premiere, a "previously
+// on" for every rerun.
+function introduce() {
+  if (!run.rerun) return log.push(LINES.welcome[0]);
+  log.push(line('rerun').replace('{n}', run.rerun));
+  const last = run.last;
+  if (last) log.push(last.won ? line('previouslyWon') : line('previously').replace('{k}', killerPhrase(last.killer)).replace('{d}', last.depth), 'info');
+}
+introduce();
+log.push(LINES.welcome[1], 'info');  // controls hint
 
 function restart() {
   newRun();
-  log.push(line('restart'));
+  introduce();
 }
 
 // ------------------------------------------------------------ loop
@@ -1045,7 +1066,7 @@ function loop(now) {
   safe.draw(overlayFb, now, {
     points: crawler.points, boxes: ach.boxes, unlocked: ach.unlocked, total: ACHIEVEMENTS.length,
     rested: level.safeRoom.rested, hp: crawler.hp, hpMax: crawler.hpMax, mp: crawler.mp, mpMax: crawler.mpMax,
-    viewers: formatViewers(viewers.count),
+    viewers: formatViewers(viewers.count), deaths: profile.deaths,
   });
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
@@ -1091,10 +1112,11 @@ window.game = {
   get card() { return card; },
   get ach() { return ach; },
   get viewers() { return viewers; },
+  profile,
   safe, enterSafeRoom, safeCommand, openSelectedBox,
   popups, note,
   descend,
-  log, onAction, stats, engage, restart, gainXp,
+  log, onAction, stats, engage, restart, gainXp, endRun,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),
 };
