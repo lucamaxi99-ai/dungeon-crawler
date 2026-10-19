@@ -26,7 +26,7 @@ const BLURB = {
   int: 'Mana for spells. Spells sold separately.',
   con: 'Hit points and healing. Staying alive.',
   dex: 'Aim, dodging, going first, running away.',
-  cha: 'Viewers and merchants care. Eventually.',
+  cha: 'More viewers, and they stay longer.',
 };
 
 const CLOSE = { label: 'C CLOSE' };
@@ -37,6 +37,7 @@ export class CharacterScreen {
     this.tab = 'stats';
     this.cursor = 0;      // selected attribute (only shown with points to spend)
     this.spellCursor = 0; // selected spell on the skills tab
+    this.canSpend = false; // points are only spent in a Safe Room
   }
 
   toggle(tab) {
@@ -153,7 +154,7 @@ export class CharacterScreen {
     const right = WIN.x + WIN.w - 6;
 
     // Attributes: name, value, pips, what it does.
-    const spend = crawler.points > 0;
+    const spend = crawler.points > 0 && this.canSpend;
     ATTRS.forEach((a, i) => {
       const y = ROW0 + i * ROW_H;
       const v = crawler[a];
@@ -204,9 +205,10 @@ export class CharacterScreen {
     });
 
     // Unspent points and the close button.
-    if (spend) {
+    if (crawler.points > 0) {
       const blink = Math.floor(now / 500) % 2 === 0;
-      const p = `${crawler.points} POINT${crawler.points > 1 ? 'S' : ''} TO SPEND - SPACE RAISES`;
+      const n = `${crawler.points} POINT${crawler.points > 1 ? 'S' : ''}`;
+      const p = spend ? `${n} TO SPEND - SPACE RAISES` : `${n} TO SPEND IN A SAFE ROOM`;
       drawText(fb, p, LEFT, 126, blink ? C.YELLOW : C.GOLD);
     }
   }

@@ -178,6 +178,25 @@ export const ACHIEVEMENTS = [
     text: 'Ten thousand viewers. Somewhere a species you have never heard of is naming its children after you. Badly.',
     test: (s) => s.viewers >= 10000,
   },
+  // ---------------------------------------------------------- safe rooms
+  {
+    id: 'safeAndSound', name: 'Safe and Sound', reward: null,
+    hint: 'Find a Safe Room.',
+    text: 'You found a Safe Room. Your guide is thrilled. Your guide is never thrilled. That was sarcasm. You will get used to it.',
+    test: (s) => s.safeVisits >= 1,
+  },
+  {
+    id: 'napTime', name: 'Professional Napper', reward: { box: 'bronze' },
+    hint: 'Rest in three Safe Rooms.',
+    text: 'Three naps on three floors. The apocalypse is happening and you are well rested. The viewers respect it.',
+    test: (s) => s.rests >= 3,
+  },
+  {
+    id: 'noRest', name: 'Sleep Is for the Weak', reward: null, secret: true,
+    hint: 'Leave a floor without visiting its Safe Room.',
+    text: 'You skipped the Safe Room. Your guide noticed. Your guide is pretending not to be hurt.',
+    test: (s) => s.skippedSafe >= 1,
+  },
   // ---------------------------------------------------------- nonsense
   {
     id: 'wallEnthusiast', name: 'Wall Enthusiast', reward: null, secret: true,
@@ -235,7 +254,7 @@ export const ACHIEVEMENT = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])
 const COUNT = {
   crit: 'crits', flee: 'flees', chest: 'chests', learn: 'learned', won: 'won',
   bump: 'bumps', wastedHeal: 'wastedHeals', lockedStairs: 'lockedStairs',
-  drop: 'drops', wave: 'waves', barrel: 'barrels',
+  drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests',
 };
 
 // How the other events change the counters. Unknown kinds are ignored
@@ -267,6 +286,7 @@ const RULES = {
     if (d.turnsShare <= 0.1) s.lateStairs++;
     if (s.floorKills === 0) s.peacefulFloors++;
     if (d.allDead) s.cleanFloors++;
+    if (d.safeVisited === false) s.skippedSafe++;
     s.floorKills = 0;
   },
 };
@@ -277,7 +297,7 @@ export class Achievements {
       steps: 0, kills: 0, floorKills: 0, unarmedKills: 0, crits: 0, flees: 0,
       byAThread: 0, flawless: 0, level: 1, maxSkill: 1, learned: 0, slotsFilled: 0,
       fashion: 0, tails: 0, floors: 0, lateStairs: 0, peacefulFloors: 0, cleanFloors: 0,
-      won: 0, viewers: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
+      won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
     };
     this.unlocked = [];  // ids in the order they were earned
     this.boxes = [];     // unopened loot boxes: { tier, sponsored, from }

@@ -42,6 +42,9 @@ import { Achievements } from './game/achievements.js';
 import { AchievementPopups } from './game/achievement-ui.js';
 import { boxName, BOX_TIERS } from './game/lootboxes.js';
 import { Viewers, VIEWERS, formatViewers } from './game/viewers.js';
+import { SafeRoomScreen } from './game/safe-ui.js';
+import { mentorGreeting, mentorLine } from './game/mentor.js';
+import { ACHIEVEMENTS } from './game/achievements.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -71,16 +74,18 @@ let banner = null; // big LEVEL UP text; starts once nothing else is on screen
 let ach;          // the run's achievements and unopened loot boxes
 let viewers;      // the audience (hype model, viewers.js)
 const popups = new AchievementPopups();
+const safe = new SafeRoomScreen();
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
-  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0 };
+  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0 };
   inventory = new Inventory();
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
   ach = new Achievements();
   viewers = new Viewers(crawler.cha);
   popups.clear();
+  safe.close();
   dead = null;
   card = null;
   banner = null;
@@ -102,6 +107,7 @@ function enterFloor(depth) {
   decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
   enemyRnd = rng(level.seed * 31 + 7);
   countdown = new Countdown(level.turns);
+  level.safeRoom = { visits: 0, rested: false };
   level.stairsOpen = countdown.stairsOpen;
 }
 
@@ -185,6 +191,7 @@ function interact() {
   const w = level.wall(f.x, f.y);
   if (w === WALL.STAIRS) return useStairs(f);
   if (w === WALL.POSTER) return log.push(line('poster'), 'info');
+  if (w === WALL.SAFE) return enterSafeRoom();
   const o = level.objectAt(f.x, f.y);
   if (o && o.type === 'chest') return openChest(o);
   if (o) {
@@ -212,7 +219,7 @@ function useStairs(cell) {
     return log.push(line(run.depth >= FINAL_DEPTH ? 'finalStairs' : 'stairs'), 'warn');
   }
   gainXp(LEVELING.stairsXp(run.depth), 'stairs');
-  note('floorDone', { turnsShare: countdown.left / countdown.total, allDead: level.enemies.every((e) => !e.alive) });
+  note('floorDone', { turnsShare: countdown.left / countdown.total, allDead: level.enemies.every((e) => !e.alive), safeVisited: level.safeRoom.visits > 0 });
   if (run.depth >= FINAL_DEPTH) {
     note('won');
     return endRun({ won: true });
@@ -261,7 +268,8 @@ function gainXp(n, why) {
 }
 
 function showLevelBanner() {
-  banner = { text: 'LEVEL UP', sub: `LEVEL ${crawler.level}  -  PRESS C TO SPEND POINTS`, at: null };
+  banner = { text: 'LEVEL UP', sub: `LEVEL ${crawler.level}  -  SPEND POINTS IN A SAFE ROOM`, at: null };
+  if (!state.saidSafeHint && !run.safeVisits) { state.saidSafeHint = true; log.push(line('safeHint'), 'info'); }
 }
 
 // Casts a spell outside combat (from the skills tab). Only spells that work
@@ -279,7 +287,7 @@ function castOutside(id) {
   log.push(line('castOutside'));
   const up = crawler.spells.train(id);
   if (up) skillUp(def.name, up);
-  afterTurn();
+  if (!safe.open) afterTurn(); // time stands still in a Safe Room
 }
 
 // Spends one attribute point on the stats sheet.
@@ -331,6 +339,101 @@ function noteBag() {
 }
 
 const itemLabel = ({ id, n }) => (n > 1 ? `${n}x ${ITEMS[id].name}` : ITEMS[id].name);
+
+// ------------------------------------------------------------ safe room
+
+// Time stops in here: no turns pass, no enemy moves. The crawler spends
+// points, opens loot boxes, looks at achievements and rests once.
+function enterSafeRoom() {
+  player.queued = null;
+  state.showMap = false;
+  if (invScreen.open) invScreen.toggle();
+  if (charScreen.open) charScreen.toggle();
+  const greeting = mentorGreeting({
+    visits: run.safeVisits, floorVisits: level.safeRoom.visits, depth: run.depth,
+    hpShare: crawler.hp / crawler.hpMax, points: crawler.points, boxes: ach.boxes.length,
+    kills: crawler.kills, viewers: viewers.shown,
+  });
+  run.safeVisits++;
+  level.safeRoom.visits++;
+  safe.enter(greeting, performance.now());
+  log.push(line('safeEnter'));
+  note('safeRoom');
+}
+
+function leaveSafeRoom() {
+  const bye = mentorLine('leave');
+  safe.close();
+  log.push(`Ozzle: "${bye}"`, 'info');
+  log.push(line('safeLeave'));
+}
+
+// A choice on the Safe Room terminal.
+function safeCommand(id) {
+  const now = performance.now();
+  if (id === 'leave') return leaveSafeRoom();
+  if (id === 'levelup') {
+    if (!crawler.points) return safe.talk(mentorLine('noPoints'), now);
+    charScreen.canSpend = true;
+    state.levelAtSpend = crawler.points;
+    return charScreen.toggle('stats');
+  }
+  if (id === 'achievements') {
+    safe.page = 'achievements';
+    return safe.talk(mentorLine('achievements'), now);
+  }
+  if (id === 'boxes') {
+    if (!ach.boxes.length) return safe.talk(mentorLine('noBoxes'), now);
+    // TODO(M6): opening loot boxes (step 4).
+    return safe.talk(`${ach.boxes.length} boxes. The opening machine is still warming up. Come back in a patch.`, now);
+  }
+  if (id === 'rest') {
+    if (level.safeRoom.rested) return safe.talk(mentorLine('rested'), now);
+    level.safeRoom.rested = true;
+    const hp = crawler.hpMax - crawler.hp, mp = crawler.mpMax - crawler.mp;
+    crawler.hp = crawler.hpMax;
+    crawler.mp = crawler.mpMax;
+    log.push(`You rest. +${hp} HP, +${mp} MP.`, 'info');
+    note('rest');
+    return safe.talk(mentorLine('rest'), now);
+  }
+}
+
+// Keys while in the Safe Room (the character sheet and the inventory can
+// be opened on top of it).
+function onSafeAction(action) {
+  if (charScreen.open) return onCharacterAction(action);
+  if (action === 'inventory' || invScreen.open) {
+    if (!invScreen.open) return invScreen.toggle();
+    return onInventoryAction(action);
+  }
+  const dir = { forward: 'up', back: 'down', turnLeft: 'left', turnRight: 'right', left: 'left', right: 'right' }[action];
+  if (safe.page === 'achievements') {
+    if (dir) return safe.move(dir, ACHIEVEMENTS.length);
+    if (['close', 'interact', 'character'].includes(action)) safe.page = 'menu';
+    return;
+  }
+  if (dir) return safe.move(dir);
+  if (action === 'interact') return safeCommand(safe.selected());
+  if (action === 'character') return safeCommand('levelup');
+  if (action === 'close') return leaveSafeRoom();
+}
+
+// The character sheet's keys. Points can only be spent while it was
+// opened from a Safe Room (canSpend).
+function onCharacterAction(action) {
+  const dir = { forward: 'up', back: 'down', left: 'left', turnLeft: 'left', right: 'right', turnRight: 'right' }[action];
+  if (dir) return charScreen.move(dir, crawler.spells.list().length);
+  if (action === 'interact' && charScreen.tab === 'skills') return castOutside(crawler.spells.list()[charScreen.spellCursor]);
+  if (action === 'interact' && crawler.points > 0 && charScreen.canSpend) return raiseAttr(charScreen.selected());
+  if (['character', 'close', 'interact', 'inventory'].includes(action)) closeCharacter();
+}
+
+function closeCharacter() {
+  if (charScreen.open) charScreen.toggle();
+  if (charScreen.canSpend && safe.open && state.levelAtSpend > crawler.points) safe.talk(mentorLine('levelUp'), performance.now());
+  charScreen.canSpend = false;
+}
 
 // ------------------------------------------------------------ inventory
 
@@ -483,14 +586,8 @@ function onAction(action) {
     return;
   }
   if (combat) return onCombatAction(action);
-  if (charScreen.open) {
-    const dir = { forward: 'up', back: 'down', left: 'left', turnLeft: 'left', right: 'right', turnRight: 'right' }[action];
-    if (dir) return charScreen.move(dir, crawler.spells.list().length);
-    if (action === 'interact' && charScreen.tab === 'skills') return castOutside(crawler.spells.list()[charScreen.spellCursor]);
-    if (action === 'interact' && crawler.points > 0) return raiseAttr(charScreen.selected());
-    if (['character', 'close', 'interact', 'inventory'].includes(action)) charScreen.toggle();
-    return;
-  }
+  if (safe.open) return onSafeAction(action);
+  if (charScreen.open) return onCharacterAction(action);
   if (action === 'character') {
     state.showMap = false;
     player.queued = null;
@@ -753,8 +850,18 @@ canvas.addEventListener('pointerdown', (e) => {
     const t = charScreen.hit(p.x, p.y);
     if (t.kind === 'tab') return;
     if (t.kind === 'cast') return castOutside(crawler.spells.list()[t.index]);
-    if (t.kind === 'raise') { if (crawler.points > 0) raiseAttr(t.attr); return; }
-    if (t.kind === 'button' || !crawler.points) charScreen.toggle();
+    if (t.kind === 'raise') { if (crawler.points > 0 && charScreen.canSpend) raiseAttr(t.attr); return; }
+    if (t.kind === 'button' || !crawler.points || !charScreen.canSpend) closeCharacter();
+    return;
+  }
+  if (safe.open && !invScreen.open) {
+    e.preventDefault();
+    const p = hudPoint(e);
+    if (p.y >= OVERLAY_H) return;
+    const t = safe.hit(p.x, p.y);
+    if (!t) return;
+    if (t.kind === 'back') safe.page = 'menu';
+    else if (t.kind === 'menu') safeCommand(t.id);
     return;
   }
   if (combat) {
@@ -875,11 +982,16 @@ function loop(now) {
 
   const marks = enemyMarks();
   drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice, marks });
+  safe.draw(overlayFb, now, {
+    points: crawler.points, boxes: ach.boxes.length, unlocked: ach.unlocked, total: ACHIEVEMENTS.length,
+    rested: level.safeRoom.rested, hp: crawler.hp, hpMax: crawler.hpMax, mp: crawler.mp, mpMax: crawler.mpMax,
+    viewers: formatViewers(viewers.count),
+  });
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
   if (combat) combat.ui.draw(overlayFb, now);
-  popups.draw(overlayFb, now, !!(combat || dead || card || charScreen.open || invScreen.open || (banner && banner.at !== null)));
-  if (banner && !popups.busy && !combat && !dead && !card && !charScreen.open && !invScreen.open) {
+  popups.draw(overlayFb, now, !!(combat || dead || card || safe.open || charScreen.open || invScreen.open || (banner && banner.at !== null)));
+  if (banner && !popups.busy && !combat && !dead && !card && !safe.open && !charScreen.open && !invScreen.open) {
     if (banner.at === null) banner.at = now;
     if (!drawBanner(overlayFb, banner, now)) banner = null;
   }
@@ -919,6 +1031,7 @@ window.game = {
   get card() { return card; },
   get ach() { return ach; },
   get viewers() { return viewers; },
+  safe, enterSafeRoom, safeCommand,
   popups, note,
   descend,
   log, onAction, stats, engage, restart, gainXp,

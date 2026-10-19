@@ -8,6 +8,7 @@ import { ITEMS } from '../src/game/items.js';
 import { textWidth } from '../src/engine/font.js';
 import { rewardLabel } from '../src/game/achievement-ui.js';
 import { Viewers, VIEWERS, formatViewers, charismaGain, charismaLoss } from '../src/game/viewers.js';
+import { MENTOR, MENTOR_POSES, MENTOR_LINES, paintOzzle, mentorGreeting } from '../src/game/mentor.js';
 
 // ---------------------------------------------------------- catalogue
 
@@ -95,6 +96,7 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   for (let i = 0; i < 15; i++) script.push(['kill', { type: 'rat', unarmed: true }]);
   script.push(['floorDone', { turnsShare: 0.5, allDead: true }], ['floorDone', { turnsShare: 0.5, allDead: true }], ['won']);
   script.push(['viewers', { count: 12000 }]);
+  script.push(['safeRoom'], ['rest'], ['rest'], ['rest'], ['floorDone', { turnsShare: 0.5, allDead: false, safeVisited: false }]);
   for (const [k, d] of script) t.note(k, d);
   // The pacifist season needs a run of its own.
   const p = new Achievements();
@@ -172,5 +174,26 @@ const charming = [1, 2, 3, 4, 5].map((k) => simulate(k * 7919, 9));
 const mid = (xs) => xs.slice().sort((a, b) => a - b)[2];
 assert.ok(mid(plain) > 300 && mid(plain) < 5000, `typical run at CHA 5: ${Math.round(mid(plain))} viewers`);
 assert.ok(mid(charming) > mid(plain) * 2, 'charisma pays off over a run');
+
+// ---------------------------------------------------------- safe room
+
+// Ozzle: every pose the same size, nothing cut off at the sides or the top.
+for (const pose of MENTOR_POSES) {
+  const img = paintOzzle(pose);
+  assert.equal(img.w, MENTOR.w, `ozzle ${pose}: width`);
+  assert.equal(img.h, MENTOR.h, `ozzle ${pose}: height`);
+  const opaque = (x, y) => img.data[y * img.w + x] !== 255;
+  for (let y = 0; y < img.h; y++) assert.ok(!opaque(0, y) && !opaque(img.w - 1, y), `ozzle ${pose}: cut off at the side (row ${y})`);
+  for (let x = 0; x < img.w; x++) assert.ok(!opaque(x, 0), `ozzle ${pose}: cut off at the top`);
+}
+for (const [topic, lines] of Object.entries(MENTOR_LINES)) assert.ok(lines.length && lines.every((l) => l.length < 190), `mentor ${topic}: lines fit the bubble`);
+{
+  const base = { visits: 3, floorVisits: 1, depth: 2, hpShare: 1, points: 0, boxes: 0, kills: 4, viewers: 100 };
+  const says = (ctx) => mentorGreeting({ ...base, ...ctx });
+  assert.match(says({ visits: 0, points: 3 }), /Ozzle/, 'introduces himself on the first visit');
+  assert.match(says({ hpShare: 0.2, points: 3 }), /REST/, 'low health comes first');
+  assert.match(says({ points: 3 }), /3/, 'then unspent points');
+  assert.match(says({ boxes: 2 }), /2 loot boxes/, 'then loot boxes');
+}
 
 console.log(`show: ${ACHIEVEMENTS.length} achievements, viewers OK (typical run: ${Math.round(mid(plain))} at CHA 5, ${Math.round(mid(charming))} at CHA 9)`);

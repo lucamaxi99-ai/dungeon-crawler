@@ -127,9 +127,19 @@ export const LINES = {
     'You are already at full health. The System refuses to waste good product on you.',
   ],
   levelUp: [
-    'LEVEL UP! You are now level {n}. {p} attribute points are burning a hole in your stats sheet. Press C.',
-    'Level {n}! The System grudgingly admits you are improving. Spend your {p} points with C before you die with them.',
-    'Ding! Level {n}. The viewers love a montage. You have {p} points to spend. C, Crawler. C.',
+    'LEVEL UP! You are now level {n}. {p} attribute points are waiting for you in the next Safe Room.',
+    'Level {n}! The System grudgingly admits you are improving. Find a Safe Room to spend your {p} points before you die with them.',
+    'Ding! Level {n}. The viewers love a montage. {p} points to spend, in a Safe Room. Look for the green sign.',
+  ],
+  safeEnter: [
+    'You step into the Safe Room. Time stops. The countdown holds its breath, and so does everything that wants to eat you.',
+    'Safe Room. The door seals behind you. Out there the clock is frozen. In here it is just you and your guide. Sorry.',
+  ],
+  safeLeave: [
+    'You step back into the dungeon. The countdown remembers where it was.',
+  ],
+  safeHint: [
+    'Attribute points are spent in a Safe Room. Look for a door with a green sign. It is the only door down here that will not bite.',
   ],
   pointsSpent: [
     'Points allocated. You feel exactly as strong as a spreadsheet says you are.',

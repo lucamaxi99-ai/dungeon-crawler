@@ -131,6 +131,7 @@ function cellColor(level, x, y) {
   const w = level.wall(x, y);
   if (w === WALL.STAIRS) return level.stairsOpen === false ? C.RUST : C.FIRE;
   if (w === WALL.POSTER) return C.LEATHER;
+  if (w === WALL.SAFE) return C.MINT;
   if (w) return C.STONE_M;
   const o = level.objectAt(x, y);
   if (o && o.type === 'chest') return o.flags.openedAt != null ? C.RUST : C.GOLD;

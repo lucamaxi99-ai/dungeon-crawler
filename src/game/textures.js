@@ -322,6 +322,62 @@ function door() {
   return t;
 }
 
+// Safe Room door: a steel door in a stone frame under a glowing mint
+// "SAFE ROOM" sign, so it can be spotted from across a dark room.
+function safeDoor() {
+  const t = stoneWall();
+  const grain = normalize(fbm(S, 141, { base: 8, octaves: 3 }));
+  const x0 = 14, x1 = 50, top = 24;
+  // Frame: a darker stone surround.
+  for (let y = top - 3; y < S; y++) {
+    for (let x = x0 - 3; x < x1 + 3; x++) {
+      if (x >= x0 && x < x1 && y >= top) continue;
+      set(t, x, y, pick(DARK_STONE, 0.45 + (x < 32 ? 0.12 : -0.08) + (grain[y * S + x] - 0.5) * 0.3, x, y));
+    }
+  }
+  // Two steel leaves with a seam, rivets and a kick plate.
+  for (let y = top; y < S; y++) {
+    for (let x = x0; x < x1; x++) {
+      const lx = x < 32 ? x - x0 : x - 32;
+      let v = 0.42 + (grain[y * S + x] - 0.5) * 0.25 + (lx < 2 ? 0.2 : 0) - (lx > 15 ? 0.15 : 0);
+      if (x === 31 || x === 32) v = x === 31 ? 0.02 : 0.6;
+      if (y >= 54) v -= 0.12;
+      set(t, x, y, pick(STEEL_RAMP, v, x, y));
+    }
+  }
+  for (let y = top + 3; y < S - 2; y += 6) for (const x of [x0 + 2, 29, 34, x1 - 3]) { set(t, x, y, C.STEEL_L); set(t, x + 1, y + 1, C.BLACK); }
+  for (let x = x0; x < x1; x++) set(t, x, 53, C.STEEL_L);
+  // Handles: short vertical bars either side of the seam.
+  for (let y = 38; y < 46; y++) { set(t, 28, y, C.STEEL_L); set(t, 35, y, C.STEEL_L); set(t, 29, y, C.BLACK); set(t, 36, y, C.BLACK); }
+  // Sign box with the neon letters and a soft teal halo.
+  for (let y = 3; y < 20; y++) {
+    for (let x = 6; x < 58; x++) {
+      const edge = y === 3 || y === 19 || x === 6 || x === 57;
+      set(t, x, y, edge ? C.BLACK : y % 2 ? C.TEAL_D : C.NIGHT);
+    }
+  }
+  const tmp = blank(S, 0);
+  bigText(tmp, 'SAFE', 17, 5, 1);
+  smallText(tmp, 'ROOM', 25, 14, 2);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      if (!tmp.data[y * S + x]) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        if (!tmp.data[(y + dy) * S + x + dx] && y + dy > 3 && y + dy < 19) set(t, x + dx, y + dy, C.TEAL);
+      }
+    }
+  }
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const v = tmp.data[y * S + x];
+      if (v === 1) set(t, x, y, (x * 3 + y) % 11 === 0 ? C.WHITE : C.MINT);
+      else if (v === 2) set(t, x, y, C.TEAL_M);
+    }
+  }
+  t.glow = glowMask([C.MINT, C.TEAL_M, C.TEAL, C.WHITE]);
+  return t;
+}
+
 // Carved, glowing runes on dark stone.
 function runeWall() {
   const { t, layout } = stoneBlocks(61, { ramp: DARK_STONE, mortar: C.BLACK, rough: 0.6 });
@@ -536,7 +592,7 @@ export function framedPortrait(img) {
 // ------------------------------------------------------------ registry
 
 // Wall ids (map cells, 0 = open) and flat ids (floor/ceiling per cell).
-export const WALL = { STONE: 1, ROCK: 2, MOSSY: 3, STAIRS: 4, NEON: 5, DOOR: 6, RUNES: 7, PORTRAIT: 8, POSTER: 9 };
+export const WALL = { STONE: 1, ROCK: 2, MOSSY: 3, STAIRS: 4, NEON: 5, DOOR: 6, RUNES: 7, PORTRAIT: 8, POSTER: 9, SAFE: 10 };
 export const FLAT = { COBBLE: 0, WET: 1, PLANKS: 2, CARPET: 3, GRAVEL: 4, BEAMS: 5, VAULT: 6, CAVE: 7, STEEL: 8 };
 
 // Texture size in pixels (one wall = 64 x 64).
@@ -554,6 +610,7 @@ export function buildTextures(portraitImg = null) {
   walls[WALL.RUNES] = runeWall();
   walls[WALL.PORTRAIT] = portraitImg ? framedPortrait(portraitImg) : stoneWall();
   walls[WALL.POSTER] = borantPoster();
+  walls[WALL.SAFE] = safeDoor();
   const flats = [];
   flats[FLAT.COBBLE] = cobbles();
   flats[FLAT.WET] = wetFlagstones();

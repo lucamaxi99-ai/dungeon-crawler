@@ -33,17 +33,19 @@ function checkLevel(level) {
     const reach = SPRITES[o.type].solid ? nextToReach(o.x, o.y) : dist.has(`${o.x},${o.y}`);
     if (!reach) problems.push(`unreachable ${o.type} at ${o.x},${o.y}`);
   }
-  let stairs = 0, stairsDist = Infinity, open = 0;
+  let stairs = 0, stairsDist = Infinity, open = 0, safe = 0;
   for (let y = 0; y < level.h; y++) {
     for (let x = 0; x < level.w; x++) {
       const w = level.wall(x, y);
       if (!w && walkable(x, y) && !dist.has(`${x},${y}`)) problems.push(`unreachable floor at ${x},${y}`);
       if (!w) open++;
       if (w === WALL.STAIRS) { stairs++; stairsDist = Math.min(stairsDist, ...nextTo(x, y)); }
-      if ((w === WALL.STAIRS || w === WALL.POSTER) && !nextToReach(x, y)) problems.push(`unreachable wall feature ${w} at ${x},${y}`);
+      if (w === WALL.SAFE) safe++;
+      if ((w === WALL.STAIRS || w === WALL.POSTER || w === WALL.SAFE) && !nextToReach(x, y)) problems.push(`unreachable wall feature ${w} at ${x},${y}`);
     }
   }
   if (stairs !== 1) problems.push(`${stairs} stairwells`);
+  if (safe !== 1) problems.push(`${safe} safe room doors`);
   for (const e of level.enemies) {
     const d = dist.get(`${e.x},${e.y}`);
     if (d === undefined) problems.push(`unreachable ${e.type} at ${e.x},${e.y}`);

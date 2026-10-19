@@ -397,6 +397,15 @@ export function generateFloor(depth, seed) {
 
   // ------------------------------------------------------------ output
   for (const [cell, ch] of objects) chars[cell] = ch;
+  // The Safe Room door: one per floor, never in the start or stairs room,
+  // preferably in a room halfway along the way to the stairs.
+  const mid = fromStart[at(center(rooms[stairsRoom]).x, center(rooms[stairsRoom]).y)] / 2;
+  const safeOrder = rooms.map((_, i) => i).filter((i) => i !== startRoom && i !== stairsRoom)
+    .sort((a, b) => Math.abs(fromStart[at(center(rooms[a]).x, center(rooms[a]).y)] - mid) - Math.abs(fromStart[at(center(rooms[b]).x, center(rooms[b]).y)] - mid));
+  let safe = null;
+  for (const i of safeOrder) if (!safe) safe = takeSpot(i, (q) => !objects.has(at(q.in.x, q.in.y)));
+  if (!safe) return generateFloor(depth, seed + 1000003); // rare: no clean wall left
+  chars[at(safe.x, safe.y)] = 'H';
   chars[at(start.x, start.y)] = '@';
   const rows = [];
   for (let y = 0; y < H; y++) rows.push(chars.slice(y * W, y * W + W).join(''));

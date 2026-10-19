@@ -18,7 +18,7 @@ import { TINT_BY_NAME } from './lights.js';
 import { SPRITES } from './assets.js';
 import { Enemy } from './enemies.js';
 
-const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER, n: WALL.NEON, u: WALL.RUNES };
+const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER, H: WALL.SAFE, n: WALL.NEON, u: WALL.RUNES };
 const OBJECT_CHARS = { C: 'chest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
 const ENEMY_CHARS = { R: 'rat' };
 const SIDES = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
@@ -29,7 +29,7 @@ export const TEST_FLOOR = {
   startDir: 1, // 0 east, 1 south, 2 west, 3 north
   rows: [
     'rrrrrrrrrrrrrrrrrrrrrrrr',
-    'r....rrrrr####P#####rrrr',
+    'r....rrrrr####P##H##rrrr',
     'r.@..rrrrr#f.......f#rrr',
     'r....rrrrr#.....R...#rrr',
     'r....rrrrr#....C....#rrr',
