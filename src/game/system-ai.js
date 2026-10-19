@@ -126,6 +126,15 @@ export const LINES = {
   healFull: [
     'You are already at full health. The System refuses to waste good product on you.',
   ],
+  levelUp: [
+    'LEVEL UP! You are now level {n}. {p} attribute points are burning a hole in your stats sheet. Press C.',
+    'Level {n}! The System grudgingly admits you are improving. Spend your {p} points with C before you die with them.',
+    'Ding! Level {n}. The viewers love a montage. You have {p} points to spend. C, Crawler. C.',
+  ],
+  pointsSpent: [
+    'Points allocated. You feel exactly as strong as a spreadsheet says you are.',
+    'All points spent. Borant reminds you that refunds are not a thing.',
+  ],
   regenFull: [
     'Your body has quietly fixed itself. Biology: still the best sponsor.',
   ],

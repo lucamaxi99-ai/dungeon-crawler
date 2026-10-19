@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { Inventory } from '../src/game/inventory.js';
-import { Crawler, START } from '../src/game/crawler.js';
+import { Crawler, START, LEVELING, xpForLevel } from '../src/game/crawler.js';
 import { Enemy, ENEMY_TYPES, stepToward, lineOfSight, enemyTurns } from '../src/game/enemies.js';
 import { Combat, hitChance, crawlerDamage, enemyDamage, fleeChance, RULES } from '../src/game/combat.js';
 import { rng } from '../src/engine/texgen.js';
@@ -186,3 +186,31 @@ assert.equal(lineOfSight(() => false, 0, 0, 3, 3), true);
 }
 
 console.log(`combat OK (300 fights: ${outcomes.won} won, ${outcomes.lost} lost, ${outcomes.fled} fled; 1 rat costs ~${avgLoss.toFixed(1)} HP)`);
+
+// ------------------------------------------------------------ experience
+
+{
+  const hero = new Crawler(new Inventory());
+  assert.equal(hero.level, 1);
+  assert.equal(hero.xpNext, 10, 'level 2 at 10 XP');
+  assert.equal(hero.gainXp(5), 0);
+  assert.equal(hero.xpShare, 0.5);
+  assert.equal(hero.gainXp(5), 1, 'two rats make level 2');
+  assert.equal(hero.points, LEVELING.pointsPerLevel);
+  assert.equal(hero.xpNext, 30);
+  assert.equal(hero.gainXp(100), 3, 'several levels at once');
+  assert.equal(hero.level, 5);
+  assert.equal(xpForLevel(6), 150, 'a full run (18 rats + 3 stairwells) reaches level 6');
+  assert.equal(18 * ENEMY_TYPES.rat.xp + [1, 2, 3].reduce((s, d) => s + LEVELING.stairsXp(d), 0), 150);
+  // Raising CON adds hit points right away, without healing old wounds.
+  hero.hurt(5);
+  const hp = hero.hp, max = hero.hpMax;
+  assert.ok(hero.raise('con'));
+  assert.equal(hero.hpMax, max + 2);
+  assert.equal(hero.hp, hp + 2);
+  assert.ok(hero.raise('int'));
+  assert.equal(hero.mpMax, 12);
+  while (hero.points) hero.raise('str');
+  assert.equal(hero.raise('str'), false, 'no points, no raise');
+  assert.equal(hero.raise('luck'), false, 'unknown attribute');
+}

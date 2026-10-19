@@ -8,13 +8,14 @@
 //   DEX dexterity     aim, dodging, initiative, running away
 //   CHA charisma      viewers and merchants (not used yet)
 //
-// TODO(M5): spells spend MP, skills, XP and level-ups that raise attributes.
+// Experience: kills and stairwells give XP; every level brings attribute
+// points the crawler spends on the character sheet.
 // TODO(M6): CHA feeds the viewer count; TODO(M7): CHA lowers merchant prices.
 
 export const ATTRS = ['str', 'int', 'con', 'dex', 'cha'];
 export const ATTR_NAMES = { str: 'Strength', int: 'Intelligence', con: 'Constitution', dex: 'Dexterity', cha: 'Charisma' };
 
-// Starting attributes of a fresh crawler. Level-ups raise them (M5).
+// Starting attributes of a fresh crawler. Level-ups raise them.
 export const START = { str: 5, int: 5, con: 5, dex: 5, cha: 5 };
 
 // Derived values. With every attribute at 5 this gives HP 20, MP 10,
@@ -26,6 +27,16 @@ export const DERIVE = {
   regenSteps: (a) => Math.max(3, 15 - a.con),      // actions per HP/MP point
 };
 
+// Levels: going from level n to n+1 takes 10 * n XP, so level 2 needs 10
+// XP in total, level 3 30, level 4 60, level 5 100, level 6 150. A rat is
+// worth 5 XP and a stairwell 10 per floor, so a full run of three floors
+// ends around level 6.
+export const LEVELING = {
+  pointsPerLevel: 3,
+  stairsXp: (depth) => 10 * depth,
+};
+export const xpForLevel = (level) => 5 * level * (level - 1);
+
 export class Crawler {
   constructor(inventory, attrs = START) {
     this.inv = inventory;
@@ -34,6 +45,40 @@ export class Crawler {
     this.mp = this.mpMax;
     this.kills = 0;
     this.regen = 0;
+    this.level = 1;
+    this.xp = 0;       // total experience
+    this.points = 0;   // unspent attribute points
+  }
+
+  // XP needed for the next level, and progress toward it (0..1).
+  get xpNext() { return xpForLevel(this.level + 1); }
+  get xpShare() {
+    const lo = xpForLevel(this.level);
+    return (this.xp - lo) / (this.xpNext - lo);
+  }
+
+  // Adds experience. Returns the number of levels gained.
+  gainXp(n) {
+    this.xp += n;
+    let ups = 0;
+    while (this.xp >= this.xpNext) {
+      this.level++;
+      this.points += LEVELING.pointsPerLevel;
+      ups++;
+    }
+    return ups;
+  }
+
+  // Spends one point on an attribute. More CON or INT also fills the new
+  // hit points or mana right away. Returns false without points.
+  raise(attr) {
+    if (this.points <= 0 || !ATTRS.includes(attr)) return false;
+    const hpMax = this.hpMax, mpMax = this.mpMax;
+    this.attrs[attr]++;
+    this.points--;
+    this.hp += this.hpMax - hpMax;
+    this.mp += this.mpMax - mpMax;
+    return true;
   }
 
   get str() { return this.attrs.str; }

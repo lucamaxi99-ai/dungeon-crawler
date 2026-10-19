@@ -14,7 +14,7 @@ export function gameOverReady(dead, now) {
   return now - dead.at >= READY_MS;
 }
 
-// dead: { at, won, killer, depth, steps, kills, gold, comment }
+// dead: { at, won, killer, depth, level, steps, kills, gold, comment }
 export function drawGameOver(fb, dead, now) {
   const t = now - dead.at;
   const fade = Math.min(1, t / FADE_MS);
@@ -42,7 +42,7 @@ export function drawGameOver(fb, dead, now) {
   const killer = dead.won ? `FLOOR ${dead.depth} CLEARED. SEASON OVER... FOR NOW.` : `KILLED BY: ${dead.killer.toUpperCase()} ON FLOOR ${dead.depth}`;
   drawText(fb, killer, (W - textWidth(killer)) >> 1, y, C.BONE);
   y += 10;
-  const numbers = `STEPS ${dead.steps}   KILLS ${dead.kills}   GOLD ${dead.gold}`;
+  const numbers = `LEVEL ${dead.level}   STEPS ${dead.steps}   KILLS ${dead.kills}   GOLD ${dead.gold}`;
   drawText(fb, numbers, (W - textWidth(numbers)) >> 1, y, C.SILVER);
 
   if (gameOverReady(dead, now) && Math.floor(now / 500) % 2 === 0) {

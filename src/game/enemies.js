@@ -8,13 +8,13 @@
 // leash: its territory, the distance from home it will chase you (Infinity
 //   for hunters that follow you anywhere). Leave it and it gives up.
 // track: turns it keeps hunting without seeing you before it gives up.
-// drops: [item id, chance]; gold: [min, max].
+// drops: [item id, chance]; gold: [min, max]; xp: experience for the kill.
 export const ENEMY_TYPES = {
   rat: {
     name: 'Giant Rat', sprite: 'rat',
     hp: 4, atk: 2, def: 0, dex: 6, dmg: [1, 2],
     sight: 5, roam: 3, leash: 6, track: 4,   // territorial: guards its nest
-    drops: [['ratTail', 0.6]], gold: [0, 2],
+    drops: [['ratTail', 0.6]], gold: [0, 2], xp: 5,
   },
 };
 

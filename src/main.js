@@ -19,7 +19,7 @@ import { generateFloor, FINAL_DEPTH } from './game/floorgen.js';
 import { Countdown } from './game/countdown.js';
 import { Player } from './game/player.js';
 import {
-  MENU_BOX, MessageLog, drawPanel, drawOverlay,
+  MENU_BOX, MessageLog, drawPanel, drawOverlay, drawBanner,
   HUD_W, OVERLAY_H, PANEL_H, SCREEN_W, SCREEN_H, VIEW_H,
 } from './game/hud.js';
 import { bindInput } from './game/input.js';
@@ -29,7 +29,7 @@ import { ITEMS, RARITY_ORDER } from './game/items.js';
 import { rollLoot } from './game/loot.js';
 import { InventoryScreen } from './game/inventory-ui.js';
 import { CharacterScreen } from './game/character-ui.js';
-import { Crawler } from './game/crawler.js';
+import { Crawler, ATTR_NAMES, LEVELING } from './game/crawler.js';
 import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
 import { Combat } from './game/combat.js';
 import { CombatScreen } from './game/combat-ui.js';
@@ -59,8 +59,9 @@ const isWall = (x, y) => level.wall(x, y) !== 0;
 // the hand-built test floor.
 const params = new URLSearchParams(location.search);
 let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd, countdown;
-let dead = null; // { at, won, killer, depth, steps, kills, gold, comment } when the run is over
+let dead = null; // { at, won, killer, depth, level, steps, kills, gold, comment } when the run is over
 let card = null; // title card between floors (floor-ui.js)
+let banner = null; // big LEVEL UP text; starts once nothing else is on screen
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
@@ -70,6 +71,7 @@ function newRun() {
   invScreen = new InventoryScreen(inventory, crawler);
   dead = null;
   card = null;
+  banner = null;
   enterFloor(1);
 }
 
@@ -190,6 +192,7 @@ function useStairs(cell) {
     state.stairsAsked = key;
     return log.push(line(run.depth >= FINAL_DEPTH ? 'finalStairs' : 'stairs'), 'warn');
   }
+  gainXp(LEVELING.stairsXp(run.depth), 'stairs');
   if (run.depth >= FINAL_DEPTH) return endRun({ won: true });
   log.push(line('descend'));
   descend();
@@ -209,8 +212,36 @@ function endRun({ won = false, killer = '', comment = line(won ? 'victory' : 'de
   state.showMap = false;
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
-  dead = { at: performance.now(), won, killer, depth: run.depth, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment };
+  dead = { at: performance.now(), won, killer, depth: run.depth, level: crawler.level, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment };
   log.push(comment);
+}
+
+// ------------------------------------------------------------ experience
+
+// Experience from a kill or a stairwell. A level-up shows a banner (after
+// the fight, if there is one) and points the crawler to the stats sheet.
+function gainXp(n, why) {
+  const ups = crawler.gainXp(n);
+  log.push(`+${n} XP${why === 'stairs' ? ' for surviving the floor' : ''}.`, 'info');
+  if (!ups) return;
+  log.push(line('levelUp').replace('{n}', crawler.level).replace('{p}', crawler.points));
+  if (combat) {
+    combat.ui.float('LEVEL UP!', C.YELLOW, 160, 30, performance.now());
+    state.levelUpAfterFight = true;
+  } else {
+    showLevelBanner();
+  }
+}
+
+function showLevelBanner() {
+  banner = { text: 'LEVEL UP', sub: `LEVEL ${crawler.level}  -  PRESS C TO SPEND POINTS`, at: null };
+}
+
+// Spends one attribute point on the stats sheet.
+function raiseAttr(attr) {
+  if (!crawler.raise(attr)) return;
+  log.push(`${ATTR_NAMES[attr]} +1 (now ${crawler[attr]}).`, 'info');
+  if (!crawler.points) log.push(line('pointsSpent'));
 }
 
 const itemLabel = ({ id, n }) => (n > 1 ? `${n}x ${ITEMS[id].name}` : ITEMS[id].name);
@@ -337,6 +368,9 @@ function onAction(action) {
   }
   if (combat) return onCombatAction(action);
   if (charScreen.open) {
+    const dir = { forward: 'up', back: 'down' }[action];
+    if (dir) return charScreen.move(dir);
+    if (action === 'interact' && crawler.points > 0) return raiseAttr(charScreen.selected());
     if (['character', 'close', 'interact', 'inventory'].includes(action)) charScreen.toggle();
     return;
   }
@@ -497,6 +531,7 @@ function report(events) {
       case 'kill':
         log.push(`The ${foe.name} dies.`, 'info');
         log.push(line('kill'));
+        gainXp(foe.stats.xp || 0);
         break;
       case 'flee':
         log.push(line('fled'));
@@ -515,6 +550,8 @@ function report(events) {
 function endCombat() {
   const { fight } = combat;
   combat = null;
+  if (state.levelUpAfterFight && fight.result !== 'lost') showLevelBanner();
+  state.levelUpAfterFight = false;
   if (fight.result === 'won') {
     const got = {};
     let gold = 0;
@@ -558,7 +595,14 @@ function hudPoint(e) {
 }
 canvas.addEventListener('pointerdown', (e) => {
   if (dead || card) { e.preventDefault(); return onAction('interact'); }
-  if (charScreen.open) { e.preventDefault(); return onAction('close'); }
+  if (charScreen.open) {
+    e.preventDefault();
+    const p = hudPoint(e);
+    const t = charScreen.hit(p.x, p.y);
+    if (t.kind === 'raise') { if (crawler.points > 0) raiseAttr(t.attr); return; }
+    if (t.kind === 'button' || !crawler.points) charScreen.toggle();
+    return;
+  }
   if (combat) {
     e.preventDefault();
     const p = hudPoint(e);
@@ -603,6 +647,9 @@ function updateStatus() {
   status.hpMax = crawler.hpMax;
   status.mp = crawler.mp;
   status.mpMax = crawler.mpMax;
+  status.level = crawler.level;
+  status.xpShare = crawler.xpShare;
+  status.points = crawler.points;
 }
 
 function spriteList(time, dt) {
@@ -675,8 +722,12 @@ function loop(now) {
   const marks = enemyMarks();
   drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice, marks });
   invScreen.draw(overlayFb, now);
-  charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold });
+  charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
   if (combat) combat.ui.draw(overlayFb, now);
+  if (banner && !combat && !dead && !card && !charScreen.open) {
+    if (banner.at === null) banner.at = now;
+    if (!drawBanner(overlayFb, banner, now)) banner = null;
+  }
   if (card) { drawFloorCard(overlayFb, card, now); if (cardDone(card, now)) card = null; }
   if (dead) drawGameOver(overlayFb, dead, now);
   updateStatus();
@@ -712,7 +763,7 @@ window.game = {
   get dead() { return dead; },
   get card() { return card; },
   descend,
-  log, onAction, stats, engage, restart,
+  log, onAction, stats, engage, restart, gainXp,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),
 };

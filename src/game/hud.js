@@ -8,6 +8,7 @@ import { TRANSPARENT } from '../engine/framebuffer.js';
 import { drawText, wrapText, textWidth, LINE_H } from '../engine/font.js';
 import { DIRS } from './player.js';
 import { WALL } from './textures.js';
+import { big } from './gameover-ui.js';
 
 export const HUD_W = 320;
 export const OVERLAY_H = 140;
@@ -74,7 +75,15 @@ function bar(fb, x, y, w, label, value, max, [full, text]) {
 function drawStatus(fb, { level, status }) {
   const x = STAT.x + 3, w = STAT.w - 6;
   drawText(fb, level.name.toUpperCase(), x, STAT.y + 3, C.GOLD);
+  // Crawler level on the right (blinking + with points to spend), and the
+  // way to the next level as a thin gold line under it.
+  if (status.level) {
+    const spend = status.points > 0 && Math.floor(performance.now() / 500) % 2 === 0;
+    const lv = `L${status.level}${status.points > 0 ? '+' : ''}`;
+    drawText(fb, lv, x + w - textWidth(lv), STAT.y + 3, spend ? C.YELLOW : C.BONE);
+  }
   fb.rect(x, STAT.y + 10, w, 1, C.SHADOW);
+  if (status.level) fb.rect(x, STAT.y + 10, Math.round(w * status.xpShare), 1, C.GOLD);
   const low = status.hp !== null && status.hp <= status.hpMax / 4;
   bar(fb, x, STAT.y + 13, w, 'HP', status.hp, status.hpMax, low ? [C.FIRE, C.FIRE] : [C.RED, C.BONE]);
   bar(fb, x, STAT.y + 25, w, 'MP', status.mp ?? null, status.mpMax, [C.SKY, C.BONE]);
@@ -182,4 +191,17 @@ export function drawOverlay(fb, { level, player, showMap, notice, marks = [] }) 
     drawMapArea(fb, level, player, mx, my, mw, mh - 8, 5, true, marks);
     drawText(fb, 'MAP - PRESS M TO CLOSE', mx + 2, my + mh - 6, C.FOG);
   }
+}
+
+// A big announcement in the middle of the view (LEVEL UP). Returns false
+// once it is over. banner: { text, sub, at }.
+const BANNER_MS = 2200;
+export function drawBanner(fb, banner, now) {
+  const t = now - banner.at;
+  if (t > BANNER_MS) return false;
+  if (t > BANNER_MS - 300 && Math.floor(t / 80) % 2) return true; // flickers out
+  const lift = Math.max(0, 8 - Math.floor(t / 20));
+  big(fb, banner.text, (HUD_W - textWidth(banner.text) * 3) >> 1, 40 + lift, C.YELLOW, 3);
+  if (banner.sub) drawText(fb, banner.sub, (HUD_W - textWidth(banner.sub)) >> 1, 64 + lift, C.GOLD, C.BLACK);
+  return true;
 }
