@@ -16,6 +16,7 @@ import { buildTextures as buildHdTextures, WALL as WALL_HD } from '../game/textu
 import { buildSprites } from './sprites.js';
 import { buildLevel, TINT, TINTS, EXHIBIT_SPOTS } from './level.js';
 import { EXHIBITS, RATING } from './exhibits.js';
+import { buildBestiary } from './bestiary-ui.js';
 
 const $ = (id) => document.getElementById(id);
 PALETTE_HEX.forEach((hex, i) => document.documentElement.style.setProperty(`--c${i}`, hex));
@@ -280,6 +281,7 @@ function loop(now) {
 }
 
 buildExhibitList();
+buildBestiary($('bestiary'));
 rebuild();
 updateExhibitCard();
 requestAnimationFrame(loop);

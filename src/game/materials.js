@@ -24,6 +24,29 @@ export const M = {
   coal: { ramp: [C.BLOOD_D, C.BLOOD, C.RED, C.FIRE], glow: true, rough: 0.6 },
   ruby: { ramp: [C.GORE, C.BLOOD, C.RED, C.FIRE], spec: C.WHITE, shine: 1, outline: C.BLACK },
   emerald: { ramp: [C.TEAL_D, C.TEAL, C.TEAL_M, C.MINT], spec: C.WHITE, shine: 1, outline: C.BLACK },
+  // Stuff from the world above (bestiary): safety orange, plastics, wool ...
+  safety: { ramp: [C.BLOOD, C.RED, C.FIRE, C.AMBER], rough: 0.08, outline: C.BLACK },
+  cone: { ramp: [C.BLOOD, C.RED, C.FIRE, C.AMBER], spec: C.HOT, shine: 0.35, outline: C.BLACK },
+  hardhat: { ramp: [C.RUST, C.AMBER, C.GOLD, C.YELLOW], spec: C.HOT, shine: 0.5, outline: C.BLACK },
+  chrome: { ramp: [C.STEEL_D, C.STEEL_M, C.STEEL_L, C.WHITE], spec: C.WHITE, shine: 0.9, outline: C.BLACK },
+  plastic: { ramp: [C.BLACK, C.SOOT, C.SHADOW, C.DUSK, C.ASH], spec: C.STEEL_L, shine: 0.6, outline: C.BLACK },
+  bomb: { ramp: [C.BLACK, C.SOOT, C.STEEL_D, C.STEEL], spec: C.STEEL_L, shine: 0.6, outline: C.BLACK },
+  wool: { ramp: [C.GRAVEL_D, C.GRAVEL_M, C.TAN, C.PARCHMENT, C.BONE], rough: 0.35, outline: C.WOOD_D },
+  hide: { ramp: [C.SOOT, C.WOOD_D, C.WOOD, C.LEATHER, C.TAN], rough: 0.12, outline: C.BLACK },
+  enamel: { ramp: [C.GORE, C.BLOOD, C.RED, C.FIRE], spec: C.WHITE, shine: 0.45, outline: C.BLACK },
+  robe: { ramp: [C.PLUM_D, C.PLUM, C.VIOLET, C.VIOLET_M], rough: 0.15, outline: C.BLACK },
+  nylonRed: { ramp: [C.GORE, C.BLOOD, C.RED, C.FIRE], spec: C.AMBER, shine: 0.3, outline: C.BLACK },
+  nylonGold: { ramp: [C.RUST, C.AMBER, C.GOLD, C.YELLOW], spec: C.HOT, shine: 0.3, outline: C.BLACK },
+  ceramicSkin: { ramp: [C.SKIN, C.SKIN_M, C.SKIN_L, C.PARCHMENT], spec: C.WHITE, shine: 0.9, outline: C.SOOT },
+  ceramicRed: { ramp: [C.GORE, C.BLOOD, C.RED, C.FIRE], spec: C.WHITE, shine: 0.9, outline: C.BLACK },
+  ceramicBlue: { ramp: [C.NAVY, C.BLUE_D, C.BLUE, C.SKY], spec: C.WHITE, shine: 0.9, outline: C.BLACK },
+  beard: { ramp: [C.FOG, C.SILVER, C.BONE, C.WHITE], spec: C.WHITE, shine: 0.7, outline: C.ASH },
+  rubber: { ramp: [C.BLACK, C.SOOT, C.NIGHT, C.SHADOW], outline: C.BLACK },
+  // Matte versions for flat polygons: a glossy flat face would turn into one
+  // big highlight, because every pixel has the same normal.
+  tin: { ramp: [C.STEEL_D, C.STEEL, C.STEEL_M, C.STEEL_L], outline: C.BLACK },
+  sign: { ramp: [C.GORE, C.BLOOD, C.RED, C.FIRE], outline: C.BLACK },
+  bag: { ramp: [C.BLACK, C.SOOT, C.SHADOW, C.DUSK], spec: C.STEEL_M, shine: 0.8, outline: C.BLACK },
 };
 
 // Turns the M object into an indexed list for Painter.shade.

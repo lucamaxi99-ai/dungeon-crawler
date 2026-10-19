@@ -97,6 +97,22 @@
     </aside>
   </main>
 
+  <section class="bestiary" id="bestiary" aria-labelledby="bestiary-title">
+    <div class="bestiary-head">
+      <div>
+        <h2 id="bestiary-title" class="section-title">Bestiarium</h2>
+        <p class="hint"><span id="beast-count"></span> Gegner-Entwürfe in der Frontansicht, wie im Kampf. Jeder zeigt alle vier Posen: zweimal Ruhe, Angriff, Treffer. Die Zitate sind die Texte der System-KI im Spiel.</p>
+      </div>
+      <div class="filters" role="group" aria-label="Nach Herkunft filtern">
+        <button type="button" data-filter="all" id="filter-all" aria-pressed="true">Alle</button>
+        <button type="button" data-filter="classic" id="filter-classic" aria-pressed="false">Klassiker</button>
+        <button type="button" data-filter="book" id="filter-book" aria-pressed="false">Buch-Anspielung</button>
+        <button type="button" data-filter="own" id="filter-own" aria-pressed="false">Eigene Idee</button>
+      </div>
+    </div>
+    <div class="beasts"></div>
+  </section>
+
   <script type="module" src="src/proto/main.js"></script>
 </body>
 </html>
