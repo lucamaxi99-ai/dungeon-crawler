@@ -60,14 +60,15 @@ function frame(fb) {
   box(fb, MAP);
 }
 
-// Labelled bar. value/max null = system not built yet (shown empty and dim).
-function bar(fb, x, y, w, label, value, max, colors) {
-  const [full, empty, text] = colors;
-  drawText(fb, label, x, y, value === null ? C.ASH : text);
-  const bx = x + 12, bw = w - 12;
-  fb.bevel(bx, y, bw, 5, C.BLACK, C.BLACK, C.STONE);
-  if (value !== null) fb.rect(bx + 1, y + 1, Math.round(((bw - 2) * value) / max), 3, full);
-  else for (let i = bx + 2; i < bx + bw - 1; i += 3) fb.set(i, y + 2, empty);
+// Bar with a label and value on the line above. value/max null = system not
+// built yet (shown empty and dim).
+function bar(fb, x, y, w, label, value, max, [full, text]) {
+  const off = value === null;
+  drawText(fb, label, x, y, off ? C.ASH : text);
+  const v = off ? '--' : `${value}/${max}`;
+  drawText(fb, v, x + w - textWidth(v), y, off ? C.ASH : text);
+  fb.bevel(x, y + 6, w, 4, C.BLACK, C.BLACK, C.STONE);
+  if (!off) fb.rect(x + 1, y + 7, Math.round(((w - 2) * value) / max), 2, full);
 }
 
 function drawStatus(fb, { level, status }) {
@@ -75,26 +76,17 @@ function drawStatus(fb, { level, status }) {
   drawText(fb, level.name.toUpperCase(), x, STAT.y + 3, C.GOLD);
   fb.rect(x, STAT.y + 10, w, 1, C.SHADOW);
   const low = status.hp !== null && status.hp <= status.hpMax / 4;
-  bar(fb, x, STAT.y + 14, w, 'HP', status.hp, status.hpMax, [low ? C.FIRE : C.RED, C.SHADOW, low ? C.FIRE : C.BONE]);
-  if (status.hp !== null) {
-    const hp = `${status.hp}/${status.hpMax}`;
-    drawText(fb, hp, x + w - textWidth(hp), STAT.y + 20, low ? C.FIRE : C.FOG);
-  }
-  fb.rect(x, STAT.y + 26, w, 1, C.SHADOW);
+  bar(fb, x, STAT.y + 13, w, 'HP', status.hp, status.hpMax, low ? [C.FIRE, C.FIRE] : [C.RED, C.BONE]);
+  bar(fb, x, STAT.y + 25, w, 'MP', status.mp ?? null, status.mpMax, [C.SKY, C.BONE]);
+  fb.rect(x, STAT.y + 37, w, 1, C.SHADOW);
   // TODO(M5): floor countdown.
-  drawText(fb, 'TIME', x, STAT.y + 29, status.timeLeft === null ? C.ASH : C.BONE);
+  drawText(fb, 'TIME', x, STAT.y + 40, status.timeLeft === null ? C.ASH : C.BONE);
   const t = status.timeLeft === null ? '--:--' : clock(status.timeLeft);
-  drawText(fb, t, x + w - textWidth(t), STAT.y + 29, status.timeLeft === null ? C.ASH : C.FIRE);
+  drawText(fb, t, x + w - textWidth(t), STAT.y + 40, status.timeLeft === null ? C.ASH : C.FIRE);
   // TODO(M6): viewer count.
   const v = status.viewers === null ? '?' : String(status.viewers);
-  drawText(fb, 'VIEWERS', x, STAT.y + 37, status.viewers === null ? C.ASH : C.BONE);
-  drawText(fb, v, x + w - textWidth(v), STAT.y + 37, status.viewers === null ? C.ASH : C.NEON);
-  if (status.atk !== undefined) {
-    fb.rect(x, STAT.y + 44, w, 1, C.SHADOW);
-    drawText(fb, `ATK ${status.atk}`, x, STAT.y + 46, C.BONE);
-    const d = `DEF ${status.def}`;
-    drawText(fb, d, x + w - textWidth(d), STAT.y + 46, C.BONE);
-  }
+  drawText(fb, 'VIEWERS', x, STAT.y + 46, status.viewers === null ? C.ASH : C.BONE);
+  drawText(fb, v, x + w - textWidth(v), STAT.y + 46, status.viewers === null ? C.ASH : C.NEON);
 }
 
 function clock(seconds) {
@@ -157,7 +149,7 @@ function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false, marks =
   fb.rect(nx - (d.x === 0 ? 1 : 0), ny - (d.y === 0 ? 1 : 0), d.x === 0 ? 2 : 1, d.y === 0 ? 2 : 1, C.YELLOW);
 }
 
-// status: { hp, hpMax, atk, def, timeLeft, viewers } with null for systems
+// status: { hp, hpMax, mp, mpMax, timeLeft, viewers } with null for systems
 // that do not exist yet.
 // menu(fb, box): draws something else (the combat menu) instead of the minimap.
 export function drawPanel(fb, { log, level, player, status, marks = [], menu = null }) {

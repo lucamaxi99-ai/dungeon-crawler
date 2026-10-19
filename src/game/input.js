@@ -10,6 +10,7 @@ const KEYS = {
   Space: 'interact', Enter: 'interact',
   KeyM: 'map',
   KeyI: 'inventory', Tab: 'inventory',
+  KeyC: 'character',
   KeyX: 'drop', Delete: 'drop',
   Escape: 'close',
   KeyG: 'quality',
@@ -34,7 +35,7 @@ export function bindInput(onAction, root = document) {
     let timer = null;
     btn.addEventListener('pointerdown', () => {
       clearInterval(timer);
-      if (['interact', 'map', 'inventory'].includes(btn.dataset.action)) return;
+      if (['interact', 'map', 'inventory', 'character'].includes(btn.dataset.action)) return;
       timer = setInterval(() => onAction(btn.dataset.action), 200);
     });
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {

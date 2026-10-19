@@ -2,7 +2,7 @@
 // caller asks whose turn it is, feeds in the crawler's choice or lets the
 // enemy act, and turns the returned events into text and animation.
 //
-// Flow: initiative is rolled once when the fight starts (d6 + SPD, +2 for
+// Flow: initiative is rolled once when the fight starts (d6 + DEX, +2 for
 // whoever started it, ties go to the crawler). Then everybody acts in that
 // order, round after round, until all enemies are dead, the crawler is
 // dead or the crawler got away.
@@ -15,10 +15,11 @@ export const RULES = {
   hitBase: 0.75,        // crawler's base chance to hit
   enemyHitBase: 0.7,    // enemy's base chance to hit
   hitPerPoint: 0.05,    // per point of ATK above the target's DEF
+  dexHit: 0.02,         // per point of the crawler's DEX above 5: aim and dodging
   hitMin: 0.2, hitMax: 0.95,
   crit: 0.06,           // crawler only: double damage
   defendHit: -0.15,     // enemy hit chance while the crawler defends
-  fleeBase: 0.5, fleePerSpd: 0.1, fleeMin: 0.2, fleeMax: 0.9,
+  fleeBase: 0.5, fleePerDex: 0.1, fleeMin: 0.2, fleeMax: 0.9,
   initiatorBonus: 2,
 };
 
@@ -36,10 +37,13 @@ export function enemyDamage([lo, hi], def, rnd) {
   return Math.max(1, lo + Math.floor(rnd() * (hi - lo + 1)) - Math.floor(def / 2));
 }
 
-export function fleeChance(spd, enemies) {
-  const fastest = Math.max(...enemies.map((e) => e.stats.spd));
-  return clamp(RULES.fleeBase + RULES.fleePerSpd * (spd - fastest), RULES.fleeMin, RULES.fleeMax);
+export function fleeChance(dex, enemies) {
+  const fastest = Math.max(...enemies.map((e) => e.stats.dex));
+  return clamp(RULES.fleeBase + RULES.fleePerDex * (dex - fastest), RULES.fleeMin, RULES.fleeMax);
 }
+
+// Aim (crawler attacking) or dodging (enemy attacking) from DEX.
+const dexBonus = (dex) => RULES.dexHit * (dex - 5);
 
 export class Combat {
   // crawler: Crawler; enemies: Enemy[]; initiator: 'crawler' | 'enemy'.
@@ -50,9 +54,9 @@ export class Combat {
     this.round = 1;
     this.defending = false;
     this.result = null;   // null while fighting, then 'won' | 'lost' | 'fled'
-    const roll = (spd, starter) => 1 + Math.floor(rnd() * 6) + spd + (starter ? RULES.initiatorBonus : 0);
-    const order = [{ who: crawler, init: roll(crawler.spd, initiator === 'crawler'), first: 1 }];
-    for (const e of enemies) order.push({ who: e, init: roll(e.stats.spd, initiator === 'enemy'), first: 0 });
+    const roll = (dex, starter) => 1 + Math.floor(rnd() * 6) + dex + (starter ? RULES.initiatorBonus : 0);
+    const order = [{ who: crawler, init: roll(crawler.dex, initiator === 'crawler'), first: 1 }];
+    for (const e of enemies) order.push({ who: e, init: roll(e.stats.dex, initiator === 'enemy'), first: 0 });
     order.sort((a, b) => b.init - a.init || b.first - a.first);
     this.order = order.map((o) => o.who);
     this.turn = 0;
@@ -70,7 +74,7 @@ export class Combat {
     const ev = [];
     if (action.kind === 'attack') {
       const t = action.target && action.target.alive ? action.target : this.alive[0];
-      if (rnd() < hitChance(RULES.hitBase, me.atk, t.stats.def)) {
+      if (rnd() < hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex))) {
         const crit = rnd() < RULES.crit;
         const dmg = crawlerDamage(me.atk, t.stats.def, rnd) * (crit ? 2 : 1);
         t.hurt(dmg);
@@ -85,7 +89,7 @@ export class Combat {
     } else if (action.kind === 'item') {
       ev.push({ kind: 'item', actor: me, name: action.name, amount: action.healed });
     } else if (action.kind === 'flee') {
-      if (rnd() < fleeChance(me.spd, this.alive)) {
+      if (rnd() < fleeChance(me.dex, this.alive)) {
         this.result = 'fled';
         ev.push({ kind: 'flee', actor: me });
       } else {
@@ -105,7 +109,7 @@ export class Combat {
     if (this.result || e === this.crawler) throw new Error('not an enemy\'s turn');
     const me = this.crawler, rnd = this.rnd;
     const ev = [];
-    const bonus = this.defending ? RULES.defendHit : 0;
+    const bonus = (this.defending ? RULES.defendHit : 0) - dexBonus(me.dex);
     if (rnd() < hitChance(RULES.enemyHitBase, e.stats.atk, me.def, bonus)) {
       let dmg = enemyDamage(e.stats.dmg, me.def, rnd);
       if (this.defending) dmg = Math.floor(dmg / 2);

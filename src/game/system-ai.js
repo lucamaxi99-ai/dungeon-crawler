@@ -4,7 +4,7 @@
 export const LINES = {
   welcome: [
     'Welcome, Crawler, to the first floor of the World Dungeon. Borant Corporation thanks you for your involuntary participation.',
-    'Controls: W/S move, A/D sidestep, Q/E turn, SPACE interact, I inventory, M map, G broadcast quality.',
+    'Controls: W/S move, A/D sidestep, Q/E turn, SPACE interact or attack, I inventory, C stats, M map, G broadcast quality.',
   ],
   bumpWall: [
     'That is a wall. Walls are load-bearing. Please stop licking them.',

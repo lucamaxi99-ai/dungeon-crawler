@@ -2,38 +2,55 @@
 
 import assert from 'node:assert/strict';
 import { Inventory } from '../src/game/inventory.js';
-import { Crawler, BASE, REGEN_STEPS } from '../src/game/crawler.js';
+import { Crawler, START } from '../src/game/crawler.js';
 import { Enemy, ENEMY_TYPES, stepToward, lineOfSight, enemyTurns } from '../src/game/enemies.js';
 import { Combat, hitChance, crawlerDamage, enemyDamage, fleeChance, RULES } from '../src/game/combat.js';
 import { rng } from '../src/engine/texgen.js';
 
-// Stats: base values plus equipped gear.
+// Attributes and derived values: all 5 gives HP 20, MP 10, ATK 1.
 const inv = new Inventory();
 const me = new Crawler(inv);
-assert.equal(me.hp, BASE.hpMax);
-assert.equal(me.atk, BASE.atk);
-assert.equal(me.def, BASE.def);
+assert.deepEqual(me.attrs, START);
+assert.equal(me.hp, 20);
+assert.equal(me.mp, 10);
+assert.equal(me.atk, 1);
+assert.equal(me.def, 0);
 inv.add('crowbar');
 inv.add('jerkin');
 inv.equipFromBag(0);
 inv.equipFromBag(0);
-assert.equal(me.atk, BASE.atk + 4, 'weapon adds attack');
-assert.equal(me.def, BASE.def + 3, 'armor adds defense');
+assert.equal(me.atk, 1 + 4, 'weapon adds attack');
+assert.equal(me.def, 3, 'armor adds defense');
+
+// Attributes change the derived values.
+const strong = new Crawler(new Inventory(), { ...START, str: 9, con: 8, int: 7 });
+assert.equal(strong.atk, 3, 'STR 9 -> ATK 3');
+assert.equal(strong.hpMax, 26, 'CON 8 -> 26 HP');
+assert.equal(strong.mpMax, 14, 'INT 7 -> 14 MP');
+assert.ok(strong.regenSteps < me.regenSteps, 'more CON heals faster');
+const weak = new Crawler(new Inventory(), { ...START, str: 2 });
+assert.ok(weak.atk >= -1, 'low STR does not break anything');
 
 // Hurt and heal stay within 0..hpMax and report what really happened.
 assert.equal(me.hurt(5), 5);
-assert.equal(me.hp, BASE.hpMax - 5);
+assert.equal(me.hp, 15);
 assert.equal(me.heal(10), 5, 'healing stops at max');
-assert.equal(me.hurt(999), BASE.hpMax);
+assert.equal(me.hurt(999), 20);
 assert.equal(me.alive, false);
 
-// Regeneration: one HP every REGEN_STEPS actions, only when hurt and alive.
+// Regeneration: one HP (and MP) every regenSteps actions, only when needed.
 const r = new Crawler(new Inventory());
 r.hurt(3);
+r.mp = 0;
 let gained = 0;
-for (let i = 0; i < REGEN_STEPS * 2; i++) if (r.tick()) gained++;
+for (let i = 0; i < r.regenSteps * 2; i++) if (r.tick()) gained++;
 assert.equal(gained, 2);
-assert.equal(r.hp, BASE.hpMax - 1);
+assert.equal(r.hp, 19);
+assert.equal(r.mp, 2);
+
+// DEX helps: a nimble crawler gets away more often.
+const ratB = new Enemy('rat', 0, 0);
+assert.ok(fleeChance(9, [ratB]) > fleeChance(5, [ratB]));
 
 // ------------------------------------------------------------ formulas
 
@@ -87,7 +104,7 @@ for (let seed = 1; seed <= 400; seed++) {
   const hero = new Crawler(new Inventory());
   const fight = new Combat(hero, [new Enemy('rat', 1, 0)], { rnd });
   while (!fight.result) fight.crawlersTurn ? fight.crawlerAct({ kind: 'attack' }) : fight.enemyAct();
-  if (fight.result === 'won') { wins++; lost += BASE.hpMax - hero.hp; }
+  if (fight.result === 'won') { wins++; lost += hero.hpMax - hero.hp; }
 }
 assert.ok(wins > 390, `fresh crawler should beat one rat (${wins}/400)`);
 const avgLoss = lost / wins;

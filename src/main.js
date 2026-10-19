@@ -26,6 +26,7 @@ import { Inventory } from './game/inventory.js';
 import { ITEMS, RARITY_ORDER } from './game/items.js';
 import { rollLoot } from './game/loot.js';
 import { InventoryScreen } from './game/inventory-ui.js';
+import { CharacterScreen } from './game/character-ui.js';
 import { Crawler } from './game/crawler.js';
 import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
 import { Combat } from './game/combat.js';
@@ -43,6 +44,7 @@ ctx.imageSmoothingEnabled = false;
 
 const textures = buildTextures();
 const log = new MessageLog();
+const charScreen = new CharacterScreen();
 const isWall = (x, y) => level.wall(x, y) !== 0;
 
 // Everything that belongs to one run. A new run (after death) starts the
@@ -259,6 +261,16 @@ function onAction(action) {
     return;
   }
   if (combat) return onCombatAction(action);
+  if (charScreen.open) {
+    if (['character', 'close', 'interact', 'inventory'].includes(action)) charScreen.toggle();
+    return;
+  }
+  if (action === 'character') {
+    state.showMap = false;
+    player.queued = null;
+    if (invScreen.open) invScreen.toggle();
+    return charScreen.toggle();
+  }
   if (action === 'inventory' && !invScreen.open) {
     state.showMap = false;
     player.queued = null;
@@ -300,6 +312,7 @@ function engage(foe, initiator) {
   player.queued = null;
   state.showMap = false;
   if (invScreen.open) invScreen.toggle();
+  if (charScreen.open) charScreen.toggle();
   const foes = [foe, ...level.enemies.filter((e) => e !== foe && e.alive && e.alerted && adjacent(e, player))].slice(0, 3);
   for (const e of foes) { e.alerted = true; e.move = null; }
   const fight = new Combat(crawler, foes, { initiator });
@@ -466,6 +479,7 @@ function hudPoint(e) {
 }
 canvas.addEventListener('pointerdown', (e) => {
   if (dead) { e.preventDefault(); return onAction('interact'); }
+  if (charScreen.open) { e.preventDefault(); return onAction('close'); }
   if (combat) {
     e.preventDefault();
     const p = hudPoint(e);
@@ -506,8 +520,8 @@ const status = {
 function updateStatus() {
   status.hp = crawler.hp;
   status.hpMax = crawler.hpMax;
-  status.atk = crawler.atk;
-  status.def = crawler.def;
+  status.mp = crawler.mp;
+  status.mpMax = crawler.mpMax;
 }
 
 function spriteList(time, dt) {
@@ -579,6 +593,7 @@ function loop(now) {
   const marks = enemyMarks();
   drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice, marks });
   invScreen.draw(overlayFb, now);
+  charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold });
   if (combat) combat.ui.draw(overlayFb, now);
   if (dead) drawGameOver(overlayFb, dead, now);
   updateStatus();

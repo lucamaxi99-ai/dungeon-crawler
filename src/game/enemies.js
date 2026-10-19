@@ -2,13 +2,13 @@
 // Pure game logic, no drawing. The world is turn based: every action of the
 // crawler outside combat gives each enemy one turn (enemyTurns).
 
-// hp, atk, def, spd like the crawler's stats; dmg: damage range per hit.
+// hp, atk, def, dex like the crawler's values; dmg: damage range per hit.
 // sight: cells within which it notices the crawler (needs line of sight).
 // drops: [item id, chance]; gold: [min, max].
 export const ENEMY_TYPES = {
   rat: {
     name: 'Giant Rat', sprite: 'rat',
-    hp: 4, atk: 2, def: 0, spd: 6, dmg: [1, 2],
+    hp: 4, atk: 2, def: 0, dex: 6, dmg: [1, 2],
     sight: 5, roam: 3,
     drops: [['ratTail', 0.6]], gold: [0, 2],
   },
