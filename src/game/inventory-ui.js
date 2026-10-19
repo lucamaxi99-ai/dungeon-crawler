@@ -39,7 +39,9 @@ const BUTTONS = [
 ];
 
 export class InventoryScreen {
-  constructor(inventory) {
+  // crawler (optional): shows the full stats (base + gear) instead of the gear totals.
+  constructor(inventory, crawler = null) {
+    this.crawler = crawler;
     this.inv = inventory;
     this.open = false;
     this.area = 'grid';  // 'grid' | 'doll'
@@ -169,9 +171,8 @@ export class InventoryScreen {
     this.drawDetail(fb);
     this.drawButtons(fb);
 
-    // Totals and gold under the doll.
-    // TODO(M4): ATK and DEF are shown but not used until combat exists.
-    const t = inv.totals();
+    // Stats and gold under the doll.
+    const t = this.crawler ? { atk: this.crawler.atk, def: this.crawler.def } : inv.totals();
     drawText(fb, `ATK ${t.atk}`, 8, 113, C.BONE);
     drawText(fb, `DEF ${t.def}`, 40, 113, C.BONE);
     drawText(fb, 'GOLD', 8, 121, C.GOLD);

@@ -52,9 +52,20 @@ export const LINES = {
     'Consumed. Your body has been informed.',
     'Down the hatch. The audience winces on your behalf.',
   ],
-  // TODO(M4): replace once hit points exist.
-  noHealth: [
-    'Hit points are not installed yet, so you feel exactly as healthy as before. Refreshing, though.',
+  healed: [
+    'Healed. The audience is relieved. Mostly the ones who bet on you.',
+    'Your wounds close. The scars stay, for the highlight reel.',
+    'Restorative. Do not read the ingredients.',
+  ],
+  healedFull: [
+    'Fully healed. Enjoy it. It never lasts.',
+    'Back to full health, Crawler. The dungeon thanks you for the fresh canvas.',
+  ],
+  healFull: [
+    'You are already at full health. The System refuses to waste good product on you.',
+  ],
+  regenFull: [
+    'Your body has quietly fixed itself. Biology: still the best sponsor.',
   ],
   look: [
     'You stare at it. It stares back. Nobody wins.',

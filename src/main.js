@@ -25,6 +25,7 @@ import { Inventory } from './game/inventory.js';
 import { ITEMS, RARITY_ORDER } from './game/items.js';
 import { rollLoot } from './game/loot.js';
 import { InventoryScreen } from './game/inventory-ui.js';
+import { Crawler } from './game/crawler.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -39,7 +40,8 @@ const level = new Level(TEST_FLOOR);
 const player = new Player(level.start);
 const log = new MessageLog();
 const inventory = new Inventory();
-const invScreen = new InventoryScreen(inventory);
+const crawler = new Crawler(inventory);
+const invScreen = new InventoryScreen(inventory, crawler);
 const state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
 
 const isWall = (x, y) => level.wall(x, y) !== 0;
@@ -164,12 +166,29 @@ function inventoryCommand(cmd) {
     return log.push(line('equip'));
   }
   if (def.kind === 'consumable') {
-    inventory.use(sel.index);
-    log.push(`Used: ${def.name}.`, 'info');
-    // TODO(M4): heal by def.heal once the player has hit points.
-    return log.push(line(def.heal ? 'noHealth' : 'use'));
+    return useConsumable(sel.index);
   }
   log.push(line('look'));
+}
+
+// Uses the consumable at a bag index. Healing items stay in the bag when
+// the crawler is already at full health. Returns true if it was used.
+function useConsumable(index) {
+  const def = ITEMS[inventory.bag[index].id];
+  if (def.heal && crawler.hp >= crawler.hpMax) {
+    log.push(line('healFull'), 'info');
+    return false;
+  }
+  inventory.use(index);
+  log.push(`Used: ${def.name}.`, 'info');
+  if (def.heal) {
+    const n = crawler.heal(def.heal);
+    log.push(`+${n} HP.`, 'info');
+    log.push(line(crawler.hp >= crawler.hpMax ? 'healedFull' : 'healed'));
+  } else {
+    log.push(line('use'));
+  }
+  return true;
 }
 
 function onInventoryAction(action) {
@@ -224,7 +243,12 @@ function onAction(action) {
   if (action === 'map') { state.showMap = !state.showMap; return; }
   if (state.showMap) return;
   if (action === 'interact') return interact();
-  player.act(action, world);
+  if (player.act(action, world)) afterTurn();
+}
+
+// Everything that happens once per crawler action outside combat.
+function afterTurn() {
+  if (crawler.tick() && crawler.hp === crawler.hpMax) log.push(line('regenFull'), 'info');
 }
 
 bindInput(onAction);
@@ -261,10 +285,15 @@ log.push(line('welcome'), 'info');  // controls hint
 
 // Nothing is built yet for these; the panel shows them empty.
 const status = {
-  hp: null, hpMax: null,   // TODO(M4)
   timeLeft: null,          // TODO(M5)
   viewers: null,           // TODO(M6)
 };
+function updateStatus() {
+  status.hp = crawler.hp;
+  status.hpMax = crawler.hpMax;
+  status.atk = crawler.atk;
+  status.def = crawler.def;
+}
 
 function spriteList(time) {
   const list = level.objects.map((o) => {
@@ -310,6 +339,7 @@ function loop(now) {
 
   drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice });
   invScreen.draw(overlayFb, now);
+  updateStatus();
   drawPanel(panelFb, { log, level, player, status });
   viewFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
   overlayFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
@@ -327,7 +357,7 @@ requestAnimationFrame(loop);
 
 // Debug handle for the browser console and automated tests.
 window.game = {
-  level, player, log, state, onAction, light, stats, inventory, invScreen,
+  level, player, log, state, onAction, light, stats, inventory, invScreen, crawler,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),
 };

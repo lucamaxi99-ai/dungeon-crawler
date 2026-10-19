@@ -36,8 +36,8 @@ export const SLOTS = [
 export const SLOT_BY_ID = Object.fromEntries(SLOTS.map((s) => [s.id, s]));
 
 // kind: 'gear' (has a slot), 'consumable' (can be used), 'junk'.
-// atk/def: added while equipped. heal: hit points restored on use.
-// TODO(M4): atk, def and heal do nothing until combat and hit points exist.
+// atk/def: added to the crawler's stats while equipped (crawler.js).
+// heal: hit points restored on use.
 const DEFS = [
   // ---------------------------------------------------------- weapons
   { id: 'shiv', name: 'Rusty Shiv', kind: 'gear', slot: 'weapon', rarity: 'common', atk: 2,

@@ -82,7 +82,7 @@ export class Inventory {
   }
 
   // Uses a consumable from the bag. Returns the item id or null.
-  // TODO(M4): healing does nothing until hit points exist.
+  // The effect (healing) is applied by the caller.
   use(index) {
     const s = this.bag[index];
     if (!s || ITEMS[s.id].kind !== 'consumable') return null;
@@ -90,8 +90,7 @@ export class Inventory {
     return s.id;
   }
 
-  // Sum of attack and defense from equipped gear.
-  // TODO(M4): fed into combat once it exists.
+  // Sum of attack and defense from equipped gear (fed into crawler.js).
   totals() {
     let atk = 0, def = 0;
     for (const slot of Object.keys(this.equip)) {

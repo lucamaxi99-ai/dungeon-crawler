@@ -72,17 +72,27 @@ function drawStatus(fb, { level, status }) {
   const x = STAT.x + 3, w = STAT.w - 6;
   drawText(fb, level.name.toUpperCase(), x, STAT.y + 3, C.GOLD);
   fb.rect(x, STAT.y + 10, w, 1, C.SHADOW);
-  // TODO(M4): real hit points once combat and stats exist.
-  bar(fb, x, STAT.y + 14, w, 'HP', status.hp, status.hpMax, [C.RED, C.SHADOW, C.BONE]);
-  fb.rect(x, STAT.y + 23, w, 1, C.SHADOW);
+  const low = status.hp !== null && status.hp <= status.hpMax / 4;
+  bar(fb, x, STAT.y + 14, w, 'HP', status.hp, status.hpMax, [low ? C.FIRE : C.RED, C.SHADOW, low ? C.FIRE : C.BONE]);
+  if (status.hp !== null) {
+    const hp = `${status.hp}/${status.hpMax}`;
+    drawText(fb, hp, x + w - textWidth(hp), STAT.y + 20, low ? C.FIRE : C.FOG);
+  }
+  fb.rect(x, STAT.y + 26, w, 1, C.SHADOW);
   // TODO(M5): floor countdown.
-  drawText(fb, 'TIME', x, STAT.y + 27, status.timeLeft === null ? C.ASH : C.BONE);
+  drawText(fb, 'TIME', x, STAT.y + 29, status.timeLeft === null ? C.ASH : C.BONE);
   const t = status.timeLeft === null ? '--:--' : clock(status.timeLeft);
-  drawText(fb, t, x + w - textWidth(t), STAT.y + 27, status.timeLeft === null ? C.ASH : C.FIRE);
+  drawText(fb, t, x + w - textWidth(t), STAT.y + 29, status.timeLeft === null ? C.ASH : C.FIRE);
   // TODO(M6): viewer count.
   const v = status.viewers === null ? '?' : String(status.viewers);
-  drawText(fb, 'VIEWERS', x, STAT.y + 35, status.viewers === null ? C.ASH : C.BONE);
-  drawText(fb, v, x + w - textWidth(v), STAT.y + 35, status.viewers === null ? C.ASH : C.NEON);
+  drawText(fb, 'VIEWERS', x, STAT.y + 37, status.viewers === null ? C.ASH : C.BONE);
+  drawText(fb, v, x + w - textWidth(v), STAT.y + 37, status.viewers === null ? C.ASH : C.NEON);
+  if (status.atk !== undefined) {
+    fb.rect(x, STAT.y + 44, w, 1, C.SHADOW);
+    drawText(fb, `ATK ${status.atk}`, x, STAT.y + 46, C.BONE);
+    const d = `DEF ${status.def}`;
+    drawText(fb, d, x + w - textWidth(d), STAT.y + 46, C.BONE);
+  }
 }
 
 function clock(seconds) {
@@ -138,8 +148,8 @@ function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false) {
   fb.rect(nx - (d.x === 0 ? 1 : 0), ny - (d.y === 0 ? 1 : 0), d.x === 0 ? 2 : 1, d.y === 0 ? 2 : 1, C.YELLOW);
 }
 
-// status: { hp, hpMax, timeLeft, viewers } with null for systems that do
-// not exist yet.
+// status: { hp, hpMax, atk, def, timeLeft, viewers } with null for systems
+// that do not exist yet.
 export function drawPanel(fb, { log, level, player, status }) {
   frame(fb);
   drawStatus(fb, { level, status });
