@@ -3,6 +3,8 @@
 // painted backdrop (a little bar behind a counter), Ozzle leaning on the
 // counter with a speech bubble, and a Borant terminal on the right:
 //   TALK          conversations with Ozzle (dialogue.js)
+//   TRADE         Thrum's Previously Owned: buy and sell (shop.js); Thrum
+//                 takes Ozzle's place at the counter while it is open
 //   LEVEL UP      spend attribute points (opens the character sheet)
 //   LOOT BOXES    open the boxes earned so far
 //   ACHIEVEMENTS  the list, earned and still open
@@ -18,16 +20,20 @@ import { MENTOR, paintOzzlePoses } from './mentor.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { TIER } from './lootboxes.js';
 import { drawBoxList, drawOpening, openingDone } from './lootbox-ui.js';
+import { paintThrumPoses } from './merchant.js';
+import { ITEMS, RARITY, itemStats } from './items.js';
+import { buyPrice, sellPrice } from './shop.js';
 
 const W = 320, H = 140;
 const COUNTER_Y = 100;                         // top of the bar counter
 const OZ = { x: 72, y: COUNTER_Y + 3 - MENTOR.h }; // Ozzle's sprite position
 const TERM = { x: 213, y: 3, w: 104, h: 134 };     // the terminal on the right
-const MENU_Y = 22, MENU_H = 12;
+const MENU_Y = 22, MENU_H = 11;
 const BUBBLE = { x: 5, y: 4, w: 202 };
 
 export const SAFE_MENU = [
   { id: 'talk', label: 'TALK' },
+  { id: 'shop', label: 'TRADE' },
   { id: 'levelup', label: 'LEVEL UP' },
   { id: 'boxes', label: 'LOOT BOXES' },
   { id: 'achievements', label: 'ACHIEVEMENTS' },
@@ -41,6 +47,8 @@ const LIST = { x: 8, y: 18, rows: 13, rowH: 8 };
 // bar counter, Ozzle's side in the speech bubble.
 const TOPIC_Y = 22, TOPIC_H = 11;
 export const REPLY_BOX = { x: 4, y: 105, w: 205, h: 32, rowH: 8 };
+// Trading: the list on the terminal, details in the box over the counter.
+const SHOP_Y = 27, SHOP_H = 9, SHOP_ROWS = 10;
 
 // ------------------------------------------------------------ backdrop
 
@@ -141,6 +149,9 @@ export class SafeRoomScreen {
     this.topicCursor = 0;
     this.convo = null;   // the running Conversation
     this.replyCursor = 0;
+    this.shopTab = 'buy'; // 'buy' | 'sell'
+    this.shopCursor = 0;
+    this.thrum = null;    // painted on first use
     this.say = '';
     this.sayAt = 0;
     this.backdrop = null; // painted on first use
@@ -174,8 +185,10 @@ export class SafeRoomScreen {
   // dir: 'up' | 'down' | 'left' | 'right'; act: 'interact' | 'close'.
   move(dir, nAchievements = ACHIEVEMENTS.length, nBoxes = 0) {
     const d = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
+    if (this.page === 'shop' && (dir === 'left' || dir === 'right')) { this.shopTab = this.shopTab === 'buy' ? 'sell' : 'buy'; this.shopCursor = 0; return; }
     if (!d) return;
     if (this.page === 'boxes') this.boxCursor = (this.boxCursor + d + nBoxes) % Math.max(1, nBoxes);
+    else if (this.page === 'shop') this.shopCursor = Math.max(0, Math.min(nBoxes - 1, this.shopCursor + d));
     else if (this.page === 'topics') this.topicCursor = (this.topicCursor + d + this.topics.length + 1) % (this.topics.length + 1);
     else if (this.page === 'talk' && this.convo) {
       const n = this.convo.replies.length;
@@ -197,6 +210,18 @@ export class SafeRoomScreen {
 
   // Mouse / touch. Returns { kind: 'menu', id } | { kind: 'back' } | { kind: 'row' } | null.
   hit(px, py) {
+    if (this.page === 'shop') {
+      if (px < TERM.x) return null;
+      if (py < SHOP_Y - 3) {
+        const tab = px < TERM.x + TERM.w / 2 ? 'buy' : 'sell';
+        if (tab !== this.shopTab) { this.shopTab = tab; this.shopCursor = 0; }
+        return { kind: 'tab' };
+      }
+      if (py > TERM.y + TERM.h - 14) return { kind: 'back' };
+      const j = Math.floor((py - SHOP_Y + 2) / SHOP_H);
+      if (j >= 0 && j < SHOP_ROWS) return { kind: 'ware', row: j };
+      return null;
+    }
     if (this.page === 'topics') {
       const i = Math.floor((py - TOPIC_Y + 2) / TOPIC_H);
       if (px >= TERM.x && i >= 0 && i <= this.topics.length) {
@@ -243,13 +268,15 @@ export class SafeRoomScreen {
     if (this.pending && now >= this.pending.at) this.talk(this.pending.line, now);
     fb.blit(this.backdrop, 0, 0);
     drawTally(fb, info.deaths || 0);
-    this.drawOzzle(fb, now);
+    if (this.page === 'shop') this.drawThrum(fb, now); else this.drawOzzle(fb, now);
     if (this.page === 'achievements') return this.drawAchievements(fb, info);
     this.drawBubble(fb, now);
     if (this.page === 'boxes') {
       this.drawFrame(fb);
       if (this.boxCursor >= info.boxes.length) this.boxCursor = Math.max(0, info.boxes.length - 1);
       drawBoxList(fb, TERM, info.boxes, this.boxCursor, now);
+    } else if (this.page === 'shop') {
+      this.drawShop(fb, now, info.shop);
     } else if (this.page === 'topics') {
       this.drawTopics(fb);
     } else if (this.page === 'talk') {
@@ -330,10 +357,77 @@ export class SafeRoomScreen {
       drawText(fb, label, x + 8, sy + 4 + k * 7, C.FOG);
       drawText(fb, v, x + w - 8 - textWidth(v), sy + 4 + k * 7, c);
     };
-    row('HP', `${info.hp}/${info.hpMax}`, info.hp <= info.hpMax / 4 ? C.FIRE : C.RED, 0);
-    row('MP', `${info.mp}/${info.mpMax}`, C.SKY, 1);
-    row('VIEWERS', info.viewers, C.NEON, 2);
+    const ry = sy + 4;
+    drawText(fb, 'HP', x + 8, ry, C.FOG);
+    drawText(fb, `${info.hp}/${info.hpMax}`, x + 20, ry, info.hp <= info.hpMax / 4 ? C.FIRE : C.RED);
+    const mp = `${info.mp}/${info.mpMax}`;
+    drawText(fb, 'MP', x + w - 20 - textWidth(mp), ry, C.FOG);
+    drawText(fb, mp, x + w - 8 - textWidth(mp), ry, C.SKY);
+    row('VIEWERS', info.viewers, C.NEON, 1);
     drawText(fb, 'COUNTDOWN PAUSED', x + 8, y + h - 12, blink ? C.TEAL_M : C.TEAL);
+  }
+
+  // Thrum at the counter, in Ozzle's place: talking, idle, wings settling.
+  drawThrum(fb, now) {
+    if (!this.thrum) this.thrum = paintThrumPoses();
+    const t = now - this.sayAt;
+    let pose = now % 2900 < 380 ? 'idle1' : 'idle0';
+    if (t < Math.min(2600, 400 + this.say.length * 18)) pose = Math.floor(t / 160) % 2 ? 'talk' : 'idle0';
+    fb.blit(this.thrum[pose], OZ.x, OZ.y);
+  }
+
+  // The trade: BUY / SELL tabs, a list with prices on the terminal, the
+  // selected item's details in a box over the counter.
+  // shop: { stock: [{ id, n }], bag: [{ id, n }], cha, gold }
+  drawShop(fb, now, shop) {
+    const { x, y, w, h } = TERM;
+    this.drawFrame(fb);
+    const tabs = [['buy', 'BUY', x + 7], ['sell', 'SELL', x + w / 2 + 4]];
+    for (const [id, label, tx] of tabs) {
+      const on = this.shopTab === id;
+      if (on) fb.rect(tx - 2, y + 5, textWidth(label) + 4, 9, C.TEAL_D);
+      drawText(fb, label, tx, y + 7, on ? C.WHITE : C.TEAL);
+    }
+    fb.rect(x + 6, y + 15, w - 12, 1, C.TEAL_D);
+    const list = this.shopTab === 'buy' ? shop.stock : shop.bag;
+    if (this.shopCursor >= list.length) this.shopCursor = Math.max(0, list.length - 1);
+    const top = Math.max(0, Math.min(this.shopCursor - SHOP_ROWS + 1, list.length - SHOP_ROWS));
+    this.shopTop = top;
+    if (!list.length) drawText(fb, this.shopTab === 'buy' ? 'SOLD OUT' : 'NOTHING TO SELL', x + 8, SHOP_Y, C.ASH);
+    for (let j = 0; j < SHOP_ROWS && top + j < list.length; j++) {
+      const it = list[top + j], def = ITEMS[it.id];
+      const ry = SHOP_Y + j * SHOP_H;
+      const sel = top + j === this.shopCursor;
+      if (sel) fb.rect(x + 5, ry - 2, w - 10, SHOP_H, C.SHADOW);
+      const price = this.shopTab === 'buy' ? buyPrice(it.id, shop.cha) : sellPrice(it.id, shop.cha);
+      const ps = String(price);
+      const room = w - 22 - textWidth(ps) - 4;
+      let name = def.short || def.name;
+      if (it.n > 1) name = `${it.n}X ${name}`;
+      while (textWidth(name.toUpperCase()) > room && name.length > 3) name = name.slice(0, -1);
+      drawText(fb, name, x + 8, ry, sel ? C.WHITE : RARITY[def.rarity].color);
+      const poor = this.shopTab === 'buy' && price > shop.gold;
+      drawText(fb, ps, x + w - 8 - textWidth(ps), ry, poor ? C.BLOOD : C.GOLD);
+    }
+    const gold = `GOLD ${shop.gold}`;
+    drawText(fb, gold, x + 8, y + h - 12, C.GOLD);
+    drawText(fb, 'ESC', x + w - 8 - textWidth('ESC'), y + h - 12, C.ASH);
+
+    // Details of the selected item over the counter.
+    const b = REPLY_BOX;
+    fb.bevel(b.x, b.y, b.w, b.h, C.NIGHT, C.STEEL_M, C.BLACK);
+    const it = list[this.shopCursor];
+    if (!it) {
+      drawText(fb, 'LEFT/RIGHT: BUY OR SELL', b.x + 6, b.y + 5, C.ASH);
+      return;
+    }
+    const def = ITEMS[it.id];
+    drawText(fb, def.name, b.x + 5, b.y + 4, RARITY[def.rarity].color);
+    const stats = itemStats(def);
+    drawText(fb, stats, b.x + b.w - 5 - textWidth(stats), b.y + 4, C.FOG);
+    wrapText(def.desc, b.w - 10).slice(0, 2).forEach((l, i) => drawText(fb, l, b.x + 5, b.y + 12 + i * 7, C.BONE));
+    const hint = this.shopTab === 'buy' ? 'SPACE BUY' : 'SPACE SELL ONE';
+    if (Math.floor(now / 500) % 2) drawText(fb, hint, b.x + b.w - 5 - textWidth(hint), b.y + b.h - 2 - 6, C.TEAL_M);
   }
 
   // The topic list on the terminal: new ones marked, heard ones dimmed.

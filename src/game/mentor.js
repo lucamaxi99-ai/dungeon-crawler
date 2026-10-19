@@ -222,6 +222,10 @@ export const MENTOR_LINES = {
   boxLearn: [
     'A book. You know what those are, right? You open them and knowledge falls out. Use it from your inventory.',
   ],
+  afterShop: [
+    'Is he gone? He sold me this mug. It belonged to a crawler. I try not to think about which one.',
+    'Thrum pays his rent in "previously owned" coffee. I don\'t ask. I drink.',
+  ],
   leave: [
     'Off you go. Try not to die where I can see it. Paperwork.',
     'Go on. The clock starts the moment you step out. No pressure. All the pressure.',

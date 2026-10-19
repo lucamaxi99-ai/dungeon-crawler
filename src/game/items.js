@@ -39,7 +39,8 @@ export const SLOT_BY_ID = Object.fromEntries(SLOTS.map((s) => [s.id, s]));
 // short: name for tight spots like the combat menu (consumables).
 // atk/def: added to the crawler's stats while equipped (crawler.js).
 // heal: hit points restored on use. cat: kind of weapon ('blade', 'blunt'),
-// for the weapon skills (skills.js).
+// for the weapon skills (skills.js). value: what the merchant thinks it is
+// worth, if not the rarity's base value (shop.js).
 const DEFS = [
   // ---------------------------------------------------------- weapons
   { id: 'shiv', name: 'Rusty Shiv', kind: 'gear', slot: 'weapon', rarity: 'common', atk: 2, cat: 'blade',
@@ -109,9 +110,9 @@ const DEFS = [
   { id: 'skillPotion', name: 'Skill Potion', short: 'Skill Potion', kind: 'consumable', rarity: 'rare', skillPotion: true, stack: true,
     desc: 'Teaches you something at random. Side effects include knowing things you did not ask to know.' },
   // ---------------------------------------------------------- junk
-  { id: 'ratTail', name: 'Rat Tail', kind: 'junk', rarity: 'common', stack: true,
+  { id: 'ratTail', name: 'Rat Tail', kind: 'junk', rarity: 'common', stack: true, value: 3,
     desc: 'A tail. The rat is elsewhere. Possibly behind you.' },
-  { id: 'trophy', name: 'Participation Trophy', kind: 'junk', rarity: 'legendary',
+  { id: 'trophy', name: 'Participation Trophy', kind: 'junk', rarity: 'legendary', value: 1,
     desc: 'Awarded for showing up. You did not have a choice. Congratulations anyway.' },
 ];
 

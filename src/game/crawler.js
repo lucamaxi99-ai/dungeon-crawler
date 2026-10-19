@@ -6,11 +6,11 @@
 //   INT intelligence  mana pool (spells come later)
 //   CON constitution  hit points and how fast they come back
 //   DEX dexterity     aim, dodging, initiative, running away
-//   CHA charisma      viewers (and later merchants)
+//   CHA charisma      viewers and merchant prices
 //
 // Experience: kills and stairwells give XP; every level brings attribute
 // points the crawler spends on the character sheet.
-// CHA feeds the viewer count (viewers.js). TODO(M7): CHA lowers merchant prices.
+// CHA feeds the viewer count (viewers.js) and the merchant's prices (shop.js).
 
 import { ITEMS } from './items.js';
 import { Mastery } from './mastery.js';

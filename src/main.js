@@ -48,6 +48,8 @@ import { Profile, browserStorage } from './game/profile.js';
 import { CAST, Conversation, topicsFor } from './game/dialogue.js';
 import { JOB, jobOpen, checkUnlocks, cleanName, NAME_MAX } from './game/jobs.js';
 import { CreationScreen } from './game/creation-ui.js';
+import { rollStock, buy, sell } from './game/shop.js';
+import { merchantLine } from './game/merchant.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
 import { sponsorFor, SPONSOR_TIERS, SPONSOR_CHEST_AT } from './game/sponsors.js';
 
@@ -480,10 +482,61 @@ function onTalkAction(action, dir) {
   showTopics(pick(CAST.ozzle.close));
 }
 
+// ------------------------------------------------------------ trading
+
+// Thrum takes over the counter. The shelf is rolled once per floor.
+function openShop() {
+  if (!level.safeRoom.stock) level.safeRoom.stock = rollStock(run.seed, run.depth);
+  safe.page = 'shop';
+  safe.shopTab = 'buy';
+  safe.shopCursor = 0;
+  const met = profile.hasSeen('thrumMet');
+  const topic = !met ? 'hello' : !run.shopVisits && run.rerun ? 'helloRerun' : 'helloAgain';
+  profile.see('thrumMet');
+  run.shopVisits = (run.shopVisits || 0) + 1;
+  safe.talk(merchantLine(topic), performance.now());
+  log.push(line('shopOpen'), 'info');
+}
+
+function closeShop() {
+  log.push(`Thrum: "${merchantLine('bye')}"`, 'info');
+  safe.page = 'menu';
+  safe.talk(mentorLine('afterShop'), performance.now());
+}
+
+const shopList = () => (safe.shopTab === 'buy' ? level.safeRoom.stock : inventory.bag);
+
+// SPACE on the selected line: buy it, or sell one of it.
+function trade() {
+  const now = performance.now();
+  const i = safe.shopCursor;
+  if (safe.shopTab === 'buy') {
+    const r = buy(level.safeRoom.stock, i, inventory, crawler.cha);
+    if (!r.ok) return safe.talk(merchantLine(r.why, { g: r.price }), now);
+    log.push(`Bought ${ITEMS[r.id].name} for ${r.price} gold.`, 'loot');
+    note('buy', { id: r.id, price: r.price });
+    return safe.talk(merchantLine('buy'), now);
+  }
+  if (!inventory.bag.length) return safe.talk(merchantLine('nothing'), now);
+  const r = sell(inventory, i, crawler.cha);
+  if (!r.ok) return;
+  log.push(`Sold ${ITEMS[r.id].name} for ${r.price} gold.`, 'loot');
+  note('sell', { id: r.id, price: r.price, junk: r.junk });
+  safe.talk(merchantLine(r.junk ? 'sellJunk' : 'sell', { g: r.price, i: ITEMS[r.id].name }), now);
+}
+
+function onShopAction(action, dir) {
+  if (dir === 'left' || dir === 'right') return safe.move(dir);
+  if (dir) return safe.move(dir, 0, shopList().length);
+  if (action === 'interact') return trade();
+  if (action === 'close') return closeShop();
+}
+
 // A choice on the Safe Room terminal.
 function safeCommand(id) {
   const now = performance.now();
   if (id === 'leave') return leaveSafeRoom();
+  if (id === 'shop') return openShop();
   if (id === 'talk') {
     safe.topicCursor = 0;
     return showTopics(pick(CAST.ozzle.open));
@@ -545,6 +598,7 @@ function onSafeAction(action) {
   }
   const dir = { forward: 'up', back: 'down', turnLeft: 'left', turnRight: 'right', left: 'left', right: 'right' }[action];
   if (safe.page === 'topics' || safe.page === 'talk') return onTalkAction(action, dir === 'up' || dir === 'down' ? dir : null);
+  if (safe.page === 'shop') return onShopAction(action, dir);
   if (safe.page === 'achievements') {
     if (dir) return safe.move(dir, ACHIEVEMENTS.length);
     if (['close', 'interact', 'character'].includes(action)) safe.page = 'menu';
@@ -1019,7 +1073,12 @@ canvas.addEventListener('pointerdown', (e) => {
     if (p.y >= OVERLAY_H) return;
     const t = safe.hit(p.x, p.y);
     if (!t) return;
-    if (t.kind === 'back') { if (safe.page === 'talk') onSafeAction('close'); else safe.page = 'menu'; }
+    if (t.kind === 'back') { if (safe.page === 'talk' || safe.page === 'shop') onSafeAction('close'); else safe.page = 'menu'; }
+    else if (t.kind === 'ware') {
+      const i = (safe.shopTop || 0) + t.row;
+      if (i >= shopList().length) return;
+      if (i === safe.shopCursor) trade(); else safe.shopCursor = i;
+    }
     else if (t.kind === 'menu') safeCommand(t.id);
     else if (t.kind === 'topic' || t.kind === 'reply') onSafeAction('interact');
     else if (t.kind === 'continue') onSafeAction('interact');
@@ -1209,6 +1268,7 @@ function loop(now) {
     rested: level.safeRoom.rested, hp: crawler.hp, hpMax: crawler.hpMax, mp: crawler.mp, mpMax: crawler.mpMax,
     viewers: formatViewers(viewers.count), deaths: profile.deaths,
     newTopics: safe.open && topicsFor('ozzle', talkContext()).some((t) => t.fresh),
+    shop: { stock: level.safeRoom.stock || [], bag: inventory.bag, cha: crawler.cha, gold: inventory.gold },
   });
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold, name: crawler.name, job: crawler.job && JOB[crawler.job].name }, now);

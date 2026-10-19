@@ -99,6 +99,10 @@ export const LINES = {
     'And that is how you die. Ratings spiked. Borant thanks you for your sacrifice.',
     'Deceased. Somewhere a sponsor is quietly peeling your name off a banner.',
   ],
+  shopOpen: [
+    'Thrum\'s Previously Owned is open for business. Borant takes a 40 percent cut of every sale. And of Thrum.',
+    'Commerce! The viewers love a montage of you counting coins.',
+  ],
   // A run starts on Borant Encore after a death (GDD 2.1). {n} rerun number.
   rerun: [
     'Soul backup restored. Welcome back to Borant Encore, Crawler. Rerun number {n}. The audience loves a classic.',

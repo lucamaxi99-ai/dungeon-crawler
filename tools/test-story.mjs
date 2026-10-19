@@ -11,6 +11,11 @@ import { textWidth, wrapText } from '../src/engine/font.js';
 import { JOBS, JOB, checkUnlocks, jobOpen, startAttrs, cleanName, NAMES, NAME_MAX } from '../src/game/jobs.js';
 import { CreationScreen } from '../src/game/creation-ui.js';
 import { START, ATTRS } from '../src/game/crawler.js';
+import { SHOP, itemValue, buyPrice, sellPrice, rollStock, buy, sell } from '../src/game/shop.js';
+import { MERCHANT, MERCHANT_POSES, MERCHANT_LINES, paintThrum } from '../src/game/merchant.js';
+import { MENTOR_LINES } from '../src/game/mentor.js';
+import { Inventory } from '../src/game/inventory.js';
+import { ITEMS } from '../src/game/items.js';
 
 // A localStorage stand-in.
 function memoryStorage() {
@@ -235,6 +240,69 @@ for (const [who, cast] of Object.entries(CAST)) {
   assert.equal(f.act(), 'start', 'SPACE on START starts');
   f.name = ' ';
   assert.equal(f.act(), 'edit', 'no start without a name');
+}
+
+// ---------------------------------------------------------- merchant
+
+for (const pose of MERCHANT_POSES) {
+  const img = paintThrum(pose);
+  assert.equal(img.w, MERCHANT.w, `thrum ${pose}: width`);
+  assert.equal(img.h, MERCHANT.h, `thrum ${pose}: height`);
+  const opaque = (x, y) => img.data[y * img.w + x] !== 255;
+  for (let y = 0; y < img.h; y++) assert.ok(!opaque(0, y) && !opaque(img.w - 1, y), `thrum ${pose}: cut off at the side (row ${y})`);
+  for (let x = 0; x < img.w; x++) assert.ok(!opaque(x, 0), `thrum ${pose}: cut off at the top`);
+}
+for (const [topic, lines] of Object.entries(MERCHANT_LINES)) assert.ok(lines.length && lines.every((l) => l.length < 190), `thrum ${topic}: lines fit the bubble`);
+assert.ok(MENTOR_LINES.afterShop.every((l) => l.length < 190));
+
+{
+  // Prices: twice the value to buy, half to sell; CHA helps both ways.
+  for (const id of Object.keys(ITEMS)) {
+    assert.ok(itemValue(id) > 0, `${id}: has a value`);
+    assert.ok(sellPrice(id, 10) < buyPrice(id, 10), `${id}: no profit from buying and selling back, even at CHA 10`);
+  }
+  assert.equal(buyPrice('potion'), 12);
+  assert.equal(sellPrice('potion'), 3);
+  assert.ok(buyPrice('sword', 9) < buyPrice('sword', 5) && buyPrice('sword', 5) < buyPrice('sword', 3), 'CHA lowers prices');
+  assert.ok(sellPrice('sword', 9) > sellPrice('sword', 5), 'CHA raises what he pays');
+  assert.equal(sellPrice('trophy'), 1, 'a participation trophy is worth what it is worth');
+  assert.ok(buyPrice('sword', 50) >= Math.round(itemValue('sword') * SHOP.buyMarkup * SHOP.buyLimits[0]), 'charisma has limits');
+
+  // Stock: the same per seed and floor, potions first, no junk, at most one book.
+  const a = rollStock(42, 1), b = rollStock(42, 1);
+  assert.deepEqual(a, b, 'the same shelf for the same floor');
+  assert.notDeepEqual(rollStock(42, 1), rollStock(42, 2), 'a new floor, a new shelf');
+  for (let seed = 1; seed < 200; seed++) {
+    for (const depth of [1, 2, 3]) {
+      const st = rollStock(seed, depth);
+      assert.equal(st[0].id, 'potion');
+      assert.equal(st.length, SHOP.stockItems + 1, `seed ${seed}: full shelf`);
+      assert.equal(new Set(st.map((x) => x.id)).size, st.length, 'no duplicates');
+      assert.ok(st.every((x) => ITEMS[x.id].kind !== 'junk'), 'no junk for sale');
+      assert.ok(st.filter((x) => ITEMS[x.id].teach || ITEMS[x.id].skillPotion).length <= 1, 'at most one book');
+    }
+  }
+  const rarer = (d) => { let n = 0; for (let s = 1; s < 300; s++) n += rollStock(s, d).filter((x) => ['rare', 'epic', 'legendary'].includes(ITEMS[x.id].rarity)).length; return n; };
+  assert.ok(rarer(3) > rarer(1), 'deeper floors stock rarer things');
+
+  // Trades.
+  const inv = new Inventory();
+  const stock = [{ id: 'potion', n: 2 }, { id: 'sword', n: 1 }];
+  assert.deepEqual(buy(stock, 0, inv, 5), { ok: false, why: 'poor', price: 12 });
+  inv.gold = 100;
+  assert.ok(buy(stock, 0, inv, 5).ok);
+  assert.equal(inv.gold, 88);
+  assert.equal(inv.count('potion'), 1);
+  assert.equal(stock[0].n, 1);
+  buy(stock, 0, inv, 5);
+  assert.equal(stock.length, 1, 'sold out lines leave the shelf');
+  inv.add('ratTail', 3);
+  const tail = inv.bag.findIndex((x) => x.id === 'ratTail');
+  const r = sell(inv, tail, 5);
+  assert.ok(r.ok && r.junk && r.price === 1);
+  assert.equal(inv.count('ratTail'), 2, 'one at a time');
+  assert.equal(inv.gold, 88 - 12 + 1);
+  assert.equal(sell(inv, 99, 5).ok, false);
 }
 
 console.log('story: profile, reruns, Ozzle greetings and tally OK');
