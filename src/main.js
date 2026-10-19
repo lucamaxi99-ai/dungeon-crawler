@@ -52,9 +52,11 @@ const isWall = (x, y) => level.wall(x, y) !== 0;
 
 // Everything that belongs to one run: the crawler and its pockets survive
 // from floor to floor; level, light and enemies are rebuilt on every floor.
+// Runs are permadeath: dying (or winning) starts a new run with a new seed,
+// a fresh crawler and new floors. A story mode with a checkpoint per floor
+// may come later.
 // URL parameters for testing: ?seed=123 fixes the run, ?floor=test plays
 // the hand-built test floor.
-// TODO(M5): permadeath and saving are decided with the floor generator.
 const params = new URLSearchParams(location.search);
 let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd, countdown;
 let dead = null; // { at, won, killer, depth, steps, kills, gold, comment } when the run is over
