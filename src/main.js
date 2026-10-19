@@ -16,6 +16,7 @@ import { buildTextures, SPRITES, CREATURES, WALL } from './game/assets.js';
 import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
 import { generateFloor, FINAL_DEPTH } from './game/floorgen.js';
+import { Countdown } from './game/countdown.js';
 import { Player } from './game/player.js';
 import {
   MENU_BOX, MessageLog, drawPanel, drawOverlay,
@@ -55,7 +56,7 @@ const isWall = (x, y) => level.wall(x, y) !== 0;
 // the hand-built test floor.
 // TODO(M5): permadeath and saving are decided with the floor generator.
 const params = new URLSearchParams(location.search);
-let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd;
+let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd, countdown;
 let dead = null; // { at, won, killer, depth, steps, kills, gold, comment } when the run is over
 let card = null; // title card between floors (floor-ui.js)
 
@@ -84,6 +85,24 @@ function enterFloor(depth) {
   for (const l of level.lights) light.addLight(l);
   decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
   enemyRnd = rng(level.seed * 31 + 7);
+  countdown = new Countdown(level.turns);
+  level.stairsOpen = countdown.stairsOpen;
+}
+
+// One turn off the floor's countdown, with the System's warnings. Returns
+// false if the floor collapsed (the run is over).
+function spendTurn() {
+  for (const ev of countdown.tick()) {
+    if (ev.kind === 'stairsOpen') log.push(line('stairsOpen'), 'warn');
+    if (ev.kind === 'warn') log.push(line(ev.share <= 0.1 ? 'collapseSoon' : 'countdownWarn').replace('{n}', ev.left), 'warn');
+    if (ev.kind === 'collapse') {
+      combat = null;
+      endRun({ killer: 'the floor collapse', comment: line('collapse') });
+      return false;
+    }
+  }
+  level.stairsOpen = countdown.stairsOpen;
+  return true;
 }
 newRun();
 
@@ -163,6 +182,7 @@ function interact() {
 // The first SPACE at the stairwell asks, the second one descends (so a
 // stray key never skips a floor). After the last floor the run is won.
 function useStairs(cell) {
+  if (!countdown.stairsOpen) return log.push(line('stairsLocked').replace('{n}', countdown.stairsIn), 'warn');
   const key = `${cell.x},${cell.y},${player.x},${player.y}`;
   if (state.stairsAsked !== key) {
     state.stairsAsked = key;
@@ -342,6 +362,7 @@ function onAction(action) {
 // healing, then every enemy takes its turn.
 function afterTurn() {
   state.stairsAsked = null;
+  if (!spendTurn()) return;
   if (crawler.tick() && crawler.hp === crawler.hpMax) log.push(line('regenFull'), 'info');
   const blocked = (x, y) => { const o = level.objectAt(x, y); return !!(o && SPRITES[o.type].solid); };
   const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
@@ -426,6 +447,7 @@ function crawlerTurn(choice) {
   report(events);
   ui.onEvents(events, now);
   combat.nextAt = now + PACE.afterCrawler;
+  spendTurn();
 }
 
 // Called every frame: enemies act after a pause, the fight ends after the
@@ -567,12 +589,14 @@ function restart() {
 
 // ------------------------------------------------------------ loop
 
-// Nothing is built yet for these; the panel shows them empty.
+// Nothing is built yet for the viewers; the panel shows them empty.
 const status = {
-  timeLeft: null,          // TODO(M5)
   viewers: null,           // TODO(M6)
 };
 function updateStatus() {
+  status.turnsLeft = countdown.total ? countdown.left : null;
+  status.turnsShare = countdown.total ? countdown.left / countdown.total : 1;
+  status.stairsOpen = countdown.stairsOpen;
   status.hp = crawler.hp;
   status.hpMax = crawler.hpMax;
   status.mp = crawler.mp;
@@ -674,6 +698,7 @@ requestAnimationFrame(loop);
 window.game = {
   get level() { return level; },
   get run() { return run; },
+  get countdown() { return countdown; },
   enterFloor: (depth) => enterFloor(depth),
   get player() { return player; },
   get state() { return state; },

@@ -88,3 +88,19 @@ for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
 
 if (!ok) process.exit(1);
 console.log('maps OK');
+
+// The countdown: stairs open after a third, warnings on the way, collapse at 0.
+import('../src/game/countdown.js').then(({ Countdown }) => {
+  const c = new Countdown(300);
+  const seen = [];
+  let opened = -1;
+  for (let i = 1; i <= 310; i++) {
+    for (const ev of c.tick()) { seen.push(ev.kind); if (ev.kind === 'stairsOpen') opened = i; }
+  }
+  const want = 'stairsOpen,warn,warn,warn,collapse';
+  if (seen.join() !== want || opened !== 100 || c.left !== 0) {
+    console.error(`countdown: got ${seen.join()} (stairs at ${opened}), want ${want} (stairs at 100)`);
+    process.exit(1);
+  }
+  console.log('countdown OK');
+});

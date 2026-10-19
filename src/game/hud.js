@@ -79,19 +79,26 @@ function drawStatus(fb, { level, status }) {
   bar(fb, x, STAT.y + 13, w, 'HP', status.hp, status.hpMax, low ? [C.FIRE, C.FIRE] : [C.RED, C.BONE]);
   bar(fb, x, STAT.y + 25, w, 'MP', status.mp ?? null, status.mpMax, [C.SKY, C.BONE]);
   fb.rect(x, STAT.y + 37, w, 1, C.SHADOW);
-  // TODO(M5): floor countdown.
-  drawText(fb, 'TIME', x, STAT.y + 40, status.timeLeft === null ? C.ASH : C.BONE);
-  const t = status.timeLeft === null ? '--:--' : clock(status.timeLeft);
-  drawText(fb, t, x + w - textWidth(t), STAT.y + 40, status.timeLeft === null ? C.ASH : C.FIRE);
+  // Floor countdown in turns: grey while the stairs are still sealed, gold
+  // once they are open, blinking red in the last tenth.
+  const off = status.turnsLeft === null;
+  const hurry = !off && status.turnsShare <= 0.1;
+  const color = off ? C.ASH : hurry ? (Math.floor(performance.now() / 400) % 2 ? C.FIRE : C.RED) : status.stairsOpen ? C.GOLD : C.SILVER;
+  drawText(fb, 'TURNS', x, STAT.y + 40, off ? C.ASH : C.BONE);
+  const t = off ? '--' : String(status.turnsLeft);
+  drawText(fb, t, x + w - textWidth(t), STAT.y + 40, color);
+  if (!off && !status.stairsOpen) lock(fb, x + w - textWidth(t) - 6, STAT.y + 40, C.SILVER);
   // TODO(M6): viewer count.
   const v = status.viewers === null ? '?' : String(status.viewers);
   drawText(fb, 'VIEWERS', x, STAT.y + 46, status.viewers === null ? C.ASH : C.BONE);
   drawText(fb, v, x + w - textWidth(v), STAT.y + 46, status.viewers === null ? C.ASH : C.NEON);
 }
 
-function clock(seconds) {
-  const s = Math.max(0, Math.ceil(seconds));
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+// A tiny padlock (4 x 5): the stairs are still sealed.
+function lock(fb, x, y, c) {
+  fb.rect(x + 1, y, 2, 1, c);
+  fb.set(x, y + 1, c); fb.set(x + 3, y + 1, c);
+  fb.rect(x, y + 2, 4, 3, c);
 }
 
 function drawLog(fb, log) {
@@ -105,7 +112,7 @@ function drawLog(fb, log) {
 
 function cellColor(level, x, y) {
   const w = level.wall(x, y);
-  if (w === WALL.STAIRS) return C.FIRE;
+  if (w === WALL.STAIRS) return level.stairsOpen === false ? C.RUST : C.FIRE;
   if (w === WALL.POSTER) return C.LEATHER;
   if (w) return C.STONE_M;
   const o = level.objectAt(x, y);
@@ -149,7 +156,8 @@ function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false, marks =
   fb.rect(nx - (d.x === 0 ? 1 : 0), ny - (d.y === 0 ? 1 : 0), d.x === 0 ? 2 : 1, d.y === 0 ? 2 : 1, C.YELLOW);
 }
 
-// status: { hp, hpMax, mp, mpMax, timeLeft, viewers } with null for systems
+// status: { hp, hpMax, mp, mpMax, turnsLeft, turnsShare, stairsOpen, viewers }
+// with null for systems
 // that do not exist yet.
 // menu(fb, box): draws something else (the combat menu) instead of the minimap.
 export function drawPanel(fb, { log, level, player, status, marks = [], menu = null }) {

@@ -164,6 +164,24 @@ export const LINES = {
   stairs: [
     'The stairwell. Press SPACE again to descend. There is no coming back up. There never is.',
   ],
+  stairsLocked: [
+    'The stairwell is sealed. Borant does not air speedruns. It opens in {n} turns.',
+    'Sealed. The sponsors paid for at least {n} more turns of you wandering around.',
+  ],
+  stairsOpen: [
+    'Attention, Crawler: the stairwell on this floor is now open. Use it before the floor uses you.',
+  ],
+  countdownWarn: [
+    '{n} turns until this floor collapses. No pressure. Well, structural pressure.',
+    'Reminder: {n} turns left on this floor. The demolition crew is already stretching.',
+  ],
+  collapseSoon: [
+    '{n} turns left! The ceiling is making noises ceilings should not make. Find the stairs!',
+  ],
+  collapse: [
+    'Time is up. The floor collapses, and you with it. Borant thanks you for staying until the very end.',
+    'The floor folds in on itself like a cheap lawn chair. You were on it. Ratings: spectacular.',
+  ],
   descend: [
     'Down you go. The floor above will be recycled into content shortly.',
     'Descending. Mind the step. Mind all of them, really.',

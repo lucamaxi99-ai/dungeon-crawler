@@ -25,6 +25,7 @@ const SIDES = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
 
 export const TEST_FLOOR = {
   name: 'Floor 1',
+  turns: 400,
   startDir: 1, // 0 east, 1 south, 2 west, 3 north
   rows: [
     'rrrrrrrrrrrrrrrrrrrrrrrr',
