@@ -293,6 +293,7 @@ function afterTurn() {
   const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
   for (const ev of events) {
     if (ev.kind === 'notice') log.push(line('enemyNotice').replace('{name}', ev.enemy.name), 'warn');
+    if (ev.kind === 'giveUp') log.push(line(ev.reason === 'territory' ? 'enemyGiveUp' : 'enemyLostTrail').replace('{name}', ev.enemy.name), 'info');
   }
   const foe = events.find((ev) => ev.kind === 'engage');
   if (foe) engage(foe.enemy, 'enemy');
@@ -455,8 +456,9 @@ function endCombat() {
     dead = { at: performance.now(), killer: killer.name, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment: line('death') };
     log.push(dead.comment);
   } else if (fight.result === 'fled') {
-    // Stumble one cell away from the enemies; they lose track for a moment.
-    for (const e of fight.alive) { e.stun = 3; e.alerted = false; }
+    // Stumble one cell away; the enemies need two turns to react. Whether
+    // they follow depends on their territory (leash) and tracking.
+    for (const e of fight.alive) e.stun = 2;
     const options = [[1, 0], [-1, 0], [0, 1], [0, -1]]
       .map(([dx, dy]) => ({ x: player.x + dx, y: player.y + dy }))
       .filter((c) => world.canEnter(c.x, c.y))

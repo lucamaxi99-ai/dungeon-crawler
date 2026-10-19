@@ -103,6 +103,14 @@ export const LINES = {
     'Replay requested by the Syndicate. Same floor, same crawler, empty pockets. Try not to die so quickly.',
     'The broadcast has been rewound. Your inventory has not. Good luck, Crawler.',
   ],
+  enemyGiveUp: [
+    'The {name} stops at the edge of its territory and squeaks something rude.',
+    'The {name} will not follow you past its nest. It is a rat of principles.',
+  ],
+  enemyLostTrail: [
+    'The {name} has lost your trail. It will tell its friends about you.',
+    'You shook off the {name}. The viewers wanted more blood, but fine.',
+  ],
   healed: [
     'Healed. The audience is relieved. Mostly the ones who bet on you.',
     'Your wounds close. The scars stay, for the highlight reel.',

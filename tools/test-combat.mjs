@@ -145,4 +145,44 @@ assert.equal(lineOfSight(() => false, 0, 0, 3, 3), true);
   assert.ok(foes.every((f) => f.alerted));
 }
 
+// Territory: a rat chases only inside its leash, then walks back home.
+{
+  const rat = new Enemy('rat', 0, 0);
+  const world = { isWall: () => false, blocked: () => false };
+  const far = { x: rat.stats.leash + 2, y: 0 };
+  enemyTurns([rat], world, far, rng(1));
+  assert.equal(rat.alerted, false, 'ignores a crawler outside its territory');
+  const near = { x: 3, y: 0 };
+  enemyTurns([rat], world, near, rng(1));
+  assert.ok(rat.alerted, 'notices an intruder');
+  const [ev] = enemyTurns([rat], world, far, rng(1)).filter((e) => e.kind === 'giveUp');
+  assert.equal(ev?.reason, 'territory', 'gives up when the crawler leaves');
+  for (let i = 0; i < 12; i++) enemyTurns([rat], world, { x: 30, y: 30 }, rng(i));
+  assert.ok(Math.abs(rat.x) + Math.abs(rat.y) <= rat.stats.roam, 'walks back home');
+  // While chasing it never leaves its territory.
+  const r2 = new Enemy('rat', 0, 0);
+  for (let x = 2; x <= r2.stats.leash; x++) {
+    enemyTurns([r2], world, { x, y: 0 }, rng(x));
+    assert.ok(Math.abs(r2.x) + Math.abs(r2.y) <= r2.stats.leash);
+  }
+}
+
+// A hunter (no leash) follows you anywhere, until it loses your trail.
+{
+  ENEMY_TYPES.testHound = { ...ENEMY_TYPES.rat, name: 'Test Hound', leash: Infinity, track: 2 };
+  const hound = new Enemy('testHound', 0, 0);
+  const world = { isWall: () => false, blocked: () => false };
+  enemyTurns([hound], world, { x: 4, y: 0 }, rng(1));
+  for (let i = 0; i < 20; i++) enemyTurns([hound], world, { x: 5 + i, y: 0 }, rng(i)); // the crawler runs away
+  assert.ok(hound.x > 10, 'a hunter follows far beyond its home');
+  // Behind a wall it loses the trail after `track` turns.
+  const h2 = new Enemy('testHound', 0, 0);
+  enemyTurns([h2], world, { x: 3, y: 0 }, rng(1));
+  const walled = { isWall: (x) => x === 5, blocked: () => false };
+  let gaveUp = null;
+  for (let i = 0; i < 10 && !gaveUp; i++) gaveUp = enemyTurns([h2], walled, { x: 8, y: 9 }, rng(i)).find((e) => e.kind === 'giveUp');
+  assert.equal(gaveUp?.reason, 'trail');
+  delete ENEMY_TYPES.testHound;
+}
+
 console.log(`combat OK (300 fights: ${outcomes.won} won, ${outcomes.lost} lost, ${outcomes.fled} fled; 1 rat costs ~${avgLoss.toFixed(1)} HP)`);
