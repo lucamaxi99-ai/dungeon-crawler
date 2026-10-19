@@ -8,6 +8,7 @@
 //   DEX dexterity     aim, dodging, initiative, running away
 //   CHA charisma      viewers and merchants (not used yet)
 //
+// TODO(M5): spells spend MP, skills, XP and level-ups that raise attributes.
 // TODO(M6): CHA feeds the viewer count; TODO(M7): CHA lowers merchant prices.
 
 export const ATTRS = ['str', 'int', 'con', 'dex', 'cha'];

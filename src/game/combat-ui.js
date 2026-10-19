@@ -30,6 +30,7 @@ const POSE_MS = 260;
 const FLOAT_MS = 900;
 const ME = { x: 34, y: H - 18 };   // where the crawler's own numbers pop up
 
+// TODO(M5): a SPELL / SKILL entry once spells and skills exist.
 export const MAIN_MENU = [
   { id: 'attack', label: 'ATTACK' },
   { id: 'defend', label: 'DEFEND' },
