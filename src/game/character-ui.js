@@ -1,12 +1,20 @@
-// Character sheet ("C"): the crawler's level, its five attributes and what
-// they do, as a window over the 3D view (HUD overlay, 320 x 140 HUD pixels).
-// With unspent points, UP/DOWN picks an attribute and SPACE raises it.
+// Character sheet ("C"): a window over the 3D view (HUD overlay, 320 x 140
+// HUD pixels) with two tabs, switched with LEFT/RIGHT or a tap:
+//   STATS   level, the five attributes and what they do. With unspent
+//           points, UP/DOWN picks an attribute and SPACE raises it.
+//   SKILLS  skills and spells with their level, progress and effect.
+//           SPACE casts the selected spell if it works outside combat.
 
 import { C } from '../engine/palette.js';
 import { drawText, textWidth } from '../engine/font.js';
 import { ATTRS, ATTR_NAMES } from './crawler.js';
 import { RULES } from './combat.js';
+import { SKILLS } from './skills.js';
+import { SPELLS } from './spells.js';
+import { MASTERY } from './mastery.js';
 
+const TABS = [{ id: 'stats', label: 'STATS' }, { id: 'skills', label: 'SKILLS' }];
+const LIST_Y = 27, LIST_H = 15, LIST_ROWS = 6;  // skills tab rows
 const WIN = { x: 2, y: 2, w: 316, h: 136 };
 const LEFT = 8, RIGHT = 188;
 const ROW0 = 20, ROW_H = 20;          // attribute rows
@@ -26,16 +34,26 @@ const CLOSE = { label: 'C CLOSE' };
 export class CharacterScreen {
   constructor() {
     this.open = false;
-    this.cursor = 0;   // selected attribute (only shown with points to spend)
+    this.tab = 'stats';
+    this.cursor = 0;      // selected attribute (only shown with points to spend)
+    this.spellCursor = 0; // selected spell on the skills tab
   }
 
-  toggle() {
+  toggle(tab) {
     this.open = !this.open;
+    if (this.open && tab) this.tab = tab;
   }
 
-  move(dir) {
-    if (dir === 'up') this.cursor = (this.cursor + ATTRS.length - 1) % ATTRS.length;
-    if (dir === 'down') this.cursor = (this.cursor + 1) % ATTRS.length;
+  // dir: 'up' | 'down' | 'left' | 'right'. n: number of spells known.
+  move(dir, n = 1) {
+    if (dir === 'left' || dir === 'right') {
+      const i = TABS.findIndex((t) => t.id === this.tab);
+      this.tab = TABS[(i + (dir === 'left' ? TABS.length - 1 : 1)) % TABS.length].id;
+      return;
+    }
+    const d = dir === 'up' ? -1 : 1;
+    if (this.tab === 'skills') this.spellCursor = (this.spellCursor + d + n) % Math.max(1, n);
+    else this.cursor = (this.cursor + d + ATTRS.length) % ATTRS.length;
   }
 
   selected() {
@@ -43,11 +61,19 @@ export class CharacterScreen {
   }
 
   // Mouse/touch. Returns { kind: 'raise', attr } for a tap on an attribute
-  // row, { kind: 'button', id: 'close' } for the close button, otherwise
-  // { kind: 'outside' }.
+  // row, { kind: 'cast', index } for a spell on the skills tab, { kind: 'tab' }
+  // for a tab, { kind: 'button', id: 'close' } for the close button,
+  // otherwise { kind: 'outside' }.
   hit(px, py) {
     const b = closeBox();
     if (px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h) return { kind: 'button', id: 'close' };
+    const tab = tabBoxes().find((t) => px >= t.x && px < t.x + t.w && py >= t.y && py < t.y + t.h);
+    if (tab) { this.tab = tab.id; return { kind: 'tab' }; }
+    if (this.tab === 'skills') {
+      const j = Math.floor((py - LIST_Y + 1) / LIST_H);
+      if (px >= RIGHT - 2 && j >= 0 && j < LIST_ROWS) { this.spellCursor = j; return { kind: 'cast', index: j }; }
+      return { kind: 'outside' };
+    }
     const i = Math.floor((py - ROW0 + 2) / ROW_H);
     if (px >= LEFT && px < RIGHT - 8 && i >= 0 && i < ATTRS.length) {
       this.cursor = i;
@@ -61,7 +87,12 @@ export class CharacterScreen {
     if (!this.open) return;
     fb.bevel(WIN.x, WIN.y, WIN.w, WIN.h, C.NIGHT, C.STONE_M, C.BLACK);
     fb.bevel(WIN.x + 1, WIN.y + 1, WIN.w - 2, WIN.h - 2, C.NIGHT, C.STONE_D, C.STONE_D);
-    drawText(fb, 'CRAWLER', LEFT, 6, C.GOLD, C.BLACK);
+    for (const t of tabBoxes()) {
+      const on = t.id === this.tab;
+      if (on) fb.rect(t.x, t.y, t.w, t.h, C.SHADOW);
+      drawText(fb, t.label, t.x + 2, t.y + 2, on ? C.GOLD : C.ASH, on ? C.BLACK : -1);
+      if (t.id === 'stats' && crawler.points > 0 && !on) fb.rect(t.x + t.w - 2, t.y + 1, 2, 2, C.YELLOW);
+    }
 
     // Level and the way to the next one.
     const lvl = `LEVEL ${crawler.level}`;
@@ -71,6 +102,55 @@ export class CharacterScreen {
     drawText(fb, lvl, right - textWidth(xp) - 8 - textWidth(lvl), 6, C.YELLOW);
     fb.rect(LEFT, 13, WIN.w - 12, 1, C.STONE_D);
     fb.rect(LEFT, 13, Math.round((WIN.w - 12) * crawler.xpShare), 1, C.GOLD);
+    if (this.tab === 'skills') this.drawSkills(fb, crawler);
+    else this.drawStats(fb, crawler, record, now);
+    const b = closeBox();
+    fb.bevel(b.x, b.y, b.w, b.h, C.STONE_D, C.STONE_M, C.BLACK);
+    drawText(fb, 'C', b.x + 3, b.y + 3, C.GOLD);
+    drawText(fb, 'CLOSE', b.x + 11, b.y + 3, C.BONE);
+  }
+
+  // Skills on the left, spells on the right: name, level, a progress line
+  // toward the next level and what it does at the current level.
+  drawSkills(fb, crawler) {
+    const right = WIN.x + WIN.w - 6;
+    const skills = crawler.skills.list();
+    const spells = crawler.spells.list();
+    drawText(fb, 'SKILLS', LEFT, 18, C.GOLD);
+    drawText(fb, 'SPELLS', RIGHT, 18, C.GOLD);
+    const mpText = `MP ${crawler.mp}/${crawler.mpMax}`;
+    drawText(fb, mpText, right - textWidth(mpText), 18, C.SKY);
+    fb.rect(RIGHT - 6, 16, 1, 104, C.STONE_D);
+    const row = (x, y, w, name, tag, L, progress, info, sel, color) => {
+      if (sel) fb.rect(x - 3, y - 2, w + 5, LIST_H - 1, C.SHADOW);
+      drawText(fb, name, x, y, sel ? C.YELLOW : color);
+      const lv = L >= MASTERY.max ? 'MAX' : `LV ${L}`;
+      drawText(fb, lv, x + w - textWidth(lv), y, C.YELLOW);
+      if (tag) drawText(fb, tag, x + w - textWidth(lv) - 6 - textWidth(tag), y, C.ASH);
+      fb.rect(x, y + 6, w, 1, C.NIGHT);
+      fb.rect(x, y + 6, Math.round(w * progress), 1, C.GOLD);
+      drawText(fb, info, x, y + 8, C.FOG);
+    };
+    skills.slice(0, LIST_ROWS).forEach((id, i) => {
+      const def = SKILLS[id], L = crawler.skills.level(id);
+      row(LEFT, LIST_Y + i * LIST_H, RIGHT - LEFT - 12, def.name.toUpperCase(), def.active ? 'ACTIVE' : 'PASSIVE',
+        L, crawler.skills.progress(id), def.info(L, crawler), false, C.BONE);
+    });
+    if (skills.length > LIST_ROWS) drawText(fb, `+${skills.length - LIST_ROWS} MORE`, LEFT, LIST_Y + LIST_ROWS * LIST_H, C.ASH);
+    if (this.spellCursor >= spells.length) this.spellCursor = 0;
+    spells.slice(0, LIST_ROWS).forEach((id, i) => {
+      const def = SPELLS[id], L = crawler.spells.level(id);
+      const name = (def.name.length > 18 ? def.short || def.name : def.name).toUpperCase();
+      row(RIGHT, LIST_Y + i * LIST_H, right - RIGHT, name, `${def.mp}MP`, L, crawler.spells.progress(id),
+        def.info(L, crawler).replace(', NEVER MISSES', ''), i === this.spellCursor, C.BONE);
+    });
+    const sel = SPELLS[spells[this.spellCursor]];
+    if (sel && sel.act(1, crawler).target === 'self') drawText(fb, `SPACE CASTS ${(sel.short || sel.name).toUpperCase()} - COSTS A TURN`, LEFT, 126, C.FOG);
+    else if (skills.length) drawText(fb, 'SKILLS GROW WHEN USED. SO DO GRUDGES.', LEFT, 126, C.ASH);
+  }
+
+  drawStats(fb, crawler, record, now) {
+    const right = WIN.x + WIN.w - 6;
 
     // Attributes: name, value, pips, what it does.
     const spend = crawler.points > 0;
@@ -129,11 +209,16 @@ export class CharacterScreen {
       const p = `${crawler.points} POINT${crawler.points > 1 ? 'S' : ''} TO SPEND - SPACE RAISES`;
       drawText(fb, p, LEFT, 126, blink ? C.YELLOW : C.GOLD);
     }
-    const b = closeBox();
-    fb.bevel(b.x, b.y, b.w, b.h, C.STONE_D, C.STONE_M, C.BLACK);
-    drawText(fb, 'C', b.x + 3, b.y + 3, C.GOLD);
-    drawText(fb, 'CLOSE', b.x + 11, b.y + 3, C.BONE);
   }
+}
+
+function tabBoxes() {
+  let x = LEFT - 2;
+  return TABS.map((t) => {
+    const b = { ...t, x, y: 4, w: textWidth(t.label) + 4, h: 8 };
+    x += b.w + 3;
+    return b;
+  });
 }
 
 function closeBox() {

@@ -32,6 +32,7 @@ import { CharacterScreen } from './game/character-ui.js';
 import { Crawler, ATTR_NAMES, LEVELING } from './game/crawler.js';
 import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
 import { Combat } from './game/combat.js';
+import { SPELLS } from './game/spells.js';
 import { CombatScreen } from './game/combat-ui.js';
 import { drawGameOver, gameOverReady } from './game/gameover-ui.js';
 import { drawFloorCard, cardDone, cardSkippable, CARD_MS } from './game/floor-ui.js';
@@ -237,6 +238,24 @@ function showLevelBanner() {
   banner = { text: 'LEVEL UP', sub: `LEVEL ${crawler.level}  -  PRESS C TO SPEND POINTS`, at: null };
 }
 
+// Casts a spell outside combat (from the skills tab). Only spells that work
+// on the crawler itself (Mend); costs mana and one turn, and it trains.
+function castOutside(id) {
+  const def = SPELLS[id];
+  if (!def) return;
+  const p = def.act(crawler.spells.level(id), crawler);
+  if (p.target !== 'self') return log.push(`${def.name} needs a target. Save it for a fight.`, 'info');
+  if (p.heal && crawler.hp >= crawler.hpMax) return log.push(line('healFull'), 'info');
+  if (crawler.mp < def.mp) return log.push(line('noMana'), 'info');
+  crawler.mp -= def.mp;
+  const n = crawler.heal(p.heal || 0);
+  log.push(`You cast ${def.name}. -${def.mp} MP, +${n} HP.`, 'info');
+  log.push(line('castOutside'));
+  const up = crawler.spells.train(id);
+  if (up) log.push(line('skillUp').replace('{name}', def.name).replace('{n}', up));
+  afterTurn();
+}
+
 // Spends one attribute point on the stats sheet.
 function raiseAttr(attr) {
   if (!crawler.raise(attr)) return;
@@ -368,8 +387,9 @@ function onAction(action) {
   }
   if (combat) return onCombatAction(action);
   if (charScreen.open) {
-    const dir = { forward: 'up', back: 'down' }[action];
-    if (dir) return charScreen.move(dir);
+    const dir = { forward: 'up', back: 'down', left: 'left', turnLeft: 'left', right: 'right', turnRight: 'right' }[action];
+    if (dir) return charScreen.move(dir, crawler.spells.list().length);
+    if (action === 'interact' && charScreen.tab === 'skills') return castOutside(crawler.spells.list()[charScreen.spellCursor]);
     if (action === 'interact' && crawler.points > 0) return raiseAttr(charScreen.selected());
     if (['character', 'close', 'interact', 'inventory'].includes(action)) charScreen.toggle();
     return;
@@ -542,6 +562,25 @@ function report(events) {
       case 'death':
         log.push('You die.', 'warn');
         break;
+      case 'skill':
+        log.push(`You use ${ev.name}.`, 'info');
+        break;
+      case 'cast':
+        log.push(`You cast ${ev.name}. -${ev.amount} MP.`, 'info');
+        break;
+      case 'heal':
+        log.push(ev.amount ? `+${ev.amount} HP.` : 'You are already in one piece.', 'info');
+        break;
+      case 'status':
+        log.push(`The ${foe.name} is ${{ daze: 'dazed', blind: 'blinded', hex: 'hexed' }[ev.status]}.`, 'info');
+        if (ev.status === 'daze' || ev.status === 'blind') log.push(line(ev.status === 'daze' ? 'dazeDone' : 'blindDone'));
+        break;
+      case 'dazed':
+        log.push(`The ${ev.actor.name} is still seeing stars.`, 'info');
+        break;
+      case 'skillUp':
+        log.push(line('skillUp').replace('{name}', ev.name).replace('{n}', ev.level));
+        break;
       default:
     }
   }
@@ -599,6 +638,8 @@ canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const p = hudPoint(e);
     const t = charScreen.hit(p.x, p.y);
+    if (t.kind === 'tab') return;
+    if (t.kind === 'cast') return castOutside(crawler.spells.list()[t.index]);
     if (t.kind === 'raise') { if (crawler.points > 0) raiseAttr(t.attr); return; }
     if (t.kind === 'button' || !crawler.points) charScreen.toggle();
     return;

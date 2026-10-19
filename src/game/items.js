@@ -38,14 +38,15 @@ export const SLOT_BY_ID = Object.fromEntries(SLOTS.map((s) => [s.id, s]));
 // kind: 'gear' (has a slot), 'consumable' (can be used), 'junk'.
 // short: name for tight spots like the combat menu (consumables).
 // atk/def: added to the crawler's stats while equipped (crawler.js).
-// heal: hit points restored on use.
+// heal: hit points restored on use. cat: kind of weapon ('blade', 'blunt'),
+// for the weapon skills (skills.js).
 const DEFS = [
   // ---------------------------------------------------------- weapons
-  { id: 'shiv', name: 'Rusty Shiv', kind: 'gear', slot: 'weapon', rarity: 'common', atk: 2,
+  { id: 'shiv', name: 'Rusty Shiv', kind: 'gear', slot: 'weapon', rarity: 'common', atk: 2, cat: 'blade',
     desc: 'Technically a weapon. Legally a tetanus delivery system.' },
-  { id: 'crowbar', name: 'Borant-Issue Crowbar', kind: 'gear', slot: 'weapon', rarity: 'uncommon', atk: 4,
+  { id: 'crowbar', name: 'Borant-Issue Crowbar', kind: 'gear', slot: 'weapon', rarity: 'uncommon', atk: 4, cat: 'blunt',
     desc: 'Opens crates, doors and arguments. Property of Borant. Do not return it.' },
-  { id: 'sword', name: 'Sword of Moderate Adequacy', kind: 'gear', slot: 'weapon', rarity: 'rare', atk: 6,
+  { id: 'sword', name: 'Sword of Moderate Adequacy', kind: 'gear', slot: 'weapon', rarity: 'rare', atk: 6, cat: 'blade',
     desc: 'Pointy end goes in the monster. The other end goes in you, metaphorically, via the warranty.' },
   // ---------------------------------------------------------- off hand
   { id: 'potLid', name: 'Pot Lid', kind: 'gear', slot: 'offhand', rarity: 'common', def: 1,

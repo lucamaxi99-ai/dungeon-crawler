@@ -7,9 +7,19 @@
 // order, round after round, until all enemies are dead, the crawler is
 // dead or the crawler got away.
 //
-// Event: { kind, actor, target?, amount? }
+// Skills and spells (skills.js, spells.js) go through one resolver: damage,
+// healing and status effects on enemies (daze: skips turns, blind and hex:
+// worse aim). Every use trains them; passive skills train on hits, wounds
+// and escape attempts and add their bonuses to the numbers below.
+//
+// Event: { kind, actor, target?, amount?, id?, name?, status?, turns?, level? }
 //   kind: 'hit' | 'crit' | 'miss' | 'blocked' | 'defend' | 'item' | 'flee'
-//         | 'fleeFail' | 'kill' | 'death'
+//         | 'fleeFail' | 'kill' | 'death' | 'skill' | 'cast' | 'heal'
+//         | 'status' (daze/blind/hex put on target) | 'dazed' (enemy skips)
+//         | 'skillUp' (a skill or spell reached `level`; spell: true)
+
+import { SKILLS, trainedBy } from './skills.js';
+import { SPELLS } from './spells.js';
 
 export const RULES = {
   hitBase: 0.75,        // crawler's base chance to hit
@@ -21,6 +31,8 @@ export const RULES = {
   defendHit: -0.15,     // enemy hit chance while the crawler defends
   fleeBase: 0.5, fleePerDex: 0.1, fleeMin: 0.2, fleeMax: 0.9,
   initiatorBonus: 2,
+  blindHit: -0.4,       // enemy hit chance while blinded (Pocket Sand)
+  hexHit: -0.25,        // enemy hit chance while hexed
 };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -54,6 +66,8 @@ export class Combat {
     this.round = 1;
     this.defending = false;
     this.result = null;   // null while fighting, then 'won' | 'lost' | 'fled'
+    this.status = new Map(enemies.map((e) => [e, { daze: 0, blind: 0, hex: 0 }]));
+    this.cooldowns = {};  // skill id -> own turns until it can be used again
     const roll = (dex, starter) => 1 + Math.floor(rnd() * 6) + dex + (starter ? RULES.initiatorBonus : 0);
     const order = [{ who: crawler, init: roll(crawler.dex, initiator === 'crawler'), first: 1 }];
     for (const e of enemies) order.push({ who: e, init: roll(e.stats.dex, initiator === 'enemy'), first: 0 });
@@ -66,30 +80,63 @@ export class Combat {
   get crawlersTurn() { return !this.result && this.current === this.crawler; }
   get alive() { return this.enemies.filter((e) => e.alive); }
 
+  // Own turns until a skill is ready again (0 = ready, Infinity = used up).
+  cooldown(id) { return this.cooldowns[id] || 0; }
+
+  // Can the crawler use this skill or spell right now?
+  canSkill(id) {
+    const def = SKILLS[id];
+    return !!def && def.active && this.crawler.skills.has(id) && this.cooldown(id) === 0;
+  }
+  canCast(id) {
+    const def = SPELLS[id];
+    return !!def && this.crawler.spells.has(id) && this.crawler.mp >= def.mp;
+  }
+
   // The crawler acts. action: { kind: 'attack', target } | { kind: 'defend' }
+  // | { kind: 'skill', id, target } | { kind: 'spell', id, target }
   // | { kind: 'item', name, healed } (the item was already used) | { kind: 'flee' }.
   crawlerAct(action) {
     if (!this.crawlersTurn) throw new Error('not the crawler\'s turn');
     const me = this.crawler, rnd = this.rnd;
     const ev = [];
+    const bonus = me.bonus;
     if (action.kind === 'attack') {
-      const t = action.target && action.target.alive ? action.target : this.alive[0];
-      if (rnd() < hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex))) {
-        const crit = rnd() < RULES.crit;
-        const dmg = crawlerDamage(me.atk, t.stats.def, rnd) * (crit ? 2 : 1);
-        t.hurt(dmg);
-        ev.push({ kind: crit ? 'crit' : 'hit', actor: me, target: t, amount: dmg });
-        if (!t.alive) { me.kills++; ev.push({ kind: 'kill', actor: me, target: t }); }
+      const t = this.pick(action.target);
+      if (rnd() < hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex) + bonus.hit)) {
+        const crit = rnd() < RULES.crit + bonus.crit;
+        const dmg = (crawlerDamage(me.atk, t.stats.def, rnd) + bonus.dmg) * (crit ? 2 : 1);
+        this.damage(t, dmg, crit ? 'crit' : 'hit', ev);
+        this.trainPassive('hit', ev);
       } else {
         ev.push({ kind: 'miss', actor: me, target: t });
       }
+    } else if (action.kind === 'skill') {
+      if (!this.canSkill(action.id)) throw new Error(`cannot use skill ${action.id}`);
+      const def = SKILLS[action.id];
+      ev.push({ kind: 'skill', actor: me, id: action.id, name: def.name });
+      this.resolve(def.act(me.skills.level(action.id), me), action.target, ev);
+      this.cooldowns[action.id] = def.cooldown;
+      this.train(me.skills, action.id, def.name, false, ev);
+    } else if (action.kind === 'spell') {
+      if (!this.canCast(action.id)) throw new Error(`cannot cast ${action.id}`);
+      const def = SPELLS[action.id];
+      me.mp -= def.mp;
+      ev.push({ kind: 'cast', actor: me, id: action.id, name: def.name, amount: def.mp });
+      const p = def.act(me.spells.level(action.id), me);
+      if (def.damage && p.dmg) p.dmg = p.dmg.map((d) => d + bonus.spell);
+      const landed = this.resolve(p, action.target, ev);
+      this.train(me.spells, action.id, def.name, true, ev);
+      if (def.damage && landed) this.trainPassive('spellHit', ev);
     } else if (action.kind === 'defend') {
       this.defending = true;
       ev.push({ kind: 'defend', actor: me });
     } else if (action.kind === 'item') {
       ev.push({ kind: 'item', actor: me, name: action.name, amount: action.healed });
     } else if (action.kind === 'flee') {
-      if (rnd() < fleeChance(me.dex, this.alive)) {
+      const chance = clamp(fleeChance(me.dex, this.alive) + bonus.flee, RULES.fleeMin, RULES.fleeMax);
+      this.trainPassive('flee', ev);
+      if (rnd() < chance) {
         this.result = 'fled';
         ev.push({ kind: 'flee', actor: me });
       } else {
@@ -109,12 +156,22 @@ export class Combat {
     if (this.result || e === this.crawler) throw new Error('not an enemy\'s turn');
     const me = this.crawler, rnd = this.rnd;
     const ev = [];
-    const bonus = (this.defending ? RULES.defendHit : 0) - dexBonus(me.dex);
+    const st = this.status.get(e);
+    if (st.daze > 0) {
+      st.daze--;
+      ev.push({ kind: 'dazed', actor: e });
+      this.advance();
+      return ev;
+    }
+    let bonus = (this.defending ? RULES.defendHit : 0) - dexBonus(me.dex);
+    if (st.blind > 0) { bonus += RULES.blindHit; st.blind--; }
+    if (st.hex > 0) { bonus += RULES.hexHit; st.hex--; }
     if (rnd() < hitChance(RULES.enemyHitBase, e.stats.atk, me.def, bonus)) {
       let dmg = enemyDamage(e.stats.dmg, me.def, rnd);
       if (this.defending) dmg = Math.floor(dmg / 2);
       me.hurt(dmg);
       ev.push({ kind: dmg ? 'hit' : 'blocked', actor: e, target: me, amount: dmg });
+      if (dmg) this.trainPassive('hurt', ev);
       if (!me.alive) { this.result = 'lost'; ev.push({ kind: 'death', actor: e, target: me }); }
     } else {
       ev.push({ kind: 'miss', actor: e, target: me });
@@ -123,14 +180,70 @@ export class Combat {
     return ev;
   }
 
-  // Next living participant. Defending lasts until the crawler's next turn.
+  // The chosen target if it still lives, otherwise the first living enemy.
+  pick(target) {
+    return target && target.alive ? target : this.alive[0];
+  }
+
+  damage(t, dmg, kind, ev) {
+    t.hurt(dmg);
+    ev.push({ kind, actor: this.crawler, target: t, amount: dmg });
+    if (!t.alive) { this.crawler.kills++; ev.push({ kind: 'kill', actor: this.crawler, target: t }); }
+  }
+
+  // What a skill or spell does (p from act(), see skills.js). Returns true
+  // if anything was hit.
+  resolve(p, target, ev) {
+    const me = this.crawler, rnd = this.rnd;
+    if (p.heal) ev.push({ kind: 'heal', actor: me, amount: me.heal(p.heal) });
+    const targets = p.target === 'all' ? this.alive : p.target === 'one' ? [this.pick(target)] : [];
+    let landed = false;
+    for (const t of targets) {
+      if (!t) continue;
+      if (!p.sure && rnd() >= hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex) + (p.hit || 0))) {
+        ev.push({ kind: 'miss', actor: me, target: t });
+        continue;
+      }
+      landed = true;
+      if (p.dmg) {
+        const [lo, hi] = p.dmg;
+        const roll = lo + Math.floor(rnd() * (hi - lo + 1));
+        this.damage(t, Math.max(1, roll - (p.pierce ? 0 : Math.floor(t.stats.def / 2))), 'hit', ev);
+      }
+      if (!t.alive) continue;
+      const st = this.status.get(t);
+      for (const s of ['daze', 'blind', 'hex']) {
+        if (!p[s]) continue;
+        st[s] = Math.max(st[s], p[s]);
+        ev.push({ kind: 'status', actor: me, target: t, status: s, turns: p[s] });
+      }
+    }
+    return landed;
+  }
+
+  train(mastery, id, name, spell, ev) {
+    const level = mastery.train(id);
+    if (level) ev.push({ kind: 'skillUp', actor: this.crawler, id, name, level, spell });
+  }
+
+  trainPassive(what, ev) {
+    const me = this.crawler;
+    for (const id of trainedBy(me.skills, what, me.weapon)) this.train(me.skills, id, SKILLS[id].name, false, ev);
+  }
+
+  // Next living participant. Defending lasts until the crawler's next turn,
+  // skill cooldowns tick down at the start of it.
   advance() {
     if (this.result) return;
     for (let i = 0; i < this.order.length; i++) {
       this.turn++;
       if (this.turn >= this.order.length) { this.turn = 0; this.round++; }
       const who = this.current;
-      if (who === this.crawler) { this.defending = false; return; }
+      if (who === this.crawler) {
+        this.defending = false;
+        for (const id of Object.keys(this.cooldowns)) if (this.cooldowns[id] > 0 && this.cooldowns[id] < Infinity) this.cooldowns[id]--;
+        return;
+      }
       if (who.alive) return;
     }
   }

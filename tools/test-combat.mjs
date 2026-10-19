@@ -6,6 +6,9 @@ import { Crawler, START, LEVELING, xpForLevel } from '../src/game/crawler.js';
 import { Enemy, ENEMY_TYPES, stepToward, lineOfSight, enemyTurns } from '../src/game/enemies.js';
 import { Combat, hitChance, crawlerDamage, enemyDamage, fleeChance, RULES } from '../src/game/combat.js';
 import { rng } from '../src/engine/texgen.js';
+import { Mastery, MASTERY } from '../src/game/mastery.js';
+import { SKILLS, passiveBonus } from '../src/game/skills.js';
+import { SPELLS } from '../src/game/spells.js';
 
 // Attributes and derived values: all 5 gives HP 20, MP 10, ATK 1.
 const inv = new Inventory();
@@ -213,4 +216,110 @@ console.log(`combat OK (300 fights: ${outcomes.won} won, ${outcomes.lost} lost, 
   while (hero.points) hero.raise('str');
   assert.equal(hero.raise('str'), false, 'no points, no raise');
   assert.equal(hero.raise('luck'), false, 'unknown attribute');
+}
+
+// ------------------------------------------------------------ skills and spells
+
+{
+  // Mastery: 5 uses to level 2, 10 more to level 3, capped at 10.
+  const m = new Mastery();
+  assert.ok(m.learn('dirtyKick'));
+  assert.equal(m.learn('dirtyKick'), false);
+  for (let i = 0; i < 4; i++) assert.equal(m.train('dirtyKick'), 0);
+  assert.equal(m.train('dirtyKick'), 2);
+  assert.equal(m.train('dirtyKick', 10), 3);
+  assert.equal(m.train('dirtyKick', 10000), MASTERY.max);
+  assert.equal(m.progress('dirtyKick'), 1);
+  assert.equal(m.boost('dirtyKick'), 0, 'no boost past the cap');
+  assert.equal(m.train('unknown'), 0);
+}
+{
+  // Every crawler starts with Dirty Kick and Mend.
+  const hero = new Crawler(new Inventory());
+  assert.ok(hero.skills.has('dirtyKick'));
+  assert.ok(hero.spells.has('mend'));
+  assert.equal(hero.weapon, 'unarmed');
+
+  // Dirty Kick: damages, dazes (the rat skips a turn), then cools down 4 turns.
+  const rat = new Enemy('rat', 1, 0);
+  rat.hp = 100; rat.stats = { ...rat.stats, hp: 100 };
+  const fight = new Combat(hero, [rat], { initiator: 'crawler', rnd: () => 0 });
+  assert.ok(fight.crawlersTurn);
+  const ev = fight.crawlerAct({ kind: 'skill', id: 'dirtyKick', target: rat });
+  assert.deepEqual(ev.map((e) => e.kind), ['skill', 'hit', 'status']);
+  assert.equal(fight.canSkill('dirtyKick'), false);
+  assert.deepEqual(fight.enemyAct().map((e) => e.kind), ['dazed'], 'a dazed rat skips its turn');
+  let turns = 0;
+  while (!fight.canSkill('dirtyKick')) {
+    assert.ok(++turns < 10);
+    fight.crawlerAct({ kind: 'defend' });
+    fight.enemyAct();
+  }
+  assert.equal(turns, 3, 'usable again on the 4th own turn after');
+  assert.throws(() => fight.enemyAct(), /not an enemy/);
+
+  // Mend: costs 4 MP, heals INT, trains.
+  hero.hurt(8);
+  const hp = hero.hp;
+  const ev2 = fight.crawlerAct({ kind: 'spell', id: 'mend' });
+  assert.deepEqual(ev2.map((e) => e.kind), ['cast', 'heal']);
+  assert.equal(hero.hp, hp + hero.int);
+  assert.equal(hero.mp, hero.mpMax - SPELLS.mend.mp);
+  assert.equal(hero.spells.known.mend.uses, 1);
+  hero.mp = 1;
+  assert.equal(fight.canCast('mend'), false, 'no mana, no spell');
+  assert.throws(() => fight.crawlerAct({ kind: 'spell', id: 'mend' }));
+}
+{
+  // Magic Missile never misses and ignores DEF; Spell Focus adds damage.
+  const hero = new Crawler(new Inventory());
+  hero.spells.learn('magicMissile');
+  const tank = new Enemy('rat', 1, 0);
+  tank.stats = { ...tank.stats, hp: 100, def: 50 };
+  tank.hp = 100;
+  const fight = new Combat(hero, [tank], { initiator: 'crawler', rnd: () => 0.9999 });
+  const ev = fight.crawlerAct({ kind: 'spell', id: 'magicMissile', target: tank });
+  const hit = ev.find((e) => e.kind === 'hit');
+  assert.equal(hit.amount, SPELLS.magicMissile.act(1, hero).dmg[1], 'full damage through 50 DEF');
+  hero.skills.learn('spellFocus');
+  assert.equal(passiveBonus(hero.skills, hero.weapon).spell, 1);
+  // Hex and Pocket Sand make the enemy miss more.
+  hero.spells.learn('hex');
+  hero.skills.learn('pocketSand');
+  assert.ok(SKILLS.pocketSand.act(1).blind > 0 && SPELLS.hex.act(1).hex > 0);
+}
+{
+  // Weapon skills only count with the right weapon in hand.
+  const inv2 = new Inventory();
+  const hero = new Crawler(inv2);
+  hero.skills.learn('blades');
+  hero.skills.learn('bareKnuckles');
+  hero.skills.train('blades', 100);
+  assert.equal(hero.bonus.hit, 0.02, 'unarmed: only Bare Knuckles (level 1)');
+  inv2.add('shiv');
+  inv2.equipFromBag(0);
+  assert.equal(hero.weapon, 'blade');
+  assert.ok(hero.bonus.hit > 0.1, 'shiv in hand: Blades counts');
+  hero.skills.learn('thickSkin');
+  assert.equal(hero.def, 1, 'Thick Skin adds DEF');
+}
+{
+  // Balancing sample: kicking whenever it is ready makes rat fights cheaper.
+  const cost = (useKick) => {
+    let lost = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const rnd = rng(seed * 7);
+      const hero = new Crawler(new Inventory());
+      const fight = new Combat(hero, [new Enemy('rat', 1, 0)], { rnd });
+      while (!fight.result) {
+        if (!fight.crawlersTurn) { fight.enemyAct(); continue; }
+        fight.crawlerAct(useKick && fight.canSkill('dirtyKick') ? { kind: 'skill', id: 'dirtyKick' } : { kind: 'attack' });
+      }
+      lost += hero.hpMax - hero.hp;
+    }
+    return lost / 300;
+  };
+  const plain = cost(false), kick = cost(true);
+  assert.ok(kick < plain, `Dirty Kick should help (${kick.toFixed(1)} vs ${plain.toFixed(1)} HP)`);
+  console.log(`skills OK (rat fight: ${plain.toFixed(1)} HP lost attacking only, ${kick.toFixed(1)} with Dirty Kick)`);
 }

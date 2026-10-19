@@ -12,6 +12,11 @@
 // points the crawler spends on the character sheet.
 // TODO(M6): CHA feeds the viewer count; TODO(M7): CHA lowers merchant prices.
 
+import { ITEMS } from './items.js';
+import { Mastery } from './mastery.js';
+import { STARTER_SKILLS, passiveBonus } from './skills.js';
+import { STARTER_SPELLS } from './spells.js';
+
 export const ATTRS = ['str', 'int', 'con', 'dex', 'cha'];
 export const ATTR_NAMES = { str: 'Strength', int: 'Intelligence', con: 'Constitution', dex: 'Dexterity', cha: 'Charisma' };
 
@@ -48,7 +53,20 @@ export class Crawler {
     this.level = 1;
     this.xp = 0;       // total experience
     this.points = 0;   // unspent attribute points
+    this.skills = new Mastery();
+    this.spells = new Mastery();
+    for (const id of STARTER_SKILLS) this.skills.learn(id);
+    for (const id of STARTER_SPELLS) this.spells.learn(id);
   }
+
+  // What the crawler fights with: 'unarmed' or the weapon's kind.
+  get weapon() {
+    const w = this.inv.equip.weapon;
+    return w ? ITEMS[w.id].cat || 'blade' : 'unarmed';
+  }
+
+  // Passive skill bonuses that apply right now (skills.js).
+  get bonus() { return passiveBonus(this.skills, this.weapon); }
 
   // XP needed for the next level, and progress toward it (0..1).
   get xpNext() { return xpForLevel(this.level + 1); }
@@ -90,7 +108,7 @@ export class Crawler {
   get hpMax() { return DERIVE.hpMax(this.attrs); }
   get mpMax() { return DERIVE.mpMax(this.attrs); }
   get atk() { return DERIVE.atk(this.attrs) + this.inv.totals().atk; }
-  get def() { return this.inv.totals().def; }
+  get def() { return this.inv.totals().def + this.bonus.def; }
   get regenSteps() { return DERIVE.regenSteps(this.attrs); }
   get alive() { return this.hp > 0; }
 

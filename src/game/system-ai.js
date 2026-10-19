@@ -135,6 +135,24 @@ export const LINES = {
     'Points allocated. You feel exactly as strong as a spreadsheet says you are.',
     'All points spent. Borant reminds you that refunds are not a thing.',
   ],
+  skillUp: [
+    '{name} is now level {n}. Practice makes slightly less terrible.',
+    'Skill up! {name} reached level {n}. The viewers clap. Some of them sarcastically.',
+    '{name}: level {n}. Borant notes your improvement and adjusts the difficulty accordingly. Kidding. Probably.',
+  ],
+  dazeDone: [
+    'Right in the dignity. It will need a moment.',
+    'That kick has been flagged by the Syndicate for review. Review result: hilarious.',
+  ],
+  blindDone: [
+    'Pocket sand! A classic. The viewers are chanting it.',
+  ],
+  noMana: [
+    'Not enough mana. Spells cost money. Well, mana. Same thing down here.',
+  ],
+  castOutside: [
+    'You patch yourself up. The System bills your soul for the materials.',
+  ],
   regenFull: [
     'Your body has quietly fixed itself. Biology: still the best sponsor.',
   ],
