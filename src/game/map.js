@@ -1,7 +1,9 @@
-// Level data. Hand-built test floor for now; procedural floors come in M5.
+// Level data. Floors come from the generator (floorgen.js); the hand-built
+// test floor below stays for tests and as an example of the format.
 //
 // Legend:
 //   r rough rock   # stone blocks   m mossy blocks   S stairwell   P Borant poster
+//   n Borant neon screen   u glowing runes
 //   . floor        @ player start
 //   C chest        b barrel         f brazier        F cold brazier   x bones
 //   R giant rat (enemy)
@@ -16,7 +18,7 @@ import { TINT_BY_NAME } from './lights.js';
 import { SPRITES } from './assets.js';
 import { Enemy } from './enemies.js';
 
-const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER };
+const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER, n: WALL.NEON, u: WALL.RUNES };
 const OBJECT_CHARS = { C: 'chest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
 const ENEMY_CHARS = { R: 'rat' };
 const SIDES = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
@@ -81,6 +83,8 @@ const tintId = (name) => {
 export class Level {
   constructor(def) {
     this.name = def.name;
+    this.depth = def.depth ?? 1;
+    this.turns = def.turns ?? 0; // countdown budget in turns (0 = none)
     this.seed = def.seed ?? 1;
     this.h = def.rows.length;
     this.w = def.rows[0].length;

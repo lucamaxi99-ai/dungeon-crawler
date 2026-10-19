@@ -15,6 +15,7 @@ import { frameAt } from './engine/sprite.js';
 import { buildTextures, SPRITES, CREATURES, WALL } from './game/assets.js';
 import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
+import { generateFloor } from './game/floorgen.js';
 import { Player } from './game/player.js';
 import {
   MENU_BOX, MessageLog, drawPanel, drawOverlay,
@@ -47,25 +48,39 @@ const log = new MessageLog();
 const charScreen = new CharacterScreen();
 const isWall = (x, y) => level.wall(x, y) !== 0;
 
-// Everything that belongs to one run. A new run (after death) starts the
-// floor over with a fresh crawler and empty pockets.
+// Everything that belongs to one run: the crawler and its pockets survive
+// from floor to floor; level, light and enemies are rebuilt on every floor.
+// URL parameters for testing: ?seed=123 fixes the run, ?floor=test plays
+// the hand-built test floor.
 // TODO(M5): permadeath and saving are decided with the floor generator.
-let level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd;
+const params = new URLSearchParams(location.search);
+let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd;
 let dead = null; // { at, killer, steps, kills, gold } after the crawler died
 
 function newRun() {
-  level = new Level(TEST_FLOOR);
-  player = new Player(level.start);
+  const fixedSeed = Number(params.get('seed'));
+  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0 };
   inventory = new Inventory();
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
-  state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
+  dead = null;
+  enterFloor(1);
+}
+
+// Builds floor `depth` of the current run and puts the crawler at its start.
+function enterFloor(depth) {
+  run.depth = depth;
+  const def = params.get('floor') === 'test' ? TEST_FLOOR : generateFloor(depth, run.seed + depth * 7919);
+  level = new Level(def);
+  const steps = player ? player.steps : 0;
+  player = new Player(level.start);
+  player.steps = depth === 1 ? 0 : steps;
+  state = { showMap: false, bumps: 0, saidFirstSteps: depth > 1, notice: null, noticeUntil: 0 };
   light = new LightMap(level.w, level.h, isWall, TINTS.length);
   for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a.h - 1, a.ambient, a.tint);
   for (const l of level.lights) light.addLight(l);
   decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
   enemyRnd = rng(level.seed * 31 + 7);
-  dead = null;
 }
 newRun();
 
@@ -619,6 +634,8 @@ requestAnimationFrame(loop);
 // Debug handle for the browser console and automated tests.
 window.game = {
   get level() { return level; },
+  get run() { return run; },
+  enterFloor: (depth) => enterFloor(depth),
   get player() { return player; },
   get state() { return state; },
   get light() { return light; },
