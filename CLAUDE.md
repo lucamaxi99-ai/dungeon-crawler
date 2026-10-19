@@ -30,6 +30,7 @@
   - hand drawn ASCII rasters via `defineSprite` (one frame) or `defineFrames` (several, same size); `.` is transparent. Good for items.
   - painted with the `Painter` (`src/engine/paint.js`) from 3D-ish primitives, using the materials in `src/game/materials.js`; game objects live in `src/game/objects.js`.
   - `glow` marks colors that ignore light (flames, neon, runes, eyes).
+- Creatures are painted in poses (`idle0`, `idle1`, `lunge`, `flinch`) in `src/game/creatures.js`, facing left, and registered in `CREATURES` (`assets.js`), which adds the right-facing set and the corpse. Enemy stats live in `ENEMY_TYPES` (`enemies.js`), combat rules in `combat.js` (pure, tested in `tools/test-combat.mjs`).
 - Every entry in `SPRITES` (`src/game/assets.js`) has an `anim` (`animation(frames, { frameMs, mode })`); pick frames with `frameAt`. Variants come from `recolor`/`rampMap`, `mirror`, `flip` and work on sprites, frame arrays and animations alike. Objects that shine set `light` (a preset from `lights.js`); wall decorations set `wall: true`.
 - Hand-drawn sprites are made in the editor (`editor.html`, code in `src/editor/`) and pasted into `src/game/assets.js`. The editor may import from `src/game/` for previews; the game never imports from `src/editor/`.
 - `src/proto/` is the graphics showroom (`proto.html`). The game never imports from it.
@@ -40,4 +41,4 @@
 
 1. `npm run check` (map validation, sprite engine and editor round-trip tests, engine tests)
 2. `npm run build` (must succeed)
-3. Render headless and look at a screenshot when anything visual changed. `window.game` exposes level, player, log, state, light, stats (fps, render ms) and `onAction` for scripted tests; `game.setResolution(0 | 1 | 2 | 'auto')` or `?res=640` fixes the view resolution. `window.forge` does the same for the editor (doc, ui, actions).
+3. Render headless and look at a screenshot when anything visual changed. `window.game` exposes level, player, log, state, light, stats (fps, render ms), crawler, combat, dead, `engage(enemy, initiator)`, `restart()` and `onAction` for scripted tests; `game.setResolution(0 | 1 | 2 | 'auto')` or `?res=640` fixes the view resolution. `window.forge` does the same for the editor (doc, ui, actions).
