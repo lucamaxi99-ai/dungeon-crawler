@@ -180,6 +180,23 @@ export const MENTOR_LINES = {
   noBoxes: [
     'No loot boxes. The System gives those for achievements, and achievements for doing things. Do things.',
   ],
+  boxPick: [
+    'Pick a box. They all contain disappointment, just in different sizes.',
+    'Go on, open one. I\'ll pretend to be excited. I\'ve had practice.',
+  ],
+  boxOpen: [
+    'Wow. Stuff. Try to contain yourself.',
+    'That\'s about what I expected. I expect very little.',
+    'The audience went "ooh". Then they went "oh".',
+    'Another box, another pile of somebody else\'s junk. Welcome to the economy.',
+  ],
+  boxGreat: [
+    'Huh. That\'s actually good. Don\'t tell anybody I said that.',
+    'Somebody in Borant accounting just dropped their coffee. Good pull.',
+  ],
+  boxLearn: [
+    'A book. You know what those are, right? You open them and knowledge falls out. Use it from your inventory.',
+  ],
   leave: [
     'Off you go. Try not to die where I can see it. Paperwork.',
     'Go on. The clock starts the moment you step out. No pressure. All the pressure.',

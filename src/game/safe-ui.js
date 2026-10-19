@@ -16,6 +16,7 @@ import { rng } from '../engine/texgen.js';
 import { MENTOR, paintOzzlePoses } from './mentor.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { TIER } from './lootboxes.js';
+import { drawBoxList, drawOpening, openingDone } from './lootbox-ui.js';
 
 const W = 320, H = 140;
 const COUNTER_Y = 100;                         // top of the bar counter
@@ -128,6 +129,8 @@ export class SafeRoomScreen {
     this.cursor = 0;
     this.listCursor = 0;
     this.listTop = 0;
+    this.boxCursor = 0;
+    this.opening = null; // { box, loot, at } while a box is being opened
     this.say = '';
     this.sayAt = 0;
     this.backdrop = null; // painted on first use
@@ -138,23 +141,28 @@ export class SafeRoomScreen {
     this.open = true;
     this.page = 'menu';
     this.cursor = 0;
+    this.opening = null;
     this.talk(line, now);
     if (!this.backdrop) { this.backdrop = paintBackdrop(); this.ozzle = paintOzzlePoses(); }
   }
 
   close() { this.open = false; }
 
-  talk(line, now) {
+  // delay: Ozzle waits a moment before saying it (after a box bursts open).
+  talk(line, now, delay = 0) {
+    if (delay > 0) { this.pending = { line, at: now + delay }; return; }
+    this.pending = null;
     this.say = line;
     this.sayAt = now;
   }
 
   // Keyboard. Returns a menu command id when one is chosen, else null.
   // dir: 'up' | 'down' | 'left' | 'right'; act: 'interact' | 'close'.
-  move(dir, nAchievements = ACHIEVEMENTS.length) {
+  move(dir, nAchievements = ACHIEVEMENTS.length, nBoxes = 0) {
     const d = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
     if (!d) return;
-    if (this.page === 'menu') this.cursor = (this.cursor + d + SAFE_MENU.length) % SAFE_MENU.length;
+    if (this.page === 'boxes') this.boxCursor = (this.boxCursor + d + nBoxes) % Math.max(1, nBoxes);
+    else if (this.page === 'menu') this.cursor = (this.cursor + d + SAFE_MENU.length) % SAFE_MENU.length;
     else if (this.page === 'achievements') {
       this.listCursor = Math.max(0, Math.min(nAchievements - 1, this.listCursor + d));
       if (this.listCursor < this.listTop) this.listTop = this.listCursor;
@@ -165,8 +173,17 @@ export class SafeRoomScreen {
   // The highlighted menu entry.
   selected() { return SAFE_MENU[this.cursor].id; }
 
+  // Still showing a box being opened (input waits until the card is full).
+  openingBusy(now) { return !!this.opening && !openingDone(this.opening, now); }
+
   // Mouse / touch. Returns { kind: 'menu', id } | { kind: 'back' } | { kind: 'row' } | null.
   hit(px, py) {
+    if (this.page === 'boxes') {
+      if (this.opening) return { kind: 'continue' };
+      const j = Math.floor((py - TERM.y - 17) / 11);
+      if (px >= TERM.x && j >= 0 && j < 8) return { kind: 'box', row: j };
+      return px >= TERM.x && py > TERM.y + TERM.h - 14 ? { kind: 'back' } : null;
+    }
     if (this.page === 'achievements') {
       const j = Math.floor((py - LIST.y + 1) / LIST.rowH);
       if (px < 200 && j >= 0 && j < LIST.rows && this.listTop + j < ACHIEVEMENTS.length) {
@@ -184,14 +201,29 @@ export class SafeRoomScreen {
     return null;
   }
 
-  // info: { points, boxes, unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers }
+  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers }
   draw(fb, now, info) {
     if (!this.open) return;
+    if (this.pending && now >= this.pending.at) this.talk(this.pending.line, now);
     fb.blit(this.backdrop, 0, 0);
     this.drawOzzle(fb, now);
     if (this.page === 'achievements') return this.drawAchievements(fb, info);
     this.drawBubble(fb, now);
-    this.drawTerminal(fb, now, info);
+    if (this.page === 'boxes') {
+      this.drawFrame(fb);
+      if (this.boxCursor >= info.boxes.length) this.boxCursor = Math.max(0, info.boxes.length - 1);
+      drawBoxList(fb, TERM, info.boxes, this.boxCursor, now);
+    } else {
+      this.drawTerminal(fb, now, info);
+    }
+    if (this.opening) drawOpening(fb, this.opening, now);
+  }
+
+  drawFrame(fb) {
+    const { x, y, w, h } = TERM;
+    fb.bevel(x, y, w, h, C.STEEL_D, C.STEEL_M, C.BLACK);
+    fb.bevel(x + 3, y + 3, w - 6, h - 6, C.NIGHT, C.BLACK, C.STEEL);
+    for (let j = y + 4; j < y + h - 4; j += 2) fb.rect(x + 4, j, w - 8, 1, C.BLACK);
   }
 
   drawOzzle(fb, now) {
@@ -231,9 +263,7 @@ export class SafeRoomScreen {
 
   drawTerminal(fb, now, info) {
     const { x, y, w, h } = TERM;
-    fb.bevel(x, y, w, h, C.STEEL_D, C.STEEL_M, C.BLACK);
-    fb.bevel(x + 3, y + 3, w - 6, h - 6, C.NIGHT, C.BLACK, C.STEEL);
-    for (let j = y + 4; j < y + h - 4; j += 2) fb.rect(x + 4, j, w - 8, 1, C.BLACK);
+    this.drawFrame(fb);
     drawText(fb, 'SAFE ROOM', x + 7, y + 7, C.MINT);
     drawText(fb, 'SERVICES', x + w - 7 - textWidth('SERVICES'), y + 7, C.TEAL_M);
     fb.rect(x + 6, y + 14, w - 12, 1, C.TEAL_D);
@@ -244,7 +274,7 @@ export class SafeRoomScreen {
       if (sel) fb.rect(x + 5, my - 3, w - 10, MENU_H - 1, C.TEAL_D);
       let label = m.label, badge = '', bc = C.MINT, dim = false;
       if (m.id === 'levelup') { badge = info.points ? `+${info.points}` : ''; bc = blink ? C.YELLOW : C.GOLD; dim = !info.points; }
-      if (m.id === 'boxes') { badge = info.boxes ? String(info.boxes) : ''; bc = C.YELLOW; dim = !info.boxes; }
+      if (m.id === 'boxes') { badge = info.boxes.length ? String(info.boxes.length) : ''; bc = C.YELLOW; dim = !info.boxes.length; }
       if (m.id === 'achievements') { badge = `${info.unlocked.length}/${info.total}`; bc = C.TEAL_M; }
       if (m.id === 'rest' && info.rested) { label = 'RESTED'; dim = true; }
       drawText(fb, sel ? '>' : ' ', x + 7, my, C.YELLOW);

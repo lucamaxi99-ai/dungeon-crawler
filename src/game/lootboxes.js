@@ -3,6 +3,7 @@
 // Pure game logic, no drawing.
 
 import { C } from '../engine/palette.js';
+import { rollLoot } from './loot.js';
 
 export const BOX_TIERS = ['bronze', 'silver', 'gold', 'platinum', 'legendary', 'celestial'];
 
@@ -17,3 +18,11 @@ export const TIER = {
 };
 
 export const boxName = (tier, sponsored = false) => `${sponsored ? 'Sponsored ' : ''}${TIER[tier].name} Box`;
+
+// Sponsored boxes lean toward tomes and skill potions.
+export const SPONSOR_LEARN = 0.45;
+
+// What is inside a box. box: { tier, sponsored }. Returns { gold, items }.
+export function openBox(box, seed) {
+  return rollLoot(`box_${box.tier}`, seed, box.sponsored ? SPONSOR_LEARN : 0);
+}

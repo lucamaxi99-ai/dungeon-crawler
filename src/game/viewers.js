@@ -27,6 +27,8 @@ const HYPE = {
   level: [0.05, 3],
   learn: [0.04, 2],
   floorDone: [0.25, 15],
+  // Opening a loot box on camera: the bigger the tier, the bigger the crowd.
+  boxOpened: (d) => [0.02 + 0.02 * (d.tier ?? 0), 2 + 2 * (d.tier ?? 0)],
   // An achievement: more for the bigger box tiers.
   achievement: (d) => [0.04 + 0.02 * (d.tier ?? 0), 3 + 3 * (d.tier ?? 0)],
 };

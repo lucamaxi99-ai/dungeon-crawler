@@ -10,6 +10,7 @@ import { Painter } from '../engine/paint.js';
 import { M, mats, frames, FIRE_COLORS, COLD_COLORS } from '../game/materials.js';
 import { paintBrazier, paintWallTorch } from '../game/objects.js';
 import { paintRat } from '../game/creatures.js';
+import { BOX_ART, paintLootBox } from '../game/lootbox-art.js';
 
 const UNIT = 64;
 const hd = (s) => ({ ...s, unit: UNIT });
@@ -369,40 +370,9 @@ function goblin() {
 
 // ------------------------------------------------------------ loot boxes
 
-const TIERS = [
-  { id: 'bronze', body: [C.SOOT, C.WOOD_D, C.RUST, C.AMBER], trim: [C.WOOD_D, C.RUST, C.AMBER, C.TAN], glow: C.AMBER },
-  { id: 'silver', body: [C.STEEL_D, C.STEEL, C.STEEL_M, C.STEEL_L], trim: [C.STEEL, C.STEEL_M, C.STEEL_L, C.WHITE], glow: C.ICE },
-  { id: 'gold', body: [C.RUST, C.AMBER, C.GOLD, C.YELLOW], trim: [C.WOOD_D, C.RUST, C.GOLD, C.HOT], glow: C.YELLOW },
-  { id: 'platinum', body: [C.STEEL, C.STEEL_M, C.STEEL_L, C.ICE], trim: [C.STEEL_M, C.STEEL_L, C.ICE, C.WHITE], glow: C.SKY },
-  { id: 'legendary', body: [C.PLUM_D, C.PLUM, C.MAGENTA, C.NEON], trim: [C.RUST, C.GOLD, C.YELLOW, C.HOT], glow: C.NEON },
-  { id: 'celestial', body: [C.VIOLET_D, C.VIOLET, C.VIOLET_M, C.LILAC], trim: [C.TEAL, C.TEAL_M, C.MINT, C.WHITE], glow: C.MINT },
-];
-
-function lootBox(tier, f) {
-  const body = { ramp: tier.body, outline: C.BLACK, rough: 0.1 };
-  const trim = { ramp: tier.trim, spec: C.WHITE, shine: 0.7, outline: C.BLACK };
-  const p = new Painter(34, 32, { seed: 21, scale: S });
-  // Cube in three-quarter view: front, top and right faces with fixed normals.
-  const F = [[3, 12], [23, 12], [23, 31], [3, 31]];
-  const T = [[3, 12], [10, 4], [31, 4], [23, 12]];
-  const R = [[23, 12], [31, 4], [31, 23], [23, 31]];
-  p.poly(F, 0, { z: 10, normal: [-0.15, 0, 1] });
-  p.poly(T, 0, { z: 9, normal: [0, -1, 0.5] });
-  p.poly(R, 0, { z: 8, normal: [1, -0.1, 0.4] });
-  // Metal bands: lid seam, corners and a cross strap.
-  p.poly([[3, 15], [23, 15], [23, 17], [3, 17]], 1, { z: 11, normal: [-0.15, -0.3, 1] });
-  p.poly([[23, 15], [31, 7], [31, 9], [23, 17]], 1, { z: 10, normal: [1, -0.3, 0.4] });
-  p.poly([[12, 12], [14, 12], [14, 31], [12, 31]], 1, { z: 11, normal: [-0.15, 0, 1] });
-  p.poly([[12, 12], [19, 4], [21, 4], [14, 12]], 1, { z: 10, normal: [0, -1, 0.5] });
-  for (const [x, y] of [[3, 12], [23, 12], [3, 31], [23, 31]]) p.ellipse(x + (x > 10 ? -1 : 1), y + (y > 20 ? -1.5 : 1), 2, 2, 1, { z: 12 });
-  // Glowing seam under the lid and a glowing "B" emblem.
-  const g = tier.glow;
-  const pulse = f % 2;
-  for (let x = 4; x < 23; x++) p.dot(x, 17.5, x % 3 === pulse ? C.WHITE : g);
-  const B = ['110', '101', '110', '101', '110'];
-  B.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === '1') { p.dot(6 + x, 21 + y, g); } }));
-  return p.shade([body, trim], { name: `loot_${tier.id}_${f}`, glowColors: [g, C.WHITE] });
-}
+// The painter lives in the game now (src/game/lootbox-art.js).
+const TIERS = Object.keys(BOX_ART);
+const lootBox = (tier, f) => paintLootBox(tier, f, { scale: S });
 
 // ------------------------------------------------------------ portrait
 

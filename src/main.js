@@ -40,7 +40,7 @@ import { drawFloorCard, cardDone, cardSkippable, CARD_MS } from './game/floor-ui
 import { rng } from './engine/texgen.js';
 import { Achievements } from './game/achievements.js';
 import { AchievementPopups } from './game/achievement-ui.js';
-import { boxName, BOX_TIERS } from './game/lootboxes.js';
+import { boxName, BOX_TIERS, openBox } from './game/lootboxes.js';
 import { Viewers, VIEWERS, formatViewers } from './game/viewers.js';
 import { SafeRoomScreen } from './game/safe-ui.js';
 import { mentorGreeting, mentorLine } from './game/mentor.js';
@@ -78,7 +78,7 @@ const safe = new SafeRoomScreen();
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
-  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0 };
+  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0, boxesOpened: 0 };
   inventory = new Inventory();
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
@@ -384,8 +384,9 @@ function safeCommand(id) {
   }
   if (id === 'boxes') {
     if (!ach.boxes.length) return safe.talk(mentorLine('noBoxes'), now);
-    // TODO(M6): opening loot boxes (step 4).
-    return safe.talk(`${ach.boxes.length} boxes. The opening machine is still warming up. Come back in a patch.`, now);
+    safe.page = 'boxes';
+    safe.boxCursor = 0;
+    return safe.talk(mentorLine('boxPick'), now);
   }
   if (id === 'rest') {
     if (level.safeRoom.rested) return safe.talk(mentorLine('rested'), now);
@@ -397,6 +398,25 @@ function safeCommand(id) {
     note('rest');
     return safe.talk(mentorLine('rest'), now);
   }
+}
+
+// Opens the selected loot box: the loot goes straight into the inventory,
+// the screen plays the opening and shows what was inside.
+function openSelectedBox() {
+  const now = performance.now();
+  const [box] = ach.boxes.splice(safe.boxCursor, 1);
+  if (!box) return;
+  run.boxesOpened++;
+  const loot = openBox(box, run.seed * 31 + run.boxesOpened * 7919);
+  inventory.gold += loot.gold;
+  for (const { id, n } of loot.items) inventory.add(id, n);
+  safe.opening = { box, loot, at: now };
+  log.push(`Opened: ${boxName(box.tier, box.sponsored)}. Inside: ${[...loot.items.map(itemLabel), `${loot.gold} gold`].join(', ')}.`, 'info');
+  const best = Math.max(0, ...loot.items.map(({ id }) => RARITY_ORDER.indexOf(ITEMS[id].rarity)));
+  const learned = loot.items.some(({ id }) => ITEMS[id].teach || ITEMS[id].skillPotion);
+  safe.talk(mentorLine(best >= 3 ? 'boxGreat' : learned ? 'boxLearn' : 'boxOpen'), now, 1750);
+  note('boxOpened', { tier: BOX_TIERS.indexOf(box.tier) });
+  noteBag();
 }
 
 // Keys while in the Safe Room (the character sheet and the inventory can
@@ -411,6 +431,18 @@ function onSafeAction(action) {
   if (safe.page === 'achievements') {
     if (dir) return safe.move(dir, ACHIEVEMENTS.length);
     if (['close', 'interact', 'character'].includes(action)) safe.page = 'menu';
+    return;
+  }
+  if (safe.page === 'boxes') {
+    if (safe.opening) {
+      if (safe.openingBusy(performance.now()) || !['interact', 'close'].includes(action)) return;
+      safe.opening = null;
+      if (!ach.boxes.length) safe.page = 'menu';
+      return;
+    }
+    if (dir) return safe.move(dir, ACHIEVEMENTS.length, ach.boxes.length);
+    if (action === 'interact') return openSelectedBox();
+    if (action === 'close') safe.page = 'menu';
     return;
   }
   if (dir) return safe.move(dir);
@@ -862,6 +894,13 @@ canvas.addEventListener('pointerdown', (e) => {
     if (!t) return;
     if (t.kind === 'back') safe.page = 'menu';
     else if (t.kind === 'menu') safeCommand(t.id);
+    else if (t.kind === 'continue') onSafeAction('interact');
+    else if (t.kind === 'box') {
+      const top = Math.max(0, Math.min(safe.boxCursor - 7, ach.boxes.length - 8));
+      const i = top + t.row;
+      if (i >= ach.boxes.length) return;
+      if (i === safe.boxCursor) openSelectedBox(); else safe.boxCursor = i;
+    }
     return;
   }
   if (combat) {
@@ -983,7 +1022,7 @@ function loop(now) {
   const marks = enemyMarks();
   drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice, marks });
   safe.draw(overlayFb, now, {
-    points: crawler.points, boxes: ach.boxes.length, unlocked: ach.unlocked, total: ACHIEVEMENTS.length,
+    points: crawler.points, boxes: ach.boxes, unlocked: ach.unlocked, total: ACHIEVEMENTS.length,
     rested: level.safeRoom.rested, hp: crawler.hp, hpMax: crawler.hpMax, mp: crawler.mp, mpMax: crawler.mpMax,
     viewers: formatViewers(viewers.count),
   });
@@ -1031,7 +1070,7 @@ window.game = {
   get card() { return card; },
   get ach() { return ach; },
   get viewers() { return viewers; },
-  safe, enterSafeRoom, safeCommand,
+  safe, enterSafeRoom, safeCommand, openSelectedBox,
   popups, note,
   descend,
   log, onAction, stats, engage, restart, gainXp,

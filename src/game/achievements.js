@@ -197,6 +197,12 @@ export const ACHIEVEMENTS = [
     text: 'You skipped the Safe Room. Your guide noticed. Your guide is pretending not to be hurt.',
     test: (s) => s.skippedSafe >= 1,
   },
+  {
+    id: 'unboxing', name: 'Unboxing Video', reward: { box: 'bronze' },
+    hint: 'Open five loot boxes.',
+    text: 'Five boxes opened on camera. The unboxing community has accepted you as one of its own. Here is a box. Yes, really.',
+    test: (s) => s.boxesOpened >= 5,
+  },
   // ---------------------------------------------------------- nonsense
   {
     id: 'wallEnthusiast', name: 'Wall Enthusiast', reward: null, secret: true,
@@ -254,7 +260,7 @@ export const ACHIEVEMENT = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])
 const COUNT = {
   crit: 'crits', flee: 'flees', chest: 'chests', learn: 'learned', won: 'won',
   bump: 'bumps', wastedHeal: 'wastedHeals', lockedStairs: 'lockedStairs',
-  drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests',
+  drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests', boxOpened: 'boxesOpened',
 };
 
 // How the other events change the counters. Unknown kinds are ignored
@@ -297,7 +303,7 @@ export class Achievements {
       steps: 0, kills: 0, floorKills: 0, unarmedKills: 0, crits: 0, flees: 0,
       byAThread: 0, flawless: 0, level: 1, maxSkill: 1, learned: 0, slotsFilled: 0,
       fashion: 0, tails: 0, floors: 0, lateStairs: 0, peacefulFloors: 0, cleanFloors: 0,
-      won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
+      won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, boxesOpened: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
     };
     this.unlocked = [];  // ids in the order they were earned
     this.boxes = [];     // unopened loot boxes: { tier, sponsored, from }

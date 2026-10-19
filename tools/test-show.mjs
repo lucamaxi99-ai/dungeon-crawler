@@ -3,7 +3,9 @@
 
 import assert from 'node:assert/strict';
 import { ACHIEVEMENTS, Achievements } from '../src/game/achievements.js';
-import { BOX_TIERS, TIER } from '../src/game/lootboxes.js';
+import { BOX_TIERS, TIER, openBox } from '../src/game/lootboxes.js';
+import { LEARNING } from '../src/game/loot.js';
+import { RARITY_ORDER } from '../src/game/items.js';
 import { ITEMS } from '../src/game/items.js';
 import { textWidth } from '../src/engine/font.js';
 import { rewardLabel } from '../src/game/achievement-ui.js';
@@ -96,6 +98,7 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   for (let i = 0; i < 15; i++) script.push(['kill', { type: 'rat', unarmed: true }]);
   script.push(['floorDone', { turnsShare: 0.5, allDead: true }], ['floorDone', { turnsShare: 0.5, allDead: true }], ['won']);
   script.push(['viewers', { count: 12000 }]);
+  for (let i = 0; i < 5; i++) script.push(['boxOpened', { tier: 0 }]);
   script.push(['safeRoom'], ['rest'], ['rest'], ['rest'], ['floorDone', { turnsShare: 0.5, allDead: false, safeVisited: false }]);
   for (const [k, d] of script) t.note(k, d);
   // The pacifist season needs a run of its own.
@@ -174,6 +177,27 @@ const charming = [1, 2, 3, 4, 5].map((k) => simulate(k * 7919, 9));
 const mid = (xs) => xs.slice().sort((a, b) => a - b)[2];
 assert.ok(mid(plain) > 300 && mid(plain) < 5000, `typical run at CHA 5: ${Math.round(mid(plain))} viewers`);
 assert.ok(mid(charming) > mid(plain) * 2, 'charisma pays off over a run');
+
+// ---------------------------------------------------------- loot boxes
+
+// Bigger tiers give more: more gold on average, never below their rarity
+// floor (learning items aside), and sponsors push tomes and potions.
+{
+  const avgGold = (tier) => { let g = 0; for (let k = 1; k <= 200; k++) g += openBox({ tier }, k).gold; return g / 200; };
+  const golds = BOX_TIERS.map(avgGold);
+  for (let i = 1; i < golds.length; i++) assert.ok(golds[i] > golds[i - 1], `${BOX_TIERS[i]} boxes hold more gold than ${BOX_TIERS[i - 1]}`);
+  for (let k = 1; k <= 200; k++) {
+    for (const { id } of openBox({ tier: 'platinum' }, k).items) {
+      assert.ok(LEARNING.includes(id) || RARITY_ORDER.indexOf(ITEMS[id].rarity) >= RARITY_ORDER.indexOf('rare'), `platinum box gave ${id}`);
+    }
+  }
+  const learnShare = (sponsored) => {
+    let all = 0, learn = 0;
+    for (let k = 1; k <= 300; k++) for (const { id, n } of openBox({ tier: 'silver', sponsored }, k).items) { all += n; if (LEARNING.includes(id)) learn += n; }
+    return learn / all;
+  };
+  assert.ok(learnShare(true) > learnShare(false) + 0.25, 'sponsored boxes lean toward tomes and skill potions');
+}
 
 // ---------------------------------------------------------- safe room
 
