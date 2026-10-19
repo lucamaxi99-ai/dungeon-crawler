@@ -69,7 +69,9 @@ export class CombatScreen {
 
   // Consumables in the bag: [{ index, id, n }].
   items() {
-    return this.inv.bag.map((s, index) => ({ ...s, index })).filter((s) => ITEMS[s.id].kind === 'consumable');
+    // Tomes and skill potions need a quiet moment, not a rat in your face.
+    const usable = (d) => d.kind === 'consumable' && !d.teach && !d.skillPotion;
+    return this.inv.bag.map((s, index) => ({ ...s, index })).filter((s) => usable(ITEMS[s.id]));
   }
 
   // Active skills: ready, or the turns until they are (- once used up).

@@ -153,6 +153,17 @@ export const LINES = {
   castOutside: [
     'You patch yourself up. The System bills your soul for the materials.',
   ],
+  learnSpell: [
+    'You learned {name}! Magic: the only thing down here that is not trying to eat you. Usually.',
+    'New spell: {name}. The System reminds you that spells cost mana, and mana does not grow on trees. Nothing grows on trees here.',
+  ],
+  learnSkill: [
+    'New skill: {name}! The viewers love a training montage.',
+    'You can now {name}. Put it on your resume. Oh wait.',
+  ],
+  nothingToLearn: [
+    'You already know everything in there. The System is impressed. Briefly.',
+  ],
   regenFull: [
     'Your body has quietly fixed itself. Biology: still the best sponsor.',
   ],

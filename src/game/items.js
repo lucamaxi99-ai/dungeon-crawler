@@ -94,6 +94,20 @@ const DEFS = [
     desc: 'Probably edible. The viewers have placed bets. Most of them are on "no".' },
   { id: 'ration', name: 'Borant Ration Bar', short: 'Ration Bar', kind: 'consumable', rarity: 'common', heal: 2, stack: true,
     desc: 'All the nutrients a crawler needs, compressed into the texture of drywall.' },
+  // ---------------------------------------------------------- tomes and potions
+  // teach: { spell } or { skill } learned on use (a known one goes up a level
+  // instead); skillPotion: a random skill from the potion pool. Not usable in
+  // combat (calm: nobody reads in a fight).
+  { id: 'tomeMissile', name: 'Tome of Magic Missile', short: 'Missile Tome', kind: 'consumable', rarity: 'rare', teach: { spell: 'magicMissile' },
+    desc: 'Chapter one: point. Chapter two: shoot. Chapter three is a coupon for a mana potion that does not exist.' },
+  { id: 'tomeHex', name: 'Tome of Mild Inconvenience', short: 'Hex Tome', kind: 'consumable', rarity: 'uncommon', teach: { spell: 'hex' },
+    desc: 'A grimoire of petty curses. Several pages have been licked by something. Possibly you, later.' },
+  { id: 'tomeSand', name: 'Pocket Sand for Dummies', short: 'Sand Manual', kind: 'consumable', rarity: 'rare', teach: { skill: 'pocketSand' },
+    desc: 'A complete course in throwing dirt at people. Includes a free sample in the spine.' },
+  { id: 'ratPamphlet', name: 'Rat Racing Pamphlet', short: 'Pamphlet', kind: 'consumable', rarity: 'uncommon', teach: { skill: 'cardio' },
+    desc: 'Training tips from the fastest rats on the floor. Mostly: run. The rat who wrote it is dead, which proves something.' },
+  { id: 'skillPotion', name: 'Skill Potion', short: 'Skill Potion', kind: 'consumable', rarity: 'rare', skillPotion: true, stack: true,
+    desc: 'Teaches you something at random. Side effects include knowing things you did not ask to know.' },
   // ---------------------------------------------------------- junk
   { id: 'ratTail', name: 'Rat Tail', kind: 'junk', rarity: 'common', stack: true,
     desc: 'A tail. The rat is elsewhere. Possibly behind you.' },
@@ -117,5 +131,7 @@ export function itemStats(def) {
   if (def.atk) parts.push(`ATK +${def.atk}`);
   if (def.def) parts.push(`DEF +${def.def}`);
   if (def.heal) parts.push(`HEALS ${def.heal}`);
+  if (def.teach) parts.push(def.teach.spell ? 'TEACHES A SPELL' : 'TEACHES A SKILL');
+  if (def.skillPotion) parts.push('RANDOM SKILL');
   return parts.join('  ');
 }

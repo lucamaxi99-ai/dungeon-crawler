@@ -33,6 +33,7 @@ import { Crawler, ATTR_NAMES, LEVELING } from './game/crawler.js';
 import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
 import { Combat } from './game/combat.js';
 import { SPELLS } from './game/spells.js';
+import { learnFromItem } from './game/learning.js';
 import { CombatScreen } from './game/combat-ui.js';
 import { drawGameOver, gameOverReady } from './game/gameover-ui.js';
 import { drawFloorCard, cardDone, cardSkippable, CARD_MS } from './game/floor-ui.js';
@@ -320,6 +321,7 @@ function inventoryCommand(cmd) {
 // the crawler is already at full health. Returns true if it was used.
 function useConsumable(index) {
   const def = ITEMS[inventory.bag[index].id];
+  if (def.teach || def.skillPotion) return study(index, def);
   if (def.heal && crawler.hp >= crawler.hpMax) {
     log.push(line('healFull'), 'info');
     return false;
@@ -334,6 +336,28 @@ function useConsumable(index) {
     log.push(line('use'));
   }
   return true;
+}
+
+// Reads a tome or drinks a skill potion: a new skill or spell, or one
+// level more of one the crawler knows. Kept if there is nothing to learn.
+function study(index, def) {
+  const r = learnFromItem(crawler, def);
+  if (r.kind === 'none') { log.push(line('nothingToLearn'), 'info'); return false; }
+  inventory.use(index);
+  log.push(`Used: ${def.name}.`, 'info');
+  announceLearned(r);
+  return true;
+}
+
+// Log lines (and a banner) for a skill or spell learned or improved.
+function announceLearned(r, how = '') {
+  if (r.kind === 'learn') {
+    log.push(`New ${r.what}: ${r.name}!`, 'info');
+    log.push(line(how || (r.what === 'spell' ? 'learnSpell' : 'learnSkill')).replace('{name}', r.name));
+    banner = { text: r.what === 'spell' ? 'NEW SPELL' : 'NEW SKILL', sub: `${r.name.toUpperCase()}  -  SEE C, SKILLS`, at: null };
+  } else if (r.kind === 'boost') {
+    log.push(line('skillUp').replace('{name}', r.name).replace('{n}', r.level));
+  }
 }
 
 function onInventoryAction(action) {
@@ -765,7 +789,7 @@ function loop(now) {
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
   if (combat) combat.ui.draw(overlayFb, now);
-  if (banner && !combat && !dead && !card && !charScreen.open) {
+  if (banner && !combat && !dead && !card && !charScreen.open && !invScreen.open) {
     if (banner.at === null) banner.at = now;
     if (!drawBanner(overlayFb, banner, now)) banner = null;
   }

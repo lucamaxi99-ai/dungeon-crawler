@@ -12,6 +12,23 @@ const KEY = Object.fromEntries([...KEY_CHARS].map((ch, i) => [ch, i]));
 const icon = (name, rows) => defineSprite({ name: `icon_${name}`, key: KEY, rows, unit: ICON });
 const half = (name, rows) => icon(name, rows.map((r) => r + [...r].reverse().join('')));
 
+// A closed tome: cover and spine color plus a 5 x 5 symbol on the cover
+// ('#' marks symbol pixels, drawn in `mark`).
+function book(name, cover, spine, mark, symbol) {
+  const rows = ['............', '.kkkkkkkkkk.'];
+  for (let y = 0; y < 8; y++) {
+    let r = `.k${spine}`;
+    for (let x = 0; x < 7; x++) {
+      const sy = y - 1, sx = x - 1;
+      const on = sy >= 0 && sy < 5 && sx >= 0 && sx < 5 && symbol[sy][sx] === '#';
+      r += on ? mark : cover;
+    }
+    rows.push(`${r}k*`);
+  }
+  rows.push('.kkkkkkkkkk*', '..**********');
+  return icon(name, rows);
+}
+
 export const ICONS = {
   shiv: icon('shiv', [
     '............',
@@ -348,5 +365,48 @@ export const ICONS = {
     '...gggggg...',
     '..eeeeeeee..',
     '..dddddddd..',
+  ]),
+  // ---------------------------------------------------------- tomes and potions
+  tomeMissile: book('tomeMissile', '9', '8', '%', [
+    '..#..',
+    '..#..',
+    '#####',
+    '.#.#.',
+    '#...#',
+  ]),
+  tomeHex: book('tomeHex', 'U', 'P', 'i', [
+    '.###.',
+    '#...#',
+    '#.#.#',
+    '#...#',
+    '.###.',
+  ]),
+  tomeSand: book('tomeSand', 'l', 'w', '6', [
+    '....#',
+    '...#.',
+    '.###.',
+    '#.#.#',
+    '.#.#.',
+  ]),
+  ratPamphlet: book('ratPamphlet', 't', 'e', 'R', [
+    '..#..',
+    '...#.',
+    '#####',
+    '...#.',
+    '..#..',
+  ]),
+  skillPotion: icon('skillPotion', [
+    '....dddd....',
+    '.....ll.....',
+    '.....pp...%.',
+    '.....pp..%7%',
+    '....pyyp..%.',
+    '...pyyyyp...',
+    '..py7yyyyp..',
+    '..py7yyyyp..',
+    '..pyyyyygp..',
+    '...pggggp...',
+    '....pppp....',
+    '............',
   ]),
 };

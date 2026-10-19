@@ -18,6 +18,8 @@ export function seededRandom(seed) {
 // items: [min, max] number of item rolls. gold: [min, max].
 // pool: item ids that may drop (default: everything).
 // minRarity: rarities below this are re-rolled upward.
+// Tomes and skill potions are in the general pool (rare and uncommon).
+// TODO(M6): sponsored chests / loot boxes with better odds for tomes.
 export const LOOT_TABLES = {
   chest: { items: [2, 3], gold: [5, 25] },
   richChest: { items: [3, 4], gold: [20, 60], minRarity: 'uncommon' },

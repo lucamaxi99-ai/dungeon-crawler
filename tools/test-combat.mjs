@@ -9,6 +9,9 @@ import { rng } from '../src/engine/texgen.js';
 import { Mastery, MASTERY } from '../src/game/mastery.js';
 import { SKILLS, passiveBonus } from '../src/game/skills.js';
 import { SPELLS } from '../src/game/spells.js';
+import { POTION_POOL } from '../src/game/skills.js';
+import { learnFromItem } from '../src/game/learning.js';
+import { ITEMS } from '../src/game/items.js';
 
 // Attributes and derived values: all 5 gives HP 20, MP 10, ATK 1.
 const inv = new Inventory();
@@ -322,4 +325,25 @@ console.log(`combat OK (300 fights: ${outcomes.won} won, ${outcomes.lost} lost, 
   const plain = cost(false), kick = cost(true);
   assert.ok(kick < plain, `Dirty Kick should help (${kick.toFixed(1)} vs ${plain.toFixed(1)} HP)`);
   console.log(`skills OK (rat fight: ${plain.toFixed(1)} HP lost attacking only, ${kick.toFixed(1)} with Dirty Kick)`);
+}
+
+// ------------------------------------------------------------ tomes and potions
+
+{
+  const hero = new Crawler(new Inventory());
+  const r = learnFromItem(hero, ITEMS.tomeMissile);
+  assert.deepEqual([r.kind, r.what, r.id, r.level], ['learn', 'spell', 'magicMissile', 1]);
+  assert.equal(learnFromItem(hero, ITEMS.tomeMissile).kind, 'boost', 'a second copy is one more level');
+  assert.equal(hero.spells.level('magicMissile'), 2);
+  assert.equal(learnFromItem(hero, ITEMS.ratPamphlet).id, 'cardio');
+  // Skill potions teach every skill of the pool once, then boost known ones.
+  const seen = new Set();
+  for (let i = 0; i < POTION_POOL.length; i++) {
+    const p = learnFromItem(hero, ITEMS.skillPotion, rng(i + 1));
+    if (p.kind === 'learn') seen.add(p.id);
+  }
+  assert.equal(seen.size, POTION_POOL.length - 1, 'every potion teaches something new (cardio was known)');
+  assert.ok(POTION_POOL.every((id) => hero.skills.has(id)));
+  assert.equal(learnFromItem(hero, ITEMS.skillPotion, rng(9)).kind, 'boost');
+  assert.equal(learnFromItem(hero, ITEMS.potion).kind, 'none', 'a healing potion teaches nothing');
 }
