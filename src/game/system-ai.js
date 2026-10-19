@@ -57,6 +57,52 @@ export const LINES = {
     'Heads up, Crawler: a {name} is coming your way. The viewers are thrilled.',
     'A {name} spots you. Somewhere, a betting pool opens.',
   ],
+  combatStartEnemy: [
+    'A {name} attacks! Combat mode engaged. Please keep your limbs inside the dungeon at all times.',
+    'The {name} wants a word. The word is "bite". Fight!',
+    'Ambush! The {name} has been waiting all season for this.',
+  ],
+  combatStartCrawler: [
+    'You start a fight with a {name}. Bold. The viewers approve of violence.',
+    'Crawler-initiated combat! The {name} did not see that coming. Neither did we.',
+  ],
+  crit: [
+    'CRITICAL HIT! That one is going in the highlight reel.',
+    'Critical! Somewhere a sponsor just reached for their wallet.',
+  ],
+  kill: [
+    'Kill confirmed. The audience applauds politely.',
+    'It is dead. You are not. That is the whole game, really.',
+    'Another one for the kill counter. Borant thanks you for your service.',
+  ],
+  defend: [
+    'You raise your guard. It is mostly elbows.',
+  ],
+  fled: [
+    'You run away! Discretion is the better part of not dying.',
+    'Tactical retreat logged. The chat calls it "running". The chat is right.',
+  ],
+  fleeFail: [
+    'You try to flee. Your legs file a formal objection.',
+    'No escape. The {name} is faster than your excuses.',
+  ],
+  combatWon: [
+    'Victory! The System has moved anything of value into your inventory. Sorting fee waived.',
+    'Fight over. You win. Please collect your trauma at the exit.',
+  ],
+  ratCorpse: [
+    'A dead rat. It has stopped being a problem and started being a smell.',
+    'The rat is deceased. The System has already taken everything worth taking.',
+  ],
+  death: [
+    'Crawler down! The viewers would like a moment of silence. The moment is over.',
+    'And that is how you die. Ratings spiked. Borant thanks you for your sacrifice.',
+    'Deceased. Somewhere a sponsor is quietly peeling your name off a banner.',
+  ],
+  restart: [
+    'Replay requested by the Syndicate. Same floor, same crawler, empty pockets. Try not to die so quickly.',
+    'The broadcast has been rewound. Your inventory has not. Good luck, Crawler.',
+  ],
   healed: [
     'Healed. The audience is relieved. Mostly the ones who bet on you.',
     'Your wounds close. The scars stay, for the highlight reel.',

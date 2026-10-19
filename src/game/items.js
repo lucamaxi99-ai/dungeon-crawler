@@ -36,6 +36,7 @@ export const SLOTS = [
 export const SLOT_BY_ID = Object.fromEntries(SLOTS.map((s) => [s.id, s]));
 
 // kind: 'gear' (has a slot), 'consumable' (can be used), 'junk'.
+// short: name for tight spots like the combat menu (consumables).
 // atk/def: added to the crawler's stats while equipped (crawler.js).
 // heal: hit points restored on use.
 const DEFS = [
@@ -86,11 +87,11 @@ const DEFS = [
   { id: 'signet', name: 'Syndicate Signet (Replica)', kind: 'gear', slot: 'ring', rarity: 'epic', atk: 1, def: 1,
     desc: 'Official merchandise. Wearing it does not make you a member. Nothing makes you a member.' },
   // ---------------------------------------------------------- consumables
-  { id: 'potion', name: 'Healing Potion', kind: 'consumable', rarity: 'common', heal: 10, stack: true,
+  { id: 'potion', name: 'Healing Potion', short: 'Potion', kind: 'consumable', rarity: 'common', heal: 10, stack: true,
     desc: 'Tastes like cherries and copper. Side effects include living a bit longer.' },
-  { id: 'mushroom', name: 'Suspicious Mushroom', kind: 'consumable', rarity: 'uncommon', heal: 3, stack: true,
+  { id: 'mushroom', name: 'Suspicious Mushroom', short: 'Mushroom', kind: 'consumable', rarity: 'uncommon', heal: 3, stack: true,
     desc: 'Probably edible. The viewers have placed bets. Most of them are on "no".' },
-  { id: 'ration', name: 'Borant Ration Bar', kind: 'consumable', rarity: 'common', heal: 2, stack: true,
+  { id: 'ration', name: 'Borant Ration Bar', short: 'Ration Bar', kind: 'consumable', rarity: 'common', heal: 2, stack: true,
     desc: 'All the nutrients a crawler needs, compressed into the texture of drywall.' },
   // ---------------------------------------------------------- junk
   { id: 'ratTail', name: 'Rat Tail', kind: 'junk', rarity: 'common', stack: true,

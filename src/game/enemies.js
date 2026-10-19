@@ -8,7 +8,7 @@
 export const ENEMY_TYPES = {
   rat: {
     name: 'Giant Rat', sprite: 'rat',
-    hp: 5, atk: 2, def: 0, spd: 6, dmg: [1, 2],
+    hp: 4, atk: 2, def: 0, spd: 6, dmg: [1, 2],
     sight: 5, roam: 3,
     drops: [['ratTail', 0.6]], gold: [0, 2],
   },
@@ -21,7 +21,7 @@ export class Enemy {
     const t = ENEMY_TYPES[type];
     if (!t) throw new Error(`Unknown enemy '${type}'`);
     this.type = type;
-    this.def = t;
+    this.stats = t;
     this.x = x; this.y = y;
     this.home = { x, y };
     this.hp = t.hp;
@@ -33,7 +33,7 @@ export class Enemy {
     this.dx = -1; this.dy = 0; // last step direction
   }
 
-  get name() { return this.def.name; }
+  get name() { return this.stats.name; }
   get alive() { return this.hp > 0; }
 
   hurt(n) {
@@ -104,7 +104,7 @@ export function enemyTurns(enemies, world, target, rnd) {
   for (const e of enemies) {
     if (!e.alive) continue;
     if (e.stun > 0) { e.stun--; continue; }
-    const t = e.def;
+    const t = e.stats;
     const dist = Math.abs(e.x - target.x) + Math.abs(e.y - target.y);
     if (!e.alerted && dist <= t.sight && lineOfSight(world.isWall, e.x, e.y, target.x, target.y)) {
       e.alerted = true;

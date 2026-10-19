@@ -17,7 +17,7 @@ import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
 import { Player } from './game/player.js';
 import {
-  MessageLog, drawPanel, drawOverlay,
+  MENU_BOX, MessageLog, drawPanel, drawOverlay,
   HUD_W, OVERLAY_H, PANEL_H, SCREEN_W, SCREEN_H, VIEW_H,
 } from './game/hud.js';
 import { bindInput } from './game/input.js';
@@ -28,6 +28,9 @@ import { rollLoot } from './game/loot.js';
 import { InventoryScreen } from './game/inventory-ui.js';
 import { Crawler } from './game/crawler.js';
 import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
+import { Combat } from './game/combat.js';
+import { CombatScreen } from './game/combat-ui.js';
+import { drawGameOver, gameOverReady } from './game/gameover-ui.js';
 import { rng } from './engine/texgen.js';
 
 const canvas = document.getElementById('screen');
@@ -39,21 +42,31 @@ ctx.imageSmoothingEnabled = false;
 // ------------------------------------------------------------ world
 
 const textures = buildTextures();
-const level = new Level(TEST_FLOOR);
-const player = new Player(level.start);
 const log = new MessageLog();
-const inventory = new Inventory();
-const crawler = new Crawler(inventory);
-const invScreen = new InventoryScreen(inventory, crawler);
-const state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
-
 const isWall = (x, y) => level.wall(x, y) !== 0;
-const light = new LightMap(level.w, level.h, isWall, TINTS.length);
-for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a.h - 1, a.ambient, a.tint);
-for (const l of level.lights) light.addLight(l);
 
-const decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
-const enemyRnd = rng(level.seed * 31 + 7);
+// Everything that belongs to one run. A new run (after death) starts the
+// floor over with a fresh crawler and empty pockets.
+// TODO(M5): permadeath and saving are decided with the floor generator.
+let level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd;
+let dead = null; // { at, killer, steps, kills, gold } after the crawler died
+
+function newRun() {
+  level = new Level(TEST_FLOOR);
+  player = new Player(level.start);
+  inventory = new Inventory();
+  crawler = new Crawler(inventory);
+  invScreen = new InventoryScreen(inventory, crawler);
+  state = { showMap: false, bumps: 0, saidFirstSteps: false, notice: null, noticeUntil: 0 };
+  light = new LightMap(level.w, level.h, isWall, TINTS.length);
+  for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a.h - 1, a.ambient, a.tint);
+  for (const l of level.lights) light.addLight(l);
+  decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
+  enemyRnd = rng(level.seed * 31 + 7);
+  dead = null;
+}
+newRun();
+
 const enemyAt = (x, y) => level.enemies.find((e) => e.alive && e.x === x && e.y === y) || null;
 
 // ------------------------------------------------------------ renderer
@@ -241,6 +254,11 @@ function showNotice() {
 
 function onAction(action) {
   if (action === 'quality') return cycleQuality();
+  if (dead) {
+    if ((action === 'interact' || action === 'close') && gameOverReady(dead, performance.now())) restart();
+    return;
+  }
+  if (combat) return onCombatAction(action);
   if (action === 'inventory' && !invScreen.open) {
     state.showMap = false;
     player.queued = null;
@@ -268,11 +286,171 @@ function afterTurn() {
   if (foe) engage(foe.enemy, 'enemy');
 }
 
+// ------------------------------------------------------------ combat
+
+// The running fight: { fight: Combat, ui: CombatScreen, nextAt, endAt }.
+let combat = null;
+// Pauses in ms so every blow can be read before the next one lands.
+const PACE = { start: 500, afterCrawler: 650, afterEnemy: 800, end: 1300 };
+
 // Combat starts. initiator: 'crawler' (attacked) or 'enemy' (came close).
-// TODO(M4): placeholder until the combat screen exists (next step).
+// Every alerted enemy standing next to the crawler joins (at most three).
 function engage(foe, initiator) {
+  if (combat) return;
   player.queued = null;
-  log.push(initiator === 'crawler' ? `You poke the ${foe.name}. It squeaks, offended.` : `A ${foe.name} squeaks at you menacingly.`, 'warn');
+  state.showMap = false;
+  if (invScreen.open) invScreen.toggle();
+  const foes = [foe, ...level.enemies.filter((e) => e !== foe && e.alive && e.alerted && adjacent(e, player))].slice(0, 3);
+  for (const e of foes) { e.alerted = true; e.move = null; }
+  const fight = new Combat(crawler, foes, { initiator });
+  const now = performance.now();
+  combat = { fight, ui: new CombatScreen({ fight, scene: stageFor(foe), tables, inventory, now }), nextAt: now + PACE.start, endAt: 0 };
+  const name = foes.length > 1 ? `pack of ${foes.length} ${foe.name}s` : foe.name;
+  log.push(line(initiator === 'crawler' ? 'combatStartCrawler' : 'combatStartEnemy').replace('{name}', name), 'warn');
+  log.push(fight.crawlersTurn ? 'You are faster. Your move.' : `The ${foe.name} is faster.`, 'info');
+}
+
+// What the combat stage looks like: the wall behind the enemy (seen from
+// the crawler), the floor and ceiling under it and its light.
+function stageFor(foe) {
+  const dx = Math.sign(foe.x - player.x), dy = Math.sign(foe.y - player.y);
+  let wall = WALL.STONE;
+  for (let k = 1; k < 8; k++) {
+    const w = level.wall(foe.x + dx * k, foe.y + dy * k);
+    if (w) { wall = w; break; }
+  }
+  if (wall === WALL.STAIRS || wall === WALL.POSTER) wall = WALL.STONE; // a doorway as a backdrop looks odd
+  const i = foe.y * level.w + foe.x;
+  return {
+    wall: textures.walls[wall],
+    floor: textures.flats[level.floorAt(foe.x, foe.y)],
+    ceil: textures.flats[level.ceilAt(foe.x, foe.y)],
+    tint: light.tint[i],
+    light: Math.min(1.2, light.level[i]),
+  };
+}
+
+function onCombatAction(action) {
+  const { ui, fight } = combat;
+  if (fight.result) return;
+  const dir = { forward: 'up', back: 'down', left: 'left', turnLeft: 'left', right: 'right', turnRight: 'right' }[action];
+  if (dir) return ui.move(dir);
+  if (action === 'close') return ui.back();
+  if (action === 'interact') {
+    if (performance.now() < combat.nextAt) return; // still showing the last blow
+    const choice = ui.confirm();
+    if (choice) crawlerTurn(choice);
+  }
+}
+
+function crawlerTurn(choice) {
+  const { fight, ui } = combat;
+  const now = performance.now();
+  let events;
+  if (choice.kind === 'useItem') {
+    const def = ITEMS[inventory.bag[choice.index].id];
+    if (def.heal && crawler.hp >= crawler.hpMax) return log.push(line('healFull'), 'info');
+    inventory.use(choice.index);
+    events = fight.crawlerAct({ kind: 'item', name: def.name, healed: crawler.heal(def.heal) });
+  } else {
+    events = fight.crawlerAct(choice);
+  }
+  report(events);
+  ui.onEvents(events, now);
+  combat.nextAt = now + PACE.afterCrawler;
+}
+
+// Called every frame: enemies act after a pause, the fight ends after the
+// last blow has been shown.
+function combatTick(now) {
+  if (!combat) return;
+  const { fight, ui } = combat;
+  if (fight.result) {
+    if (!combat.endAt) combat.endAt = now + PACE.end;
+    if (now >= combat.endAt) endCombat();
+    return;
+  }
+  if (fight.crawlersTurn || now < combat.nextAt) return;
+  const events = fight.enemyAct();
+  report(events);
+  ui.onEvents(events, now);
+  combat.nextAt = now + PACE.afterEnemy;
+}
+
+// Combat events as log lines: short facts in grey, the System's opinion in gold.
+function report(events) {
+  for (const ev of events) {
+    const mine = ev.actor === crawler;
+    const foe = mine ? ev.target : ev.actor;
+    switch (ev.kind) {
+      case 'hit':
+        log.push(mine ? `You hit the ${foe.name} for ${ev.amount}.` : `The ${foe.name} bites you for ${ev.amount}.`, mine ? 'info' : 'warn');
+        break;
+      case 'crit':
+        log.push(`You hit the ${foe.name} for ${ev.amount}.`, 'info');
+        log.push(line('crit'));
+        break;
+      case 'miss':
+        log.push(mine ? `You miss the ${foe.name}.` : `The ${foe.name} misses.`, 'info');
+        break;
+      case 'blocked':
+        log.push(`You block the ${foe.name}.`, 'info');
+        break;
+      case 'defend':
+        log.push(line('defend'), 'info');
+        break;
+      case 'item':
+        log.push(`Used: ${ev.name}.${ev.amount ? ` +${ev.amount} HP.` : ''}`, 'info');
+        break;
+      case 'kill':
+        log.push(`The ${foe.name} dies.`, 'info');
+        log.push(line('kill'));
+        break;
+      case 'flee':
+        log.push(line('fled'));
+        break;
+      case 'fleeFail':
+        log.push(line('fleeFail').replace('{name}', combat.fight.alive[0].name), 'warn');
+        break;
+      case 'death':
+        log.push('You die.', 'warn');
+        break;
+      default:
+    }
+  }
+}
+
+function endCombat() {
+  const { fight } = combat;
+  combat = null;
+  if (fight.result === 'won') {
+    const got = {};
+    let gold = 0;
+    for (const e of fight.enemies) {
+      level.objects.push({ type: `${e.type}Corpse`, x: e.x, y: e.y, flags: {} });
+      for (const [id, chance] of e.stats.drops) if (Math.random() < chance) { inventory.add(id); got[id] = (got[id] || 0) + 1; }
+      const [g0, g1] = e.stats.gold;
+      gold += g0 + Math.floor(Math.random() * (g1 - g0 + 1));
+    }
+    inventory.gold += gold;
+    const loot = Object.entries(got).map(([id, n]) => itemLabel({ id, n }));
+    if (gold) loot.push(`${gold} gold`);
+    log.push(`Loot: ${loot.length ? loot.join(', ') : 'nothing'}.`, 'info');
+    log.push(line('combatWon'));
+  } else if (fight.result === 'lost') {
+    const killer = fight.enemies.find((e) => e.alive) || fight.enemies[0];
+    dead = { at: performance.now(), killer: killer.name, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment: line('death') };
+    log.push(dead.comment);
+  } else if (fight.result === 'fled') {
+    // Stumble one cell away from the enemies; they lose track for a moment.
+    for (const e of fight.alive) { e.stun = 3; e.alerted = false; }
+    const options = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+      .map(([dx, dy]) => ({ x: player.x + dx, y: player.y + dy }))
+      .filter((c) => world.canEnter(c.x, c.y))
+      .map((c) => ({ ...c, d: Math.min(...fight.alive.map((e) => Math.abs(e.x - c.x) + Math.abs(e.y - c.y))) }))
+      .sort((a, b) => b.d - a.d);
+    if (options.length) player.shove(options[0].x, options[0].y);
+  }
 }
 
 bindInput(onAction);
@@ -287,6 +465,14 @@ function hudPoint(e) {
   };
 }
 canvas.addEventListener('pointerdown', (e) => {
+  if (dead) { e.preventDefault(); return onAction('interact'); }
+  if (combat) {
+    e.preventDefault();
+    const p = hudPoint(e);
+    if (p.y < OVERLAY_H) return combat.ui.hitStage(p.x, p.y);
+    if (combat.ui.hitMenu(p.x, p.y - OVERLAY_H, MENU_BOX)) onCombatAction('interact');
+    return;
+  }
   if (!invScreen.open) return;
   e.preventDefault();
   const p = hudPoint(e);
@@ -304,6 +490,11 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 log.push(line('welcome'));          // greeting
 log.push(line('welcome'), 'info');  // controls hint
+
+function restart() {
+  newRun();
+  log.push(line('restart'));
+}
 
 // ------------------------------------------------------------ loop
 
@@ -340,7 +531,7 @@ function spriteList(time, dt) {
     const dx = near ? player.x - e.x : e.dx, dy = near ? player.y - e.y : e.dy;
     const side = dx * rx + dy * ry;
     if (Math.abs(side) > 0.2) e.face = side > 0 ? 1 : -1;
-    const set = CREATURES[e.def.sprite][e.face > 0 ? 'R' : 'L'];
+    const set = CREATURES[e.stats.sprite][e.face > 0 ? 'R' : 'L'];
     const p = e.pos(dt);
     list.push({ x: p.x, y: p.y, img: frameAt(set.idle, time, i * 2) });
   });
@@ -366,6 +557,7 @@ function loop(now) {
 
   const queued = player.update(dt);
   if (queued) onAction(queued);
+  combatTick(now);
 
   const cam = player.camera();
   const t0 = performance.now();
@@ -387,8 +579,11 @@ function loop(now) {
   const marks = enemyMarks();
   drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice, marks });
   invScreen.draw(overlayFb, now);
+  if (combat) combat.ui.draw(overlayFb, now);
+  if (dead) drawGameOver(overlayFb, dead, now);
   updateStatus();
-  drawPanel(panelFb, { log, level, player, status, marks });
+  const menu = combat ? (fb, box) => combat.ui.drawMenu(fb, box, now) : null;
+  drawPanel(panelFb, { log, level, player, status, marks, menu });
   viewFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
   overlayFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
   panelFb.presentScaled(ctx, 0, VIEW_H, SCREEN_W, SCREEN_H - VIEW_H);
@@ -405,7 +600,16 @@ requestAnimationFrame(loop);
 
 // Debug handle for the browser console and automated tests.
 window.game = {
-  level, player, log, state, onAction, light, stats, inventory, invScreen, crawler,
+  get level() { return level; },
+  get player() { return player; },
+  get state() { return state; },
+  get light() { return light; },
+  get inventory() { return inventory; },
+  get invScreen() { return invScreen; },
+  get crawler() { return crawler; },
+  get combat() { return combat; },
+  get dead() { return dead; },
+  log, onAction, stats, engage, restart,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),
 };

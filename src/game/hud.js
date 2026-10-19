@@ -23,6 +23,8 @@ export const SCREEN_H = (OVERLAY_H + PANEL_H) * HUD_SCALE; // 600
 const STAT = { x: 4, y: 4, w: 64, h: 52 };
 const LOG = { x: 72, y: 4, w: 168, h: 52 };
 const MAP = { x: 244, y: 4, w: 72, h: 52 };
+// The combat menu takes the minimap's place.
+export const MENU_BOX = MAP;
 
 const STYLE = {
   system: [C.GOLD, C.LEATHER],
@@ -157,11 +159,13 @@ function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false, marks =
 
 // status: { hp, hpMax, atk, def, timeLeft, viewers } with null for systems
 // that do not exist yet.
-export function drawPanel(fb, { log, level, player, status, marks = [] }) {
+// menu(fb, box): draws something else (the combat menu) instead of the minimap.
+export function drawPanel(fb, { log, level, player, status, marks = [], menu = null }) {
   frame(fb);
   drawStatus(fb, { level, status });
   drawLog(fb, log);
-  drawMapArea(fb, level, player, MAP.x, MAP.y, MAP.w, MAP.h, 4, false, marks);
+  if (menu) menu(fb, MAP);
+  else drawMapArea(fb, level, player, MAP.x, MAP.y, MAP.w, MAP.h, 4, false, marks);
 }
 
 export function drawOverlay(fb, { level, player, showMap, notice, marks = [] }) {

@@ -70,6 +70,15 @@ export class Player {
     return true;
   }
 
+  // Moves to a neighbouring cell without turning (stumbling away from a
+  // fight). The caller checks that the cell is free.
+  shove(nx, ny) {
+    this.anim = { kind: 'move', t: 0, dur: MOVE_MS, fx: this.x, fy: this.y };
+    this.x = nx;
+    this.y = ny;
+    this.steps++;
+  }
+
   // Advances animations; returns a queued action that is now ready to run.
   update(dt) {
     if (!this.anim) return null;
