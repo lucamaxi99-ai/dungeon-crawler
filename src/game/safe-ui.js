@@ -2,6 +2,7 @@
 // stands still in here: no countdown, no enemies, no walking around. A
 // painted backdrop (a little bar behind a counter), Ozzle leaning on the
 // counter with a speech bubble, and a Borant terminal on the right:
+//   TALK          conversations with Ozzle (dialogue.js)
 //   LEVEL UP      spend attribute points (opens the character sheet)
 //   LOOT BOXES    open the boxes earned so far
 //   ACHIEVEMENTS  the list, earned and still open
@@ -22,10 +23,11 @@ const W = 320, H = 140;
 const COUNTER_Y = 100;                         // top of the bar counter
 const OZ = { x: 72, y: COUNTER_Y + 3 - MENTOR.h }; // Ozzle's sprite position
 const TERM = { x: 213, y: 3, w: 104, h: 134 };     // the terminal on the right
-const MENU_Y = 22, MENU_H = 13;
+const MENU_Y = 22, MENU_H = 12;
 const BUBBLE = { x: 5, y: 4, w: 202 };
 
 export const SAFE_MENU = [
+  { id: 'talk', label: 'TALK' },
   { id: 'levelup', label: 'LEVEL UP' },
   { id: 'boxes', label: 'LOOT BOXES' },
   { id: 'achievements', label: 'ACHIEVEMENTS' },
@@ -35,6 +37,10 @@ export const SAFE_MENU = [
 
 // Achievements page.
 const LIST = { x: 8, y: 18, rows: 13, rowH: 8 };
+// Talking: topics on the terminal, the crawler's replies in a box over the
+// bar counter, Ozzle's side in the speech bubble.
+const TOPIC_Y = 22, TOPIC_H = 11;
+export const REPLY_BOX = { x: 4, y: 105, w: 205, h: 32, rowH: 8 };
 
 // ------------------------------------------------------------ backdrop
 
@@ -125,12 +131,16 @@ function paintBackdrop() {
 export class SafeRoomScreen {
   constructor() {
     this.open = false;
-    this.page = 'menu';  // 'menu' | 'achievements' | 'boxes'
+    this.page = 'menu';  // 'menu' | 'achievements' | 'boxes' | 'topics' | 'talk'
     this.cursor = 0;
     this.listCursor = 0;
     this.listTop = 0;
     this.boxCursor = 0;
     this.opening = null; // { box, loot, at } while a box is being opened
+    this.topics = [];    // what the crawler can bring up (dialogue.js topicsFor)
+    this.topicCursor = 0;
+    this.convo = null;   // the running Conversation
+    this.replyCursor = 0;
     this.say = '';
     this.sayAt = 0;
     this.backdrop = null; // painted on first use
@@ -148,6 +158,10 @@ export class SafeRoomScreen {
 
   close() { this.open = false; }
 
+  // Still typing the current line (a key press shows it all at once).
+  typing(now) { return (now - this.sayAt) / 12 < this.say.length; }
+  skipTyping() { this.sayAt = -1e9; }
+
   // delay: Ozzle waits a moment before saying it (after a box bursts open).
   talk(line, now, delay = 0) {
     if (delay > 0) { this.pending = { line, at: now + delay }; return; }
@@ -162,6 +176,11 @@ export class SafeRoomScreen {
     const d = dir === 'up' ? -1 : dir === 'down' ? 1 : 0;
     if (!d) return;
     if (this.page === 'boxes') this.boxCursor = (this.boxCursor + d + nBoxes) % Math.max(1, nBoxes);
+    else if (this.page === 'topics') this.topicCursor = (this.topicCursor + d + this.topics.length + 1) % (this.topics.length + 1);
+    else if (this.page === 'talk' && this.convo) {
+      const n = this.convo.replies.length;
+      this.replyCursor = (this.replyCursor + d + n) % n;
+    }
     else if (this.page === 'menu') this.cursor = (this.cursor + d + SAFE_MENU.length) % SAFE_MENU.length;
     else if (this.page === 'achievements') {
       this.listCursor = Math.max(0, Math.min(nAchievements - 1, this.listCursor + d));
@@ -178,6 +197,23 @@ export class SafeRoomScreen {
 
   // Mouse / touch. Returns { kind: 'menu', id } | { kind: 'back' } | { kind: 'row' } | null.
   hit(px, py) {
+    if (this.page === 'topics') {
+      const i = Math.floor((py - TOPIC_Y + 2) / TOPIC_H);
+      if (px >= TERM.x && i >= 0 && i <= this.topics.length) {
+        this.topicCursor = i;
+        return { kind: 'topic' };
+      }
+      return null;
+    }
+    if (this.page === 'talk') {
+      const n = this.convo ? this.convo.replies.length : 0;
+      const i = Math.floor((py - REPLY_BOX.y - 4) / REPLY_BOX.rowH);
+      if (px < TERM.x && py >= REPLY_BOX.y && i >= 0 && i < n) {
+        this.replyCursor = i;
+        return { kind: 'reply' };
+      }
+      return px >= TERM.x && py > TERM.y + TERM.h - 14 ? { kind: 'back' } : { kind: 'continue' };
+    }
     if (this.page === 'boxes') {
       if (this.opening) return { kind: 'continue' };
       const j = Math.floor((py - TERM.y - 17) / 11);
@@ -201,7 +237,7 @@ export class SafeRoomScreen {
     return null;
   }
 
-  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers, deaths }
+  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers, deaths, newTopics }
   draw(fb, now, info) {
     if (!this.open) return;
     if (this.pending && now >= this.pending.at) this.talk(this.pending.line, now);
@@ -214,6 +250,10 @@ export class SafeRoomScreen {
       this.drawFrame(fb);
       if (this.boxCursor >= info.boxes.length) this.boxCursor = Math.max(0, info.boxes.length - 1);
       drawBoxList(fb, TERM, info.boxes, this.boxCursor, now);
+    } else if (this.page === 'topics') {
+      this.drawTopics(fb);
+    } else if (this.page === 'talk') {
+      this.drawTalk(fb, now);
     } else {
       this.drawTerminal(fb, now, info);
     }
@@ -231,7 +271,7 @@ export class SafeRoomScreen {
     const t = now - this.sayAt;
     // Talking for a moment after a new line (mouth flaps), otherwise
     // breathing with a slow blink.
-    const talking = this.page === 'menu' && t < Math.min(2600, 400 + this.say.length * 18);
+    const talking = ['menu', 'topics', 'talk'].includes(this.page) && t < Math.min(2600, 400 + this.say.length * 18);
     let pose = 'idle0';
     if (talking) pose = Math.floor(t / 140) % 2 ? 'talk' : 'idle0';
     else if (now % 3400 < 260) pose = 'idle1';
@@ -274,6 +314,7 @@ export class SafeRoomScreen {
       const sel = i === this.cursor;
       if (sel) fb.rect(x + 5, my - 3, w - 10, MENU_H - 1, C.TEAL_D);
       let label = m.label, badge = '', bc = C.MINT, dim = false;
+      if (m.id === 'talk') { badge = info.newTopics ? 'NEW' : ''; bc = blink ? C.YELLOW : C.GOLD; }
       if (m.id === 'levelup') { badge = info.points ? `+${info.points}` : ''; bc = blink ? C.YELLOW : C.GOLD; dim = !info.points; }
       if (m.id === 'boxes') { badge = info.boxes.length ? String(info.boxes.length) : ''; bc = C.YELLOW; dim = !info.boxes.length; }
       if (m.id === 'achievements') { badge = `${info.unlocked.length}/${info.total}`; bc = C.TEAL_M; }
@@ -293,6 +334,52 @@ export class SafeRoomScreen {
     row('MP', `${info.mp}/${info.mpMax}`, C.SKY, 1);
     row('VIEWERS', info.viewers, C.NEON, 2);
     drawText(fb, 'COUNTDOWN PAUSED', x + 8, y + h - 12, blink ? C.TEAL_M : C.TEAL);
+  }
+
+  // The topic list on the terminal: new ones marked, heard ones dimmed.
+  drawTopics(fb) {
+    const { x, y, w } = TERM;
+    this.drawFrame(fb);
+    drawText(fb, 'TALK TO OZZLE', x + 7, y + 7, C.MINT);
+    fb.rect(x + 6, y + 14, w - 12, 1, C.TEAL_D);
+    const rows = [...this.topics.map((t) => ({ label: t.label, fresh: t.fresh, heard: !t.fresh && !t.repeat })), { label: 'BACK', back: true }];
+    rows.forEach((r, i) => {
+      const my = TOPIC_Y + i * TOPIC_H;
+      const sel = i === this.topicCursor;
+      if (sel) fb.rect(x + 5, my - 3, w - 10, TOPIC_H - 1, C.TEAL_D);
+      drawText(fb, sel ? '>' : ' ', x + 7, my, C.YELLOW);
+      drawText(fb, r.label, x + 12, my, sel ? C.WHITE : r.back || r.heard ? C.ASH : C.BONE);
+      if (r.fresh) drawText(fb, '*', x + w - 11, my, C.YELLOW);
+    });
+    drawText(fb, '* NEW', x + 8, y + TERM.h - 12, C.TEAL);
+  }
+
+  // A conversation: replies in a box over the counter, the topic on the terminal.
+  drawTalk(fb, now) {
+    const { x, y, w } = TERM;
+    this.drawFrame(fb);
+    drawText(fb, 'TALKING TO', x + 7, y + 7, C.TEAL_M);
+    drawText(fb, 'OZZLE', x + 7, y + 15, C.MINT);
+    fb.rect(x + 6, y + 22, w - 12, 1, C.TEAL_D);
+    let ty = y + 27;
+    for (const l of wrapText(this.convo.topic.label, w - 16)) { drawText(fb, l, x + 8, ty, C.BONE); ty += 7; }
+    drawText(fb, 'UP/DOWN PICK', x + 8, y + TERM.h - 34, C.TEAL);
+    drawText(fb, 'SPACE SAY', x + 8, y + TERM.h - 26, C.TEAL);
+    drawText(fb, 'ESC BACK', x + 8, y + TERM.h - 12, C.ASH);
+    // The reply box.
+    const b = REPLY_BOX;
+    fb.bevel(b.x, b.y, b.w, b.h, C.NIGHT, C.STEEL_M, C.BLACK);
+    if (this.typing(now)) {
+      if (Math.floor(now / 300) % 2) drawText(fb, '...', b.x + 6, b.y + 5, C.ASH);
+      return;
+    }
+    this.convo.replies.forEach((r, i) => {
+      const ry = b.y + 5 + i * b.rowH;
+      const sel = i === this.replyCursor;
+      if (sel) fb.rect(b.x + 2, ry - 2, b.w - 4, b.rowH, C.SHADOW);
+      drawText(fb, sel ? '>' : '-', b.x + 5, ry, sel ? C.YELLOW : C.ASH);
+      drawText(fb, r.text, b.x + 11, ry, sel ? C.WHITE : C.BONE);
+    });
   }
 
   drawAchievements(fb, info) {

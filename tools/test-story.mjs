@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import { Profile, PROFILE_KEY } from '../src/game/profile.js';
 import { mentorGreeting, killerPhrase } from '../src/game/mentor.js';
 import { LINES } from '../src/game/system-ai.js';
-import { TALLY, drawTally } from '../src/game/safe-ui.js';
+import { TALLY, drawTally, REPLY_BOX } from '../src/game/safe-ui.js';
+import { CAST, Conversation, topicsFor, reachable, sayText } from '../src/game/dialogue.js';
+import { textWidth } from '../src/engine/font.js';
 
 // A localStorage stand-in.
 function memoryStorage() {
@@ -123,6 +125,63 @@ for (const t of ['rerun', 'previously', 'previouslyWon']) assert.ok(LINES[t] && 
   for (let y = 0; y < 140; y++) for (let x = 0; x < 320; x++) {
     if (fb.pixels[y * 320 + x]) assert.ok(x < 71 && y < 99, `a full wall stays in place (${x},${y})`);
   }
+}
+
+// ---------------------------------------------------------- dialogue
+
+for (const [who, cast] of Object.entries(CAST)) {
+  const used = new Set();
+  for (const t of cast.topics) {
+    assert.ok(cast.nodes[t.start], `${who}/${t.id}: start node ${t.start} missing`);
+    // Topic labels fit the terminal next to the cursor and the NEW mark.
+    assert.ok(textWidth(t.label) <= 78, `${who}/${t.id}: label too wide for the terminal`);
+    for (const id of reachable(who, t.start)) used.add(id);
+  }
+  for (const [id, node] of Object.entries(cast.nodes)) {
+    assert.ok(used.has(id), `${who}/${id}: no topic leads here`);
+    const says = Array.isArray(node.say) ? node.say : [node.say];
+    for (const l of says) assert.ok(l.length < 190, `${who}/${id}: line too long for the bubble`);
+    assert.ok(node.replies.length >= 1 && node.replies.length <= 3, `${who}/${id}: 1 to 3 replies`);
+    assert.ok(node.replies.some((r) => !r.if), `${who}/${id}: at least one reply is always on offer`);
+    for (const r of node.replies) {
+      if (r.to) assert.ok(cast.nodes[r.to], `${who}/${id}: reply leads to missing node ${r.to}`);
+      assert.ok(textWidth(r.text) + 13 <= REPLY_BOX.w - 4, `${who}/${id}: reply "${r.text}" too wide for the box`);
+    }
+  }
+  for (const l of [...cast.open, ...cast.close]) assert.ok(l.length < 190, `${who}: open/close line too long`);
+}
+
+{
+  const p = new Profile(null);
+  const ctx = (rerun = 0, deaths = 0) => ({ profile: p, rerun, deaths, vars: { t: deaths } });
+  const ids = (c) => topicsFor('ozzle', c).map((t) => t.id);
+  assert.deepEqual(ids(ctx()), ['who', 'place', 'advice'], 'the premiere: the basics');
+  assert.deepEqual(ids(ctx(1, 1)), ['who', 'place', 'encore', 'tally', 'advice'], 'after a death: reruns and the tally');
+  assert.ok(topicsFor('ozzle', ctx()).find((t) => t.id === 'who').fresh, 'unheard topics are new');
+
+  // Walk the Borant Encore topic down to the cancellation.
+  const encore = topicsFor('ozzle', ctx(1, 1)).find((t) => t.id === 'encore');
+  const c = new Conversation('ozzle', encore, ctx(1, 1));
+  assert.match(c.text, /rerun channel/);
+  assert.ok(c.choose(0));
+  assert.match(c.text, /shelf/);
+  assert.ok(c.choose(0));
+  assert.match(c.text, /deleted/);
+  assert.ok(!c.choose(0), 'the last reply ends the topic');
+  assert.ok(p.flag('heardCancel'), 'replies raise story flags');
+  assert.ok(!topicsFor('ozzle', ctx(1, 1)).find((t) => t.id === 'encore').fresh, 'heard topics are no longer new');
+  assert.ok(ids(ctx(1, 1)).includes('contract'), 'hearing about the cancellation opens the contract topic');
+
+  // Conditional replies and placeholders.
+  const who = new Conversation('ozzle', { start: 'who1' }, ctx(0, 0));
+  who.choose(2);
+  assert.equal(who.replies.length, 1, 'no "you have met me" in the premiere');
+  const who2 = new Conversation('ozzle', { start: 'who1' }, ctx(2, 2));
+  who2.choose(2);
+  assert.equal(who2.replies.length, 2);
+  assert.match(new Conversation('ozzle', { start: 'tally1' }, ctx(1, 7)).text, /^7\./, 'the tally names the count');
+  const advice = CAST.ozzle.nodes.advice;
+  assert.notEqual(sayText(advice, {}, 'x'), sayText(advice, {}, 'x'), 'advice rotates');
 }
 
 console.log('story: profile, reruns, Ozzle greetings and tally OK');

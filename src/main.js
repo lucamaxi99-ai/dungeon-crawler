@@ -45,6 +45,7 @@ import { Viewers, VIEWERS, formatViewers } from './game/viewers.js';
 import { SafeRoomScreen } from './game/safe-ui.js';
 import { mentorGreeting, mentorLine, killerPhrase } from './game/mentor.js';
 import { Profile, browserStorage } from './game/profile.js';
+import { CAST, Conversation, topicsFor } from './game/dialogue.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
 import { sponsorFor, SPONSOR_TIERS, SPONSOR_CHEST_AT } from './game/sponsors.js';
 
@@ -402,10 +403,57 @@ function leaveSafeRoom() {
   log.push(line('safeLeave'));
 }
 
+// What conversations know about the crawler (dialogue.js).
+function talkContext() {
+  return { profile, rerun: run.rerun, deaths: profile.deaths, vars: { t: profile.deaths } };
+}
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+// Back to the topic list, with Ozzle's remark.
+function showTopics(say) {
+  safe.page = 'topics';
+  safe.convo = null;
+  safe.topics = topicsFor('ozzle', talkContext());
+  safe.topicCursor = Math.min(safe.topicCursor, safe.topics.length);
+  safe.talk(say, performance.now());
+}
+
+// Keys while talking: pick a topic, then replies.
+function onTalkAction(action, dir) {
+  const now = performance.now();
+  if (safe.page === 'topics') {
+    if (dir) return safe.move(dir);
+    if (action === 'close') { safe.page = 'menu'; return; }
+    if (action !== 'interact') return;
+    const topic = safe.topics[safe.topicCursor];
+    if (!topic) { safe.page = 'menu'; return; }
+    safe.convo = new Conversation('ozzle', topic, talkContext());
+    safe.replyCursor = 0;
+    safe.page = 'talk';
+    note('talk', { topic: topic.id });
+    return safe.talk(safe.convo.text, now);
+  }
+  if (action === 'close') return showTopics(pick(CAST.ozzle.close));
+  if (action === 'interact' && safe.typing(now)) return safe.skipTyping();
+  if (safe.typing(now)) return;
+  if (dir) return safe.move(dir);
+  if (action !== 'interact') return;
+  if (safe.convo.choose(safe.replyCursor)) {
+    safe.replyCursor = 0;
+    return safe.talk(safe.convo.text, now);
+  }
+  showTopics(pick(CAST.ozzle.close));
+}
+
 // A choice on the Safe Room terminal.
 function safeCommand(id) {
   const now = performance.now();
   if (id === 'leave') return leaveSafeRoom();
+  if (id === 'talk') {
+    safe.topicCursor = 0;
+    return showTopics(pick(CAST.ozzle.open));
+  }
   if (id === 'levelup') {
     if (!crawler.points) return safe.talk(mentorLine('noPoints'), now);
     charScreen.canSpend = true;
@@ -462,6 +510,7 @@ function onSafeAction(action) {
     return onInventoryAction(action);
   }
   const dir = { forward: 'up', back: 'down', turnLeft: 'left', turnRight: 'right', left: 'left', right: 'right' }[action];
+  if (safe.page === 'topics' || safe.page === 'talk') return onTalkAction(action, dir === 'up' || dir === 'down' ? dir : null);
   if (safe.page === 'achievements') {
     if (dir) return safe.move(dir, ACHIEVEMENTS.length);
     if (['close', 'interact', 'character'].includes(action)) safe.page = 'menu';
@@ -926,8 +975,9 @@ canvas.addEventListener('pointerdown', (e) => {
     if (p.y >= OVERLAY_H) return;
     const t = safe.hit(p.x, p.y);
     if (!t) return;
-    if (t.kind === 'back') safe.page = 'menu';
+    if (t.kind === 'back') { if (safe.page === 'talk') onSafeAction('close'); else safe.page = 'menu'; }
     else if (t.kind === 'menu') safeCommand(t.id);
+    else if (t.kind === 'topic' || t.kind === 'reply') onSafeAction('interact');
     else if (t.kind === 'continue') onSafeAction('interact');
     else if (t.kind === 'box') {
       const top = Math.max(0, Math.min(safe.boxCursor - 7, ach.boxes.length - 8));
@@ -1067,6 +1117,7 @@ function loop(now) {
     points: crawler.points, boxes: ach.boxes, unlocked: ach.unlocked, total: ACHIEVEMENTS.length,
     rested: level.safeRoom.rested, hp: crawler.hp, hpMax: crawler.hpMax, mp: crawler.mp, mpMax: crawler.mpMax,
     viewers: formatViewers(viewers.count), deaths: profile.deaths,
+    newTopics: safe.open && topicsFor('ozzle', talkContext()).some((t) => t.fresh),
   });
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
