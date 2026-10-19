@@ -237,6 +237,26 @@ export const LINES = {
   poster: [
     'A notice from Borant Corporation: "Your suffering is our content. Smile, you are on screen."',
   ],
+  viewersBored: [
+    'The viewers are getting bored, Crawler. They are leaving. Do something. Anything. Fall over, maybe.',
+    'Viewer numbers are dropping. Walking in silence is not content. Find something to hit.',
+    'Your audience is drifting to a cooking show on Channel 9. The cooking show is about you, eventually.',
+    'Nothing has happened in a while. The chat has started talking about its own problems. Please intervene.',
+  ],
+  viewersMilestone: [
+    '{n} viewers are now watching you. Wave. No, not like that.',
+    '{n} viewers! The Syndicate\'s ratings desk has learned how to spell your name. Mostly.',
+    'Attention: {n} viewers. Somewhere a sponsor is taking notes.',
+  ],
+  closeCall: [
+    'That was close. The viewers are on the edge of their seats. Several species do not have seats. They are on the edge of whatever they have.',
+    'Survived with almost nothing left. The chat is spamming hearts. Some of them are anatomical.',
+  ],
+  lowHp: [
+    'Crawler, your health is low. This is the part where the viewers lean in.',
+    'Warning: you are mostly hole now. Consider not being hit.',
+    'Low health. The betting pool on your next ten seconds is now open.',
+  ],
   nothing: [
     'You wave at the empty air. Twelve viewers wave back.',
     'There is nothing here. That will not last.',

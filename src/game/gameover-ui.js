@@ -14,7 +14,7 @@ export function gameOverReady(dead, now) {
   return now - dead.at >= READY_MS;
 }
 
-// dead: { at, won, killer, depth, level, steps, kills, gold, comment }
+// dead: { at, won, killer, depth, level, steps, kills, gold, comment, viewers, achievements }
 export function drawGameOver(fb, dead, now) {
   const t = now - dead.at;
   const fade = Math.min(1, t / FADE_MS);
@@ -44,6 +44,11 @@ export function drawGameOver(fb, dead, now) {
   y += 10;
   const numbers = `LEVEL ${dead.level}   STEPS ${dead.steps}   KILLS ${dead.kills}   GOLD ${dead.gold}`;
   drawText(fb, numbers, (W - textWidth(numbers)) >> 1, y, C.SILVER);
+  if (dead.viewers != null) {
+    y += 8;
+    const show = `PEAK VIEWERS ${dead.viewers}   ACHIEVEMENTS ${dead.achievements}`;
+    drawText(fb, show, (W - textWidth(show)) >> 1, y, C.NEON);
+  }
 
   if (gameOverReady(dead, now) && Math.floor(now / 500) % 2 === 0) {
     const hint = 'SPACE OR TAP FOR A NEW RUN';

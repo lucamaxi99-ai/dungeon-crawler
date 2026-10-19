@@ -159,6 +159,25 @@ export const ACHIEVEMENTS = [
     text: 'A whole season and not one kill. Nobody has ever done this. Nobody wanted to. The Syndicate is lost for words, and they are never lost for words.',
     test: (s) => s.won >= 1 && s.kills === 0,
   },
+  // ---------------------------------------------------------- the show
+  {
+    id: 'goingViral', name: 'Going Viral', reward: { box: 'bronze' },
+    hint: 'Reach 100 viewers.',
+    text: 'One hundred viewers! Your mother would be proud, if she were still around. Statistically she is not.',
+    test: (s) => s.viewers >= 100,
+  },
+  {
+    id: 'primeTime', name: 'Prime Time', reward: { box: 'silver' },
+    hint: 'Reach 1,000 viewers.',
+    text: 'A thousand viewers. Borant has moved your feed off the bargain channel. Congratulations on your promotion to entertainment.',
+    test: (s) => s.viewers >= 1000,
+  },
+  {
+    id: 'galacticSensation', name: 'Galactic Sensation', reward: { box: 'gold' },
+    hint: 'Reach 10,000 viewers.',
+    text: 'Ten thousand viewers. Somewhere a species you have never heard of is naming its children after you. Badly.',
+    test: (s) => s.viewers >= 10000,
+  },
   // ---------------------------------------------------------- nonsense
   {
     id: 'wallEnthusiast', name: 'Wall Enthusiast', reward: null, secret: true,
@@ -242,6 +261,7 @@ const RULES = {
     if (worn.includes('cone') && worn.includes('bathrobe')) s.fashion++;
   },
   bag: (s, d) => { s.tails = Math.max(s.tails, d.tails); },
+  viewers: (s, d) => { s.viewers = Math.max(s.viewers, d.count); },
   floorDone: (s, d) => {
     s.floors++;
     if (d.turnsShare <= 0.1) s.lateStairs++;
@@ -257,7 +277,7 @@ export class Achievements {
       steps: 0, kills: 0, floorKills: 0, unarmedKills: 0, crits: 0, flees: 0,
       byAThread: 0, flawless: 0, level: 1, maxSkill: 1, learned: 0, slotsFilled: 0,
       fashion: 0, tails: 0, floors: 0, lateStairs: 0, peacefulFloors: 0, cleanFloors: 0,
-      won: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
+      won: 0, viewers: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
     };
     this.unlocked = [];  // ids in the order they were earned
     this.boxes = [];     // unopened loot boxes: { tier, sponsored, from }

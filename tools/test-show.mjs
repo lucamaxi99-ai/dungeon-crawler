@@ -7,6 +7,7 @@ import { BOX_TIERS, TIER } from '../src/game/lootboxes.js';
 import { ITEMS } from '../src/game/items.js';
 import { textWidth } from '../src/engine/font.js';
 import { rewardLabel } from '../src/game/achievement-ui.js';
+import { Viewers, VIEWERS, formatViewers, charismaGain, charismaLoss } from '../src/game/viewers.js';
 
 // ---------------------------------------------------------- catalogue
 
@@ -93,6 +94,7 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   for (let i = 0; i < 3; i++) script.push(['wastedHeal'], ['lockedStairs']);
   for (let i = 0; i < 15; i++) script.push(['kill', { type: 'rat', unarmed: true }]);
   script.push(['floorDone', { turnsShare: 0.5, allDead: true }], ['floorDone', { turnsShare: 0.5, allDead: true }], ['won']);
+  script.push(['viewers', { count: 12000 }]);
   for (const [k, d] of script) t.note(k, d);
   // The pacifist season needs a run of its own.
   const p = new Achievements();
@@ -103,4 +105,72 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   assert.deepEqual(missing, [], 'every achievement is reachable');
 }
 
-console.log(`show: ${ACHIEVEMENTS.length} achievements OK`);
+// ---------------------------------------------------------- viewers
+
+{
+  const v = new Viewers(5);
+  assert.equal(v.shown, VIEWERS.start);
+  assert.equal(v.note('nonsense').gain, 0, 'unknown events bring nobody');
+  const r = v.note('kill');
+  assert.ok(r.gain > 0 && v.count > VIEWERS.start);
+  // Quiet stretches: nothing for a while, then people drift away, never below the floor.
+  const before = v.count;
+  let bored = 0;
+  for (let i = 0; i < VIEWERS.quietActions; i++) bored += v.tick().bored;
+  assert.equal(v.count, before, 'no losses during the grace period');
+  for (let i = 0; i < 2000; i++) bored += v.tick().bored;
+  assert.equal(bored, 1, 'the System complains once per quiet stretch');
+  assert.equal(v.count, VIEWERS.floor);
+  v.note('chest');
+  assert.equal(v.quiet, 0, 'an event resets the boredom');
+}
+// Charisma: more gain, less loss.
+assert.ok(charismaGain(8) > charismaGain(5) && charismaGain(5) > charismaGain(3));
+assert.ok(charismaLoss(8) < charismaLoss(5) && charismaLoss(5) < charismaLoss(3));
+{
+  const a = new Viewers(5), b = new Viewers(9);
+  a.note('floorDone'); b.note('floorDone');
+  assert.ok(b.count > a.count, 'charisma makes gains bigger');
+}
+// Thresholds are reported once each, even in one big jump.
+{
+  const v = new Viewers(5);
+  assert.deepEqual(v.add(95).crossed, [100]);
+  assert.deepEqual(v.add(10).crossed, []);
+  assert.deepEqual(v.add(3000).crossed, [500, 2000]);
+  v.count = 50;
+  assert.deepEqual(v.add(100).crossed, [], 'falling back and rising again does not repeat a threshold');
+}
+assert.equal(formatViewers(12), '12');
+assert.equal(formatViewers(9999), '9999');
+assert.equal(formatViewers(12345), '12.3K');
+assert.equal(formatViewers(234567), '235K');
+assert.equal(formatViewers(1234567), '1.2M');
+
+// A plausible run (events spread over the floors' actions) ends with a few
+// hundred to a few thousand viewers at CHA 5, more with charisma.
+function simulate(seed, cha) {
+  let s = seed;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const v = new Viewers(cha);
+  for (const [rats, chests, actions] of [[4, 2, 300], [6, 4, 420], [8, 4, 550]]) {
+    const events = [['level']];
+    for (let i = 0; i < rats; i++) events.push(['kill'], ['fightWon', { closeCall: rnd() < 0.15 }]);
+    for (let i = 0; i < chests; i++) events.push(['chest']);
+    for (let i = 0; i < 3; i++) events.push(['achievement', { tier: Math.floor(rnd() * 2) }]);
+    const at = events.map(() => Math.floor(rnd() * actions));
+    for (let a = 0; a < actions; a++) {
+      v.tick();
+      events.forEach((e, i) => { if (at[i] === a) v.note(...e); });
+    }
+    v.note('floorDone');
+  }
+  return v.count;
+}
+const plain = [1, 2, 3, 4, 5].map((k) => simulate(k * 7919, 5));
+const charming = [1, 2, 3, 4, 5].map((k) => simulate(k * 7919, 9));
+const mid = (xs) => xs.slice().sort((a, b) => a - b)[2];
+assert.ok(mid(plain) > 300 && mid(plain) < 5000, `typical run at CHA 5: ${Math.round(mid(plain))} viewers`);
+assert.ok(mid(charming) > mid(plain) * 2, 'charisma pays off over a run');
+
+console.log(`show: ${ACHIEVEMENTS.length} achievements, viewers OK (typical run: ${Math.round(mid(plain))} at CHA 5, ${Math.round(mid(charming))} at CHA 9)`);

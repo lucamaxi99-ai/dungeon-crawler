@@ -97,10 +97,18 @@ function drawStatus(fb, { level, status }) {
   const t = off ? '--' : String(status.turnsLeft);
   drawText(fb, t, x + w - textWidth(t), STAT.y + 40, color);
   if (!off && !status.stairsOpen) lock(fb, x + w - textWidth(t) - 6, STAT.y + 40, C.SILVER);
-  // TODO(M6): viewer count.
-  const v = status.viewers === null ? '?' : String(status.viewers);
+  // Viewers, with an arrow while they pour in (up) or drift away (down).
+  const v = status.viewers === null ? '?' : status.viewers;
   drawText(fb, 'VIEWERS', x, STAT.y + 46, status.viewers === null ? C.ASH : C.BONE);
-  drawText(fb, v, x + w - textWidth(v), STAT.y + 46, status.viewers === null ? C.ASH : C.NEON);
+  const vx = x + w - textWidth(v);
+  drawText(fb, v, vx, STAT.y + 46, status.viewers === null ? C.ASH : status.viewersFlash ? C.WHITE : C.NEON);
+  if (status.viewersDir) arrow(fb, vx - 5, STAT.y + 47, status.viewersDir, status.viewersDir > 0 ? C.LIME : C.RED);
+}
+
+// A tiny arrow (3 x 3), dir > 0 up, < 0 down.
+function arrow(fb, x, y, dir, c) {
+  const rows = dir > 0 ? [1, 3, 3] : [3, 3, 1];
+  rows.forEach((n, i) => fb.rect(x + (n === 1 ? 1 : 0), y + i, n, 1, c));
 }
 
 // A tiny padlock (4 x 5): the stairs are still sealed.

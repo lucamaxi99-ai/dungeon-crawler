@@ -40,7 +40,8 @@ import { drawFloorCard, cardDone, cardSkippable, CARD_MS } from './game/floor-ui
 import { rng } from './engine/texgen.js';
 import { Achievements } from './game/achievements.js';
 import { AchievementPopups } from './game/achievement-ui.js';
-import { boxName } from './game/lootboxes.js';
+import { boxName, BOX_TIERS } from './game/lootboxes.js';
+import { Viewers, VIEWERS, formatViewers } from './game/viewers.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -68,6 +69,7 @@ let dead = null; // { at, won, killer, depth, level, steps, kills, gold, comment
 let card = null; // title card between floors (floor-ui.js)
 let banner = null; // big LEVEL UP text; starts once nothing else is on screen
 let ach;          // the run's achievements and unopened loot boxes
+let viewers;      // the audience (hype model, viewers.js)
 const popups = new AchievementPopups();
 
 function newRun() {
@@ -77,6 +79,7 @@ function newRun() {
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
   ach = new Achievements();
+  viewers = new Viewers(crawler.cha);
   popups.clear();
   dead = null;
   card = null;
@@ -232,7 +235,10 @@ function endRun({ won = false, killer = '', comment = line(won ? 'victory' : 'de
   state.showMap = false;
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
-  dead = { at: performance.now(), won, killer, depth: run.depth, level: crawler.level, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment };
+  dead = {
+    at: performance.now(), won, killer, depth: run.depth, level: crawler.level, steps: player.steps, kills: crawler.kills,
+    gold: inventory.gold, comment, viewers: formatViewers(viewers.peak), achievements: ach.unlocked.length,
+  };
   log.push(comment);
 }
 
@@ -280,6 +286,7 @@ function castOutside(id) {
 function raiseAttr(attr) {
   if (!crawler.raise(attr)) return;
   log.push(`${ATTR_NAMES[attr]} +1 (now ${crawler[attr]}).`, 'info');
+  viewers.cha = crawler.cha;
   if (!crawler.points) log.push(line('pointsSpent'));
 }
 
@@ -295,7 +302,9 @@ function skillUp(name, n) {
 // unlock shows a pop-up, the System's verdict in the log, and the reward:
 // a loot box for later (Safe Room) or an item right away.
 function note(kind, data) {
+  hype(kind, data);
   for (const a of ach.note(kind, data)) {
+    hype('achievement', { tier: a.reward && a.reward.box ? BOX_TIERS.indexOf(a.reward.box) : 0 });
     popups.push(a);
     log.push(`Achievement unlocked: ${a.name}!`, 'warn');
     log.push(a.text);
@@ -305,6 +314,15 @@ function note(kind, data) {
       log.push(`Reward: ${ITEMS[a.reward.item].name}. It is in your inventory.`, 'info');
     }
   }
+}
+
+// The audience reacts to an event; crossing a big round number is news.
+function hype(kind, data) {
+  const r = viewers.note(kind, data);
+  if (r.gain > 0) state.viewersAt = performance.now();
+  for (const n of r.crossed) log.push(line('viewersMilestone').replace('{n}', n.toLocaleString('en-US')), 'warn');
+  // TODO(M6): sponsors answer the thresholds (step 5).
+  if (r.gain > 0) note('viewers', { count: viewers.count });
 }
 
 // The inventory changed in a way achievements care about.
@@ -499,6 +517,7 @@ function afterTurn() {
   state.stairsAsked = null;
   if (!spendTurn()) return;
   if (crawler.tick() && crawler.hp === crawler.hpMax) log.push(line('regenFull'), 'info');
+  if (viewers.tick().bored) log.push(line('viewersBored'), 'warn');
   const blocked = (x, y) => { const o = level.objectAt(x, y); return !!(o && SPRITES[o.type].solid); };
   const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
   for (const ev of events) {
@@ -609,7 +628,13 @@ function report(events) {
     const foe = mine ? ev.target : ev.actor;
     switch (ev.kind) {
       case 'hit':
-        if (!mine) combat.hurt = true;
+        if (!mine) {
+          combat.hurt = true;
+          if (!combat.warnedLow && crawler.alive && crawler.hp <= crawler.hpMax / 4) {
+            combat.warnedLow = true;
+            log.push(line('lowHp'), 'warn');
+          }
+        }
         log.push(mine ? `You hit the ${foe.name} for ${ev.amount}.` : `The ${foe.name} bites you for ${ev.amount}.`, mine ? 'info' : 'warn');
         break;
       case 'crit':
@@ -689,7 +714,9 @@ function endCombat() {
     if (gold) loot.push(`${gold} gold`);
     log.push(`Loot: ${loot.length ? loot.join(', ') : 'nothing'}.`, 'info');
     log.push(line('combatWon'));
-    note('fightWon', { hp: crawler.hp, foes: fight.enemies.length, hurt: !!hurt });
+    const closeCall = crawler.hp <= crawler.hpMax / 4;
+    if (closeCall) log.push(line('closeCall'));
+    note('fightWon', { hp: crawler.hp, foes: fight.enemies.length, hurt: !!hurt, closeCall });
     noteBag();
   } else if (fight.result === 'lost') {
     const killer = fight.enemies.find((e) => e.alive) || fight.enemies[0];
@@ -762,11 +789,11 @@ function restart() {
 
 // ------------------------------------------------------------ loop
 
-// Nothing is built yet for the viewers; the panel shows them empty.
-const status = {
-  viewers: null,           // TODO(M6)
-};
-function updateStatus() {
+const status = {};
+function updateStatus(now) {
+  status.viewers = formatViewers(viewers.count);
+  status.viewersFlash = now - (state.viewersAt || -1e9) < 400;
+  status.viewersDir = now - (state.viewersAt || -1e9) < 1800 ? 1 : viewers.quiet > VIEWERS.quietActions ? -1 : 0;
   status.turnsLeft = countdown.total ? countdown.left : null;
   status.turnsShare = countdown.total ? countdown.left / countdown.total : 1;
   status.stairsOpen = countdown.stairsOpen;
@@ -858,7 +885,7 @@ function loop(now) {
   }
   if (card) { drawFloorCard(overlayFb, card, now); if (cardDone(card, now)) card = null; }
   if (dead) drawGameOver(overlayFb, dead, now);
-  updateStatus();
+  updateStatus(now);
   const menu = combat ? (fb, box) => combat.ui.drawMenu(fb, box, now) : null;
   drawPanel(panelFb, { log, level, player, status, marks, menu });
   viewFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
@@ -891,6 +918,7 @@ window.game = {
   get dead() { return dead; },
   get card() { return card; },
   get ach() { return ach; },
+  get viewers() { return viewers; },
   popups, note,
   descend,
   log, onAction, stats, engage, restart, gainXp,
