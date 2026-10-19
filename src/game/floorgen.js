@@ -51,7 +51,7 @@ const ROCK = 0, ROOM = 1, RING = 2, CORRIDOR = 3, DOOR = 4;
 const DIRS4 = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 const SIDE_NAME = ['E', 'S', 'W', 'N'];
 
-export function generateFloor(depth, seed) {
+export function generateFloor(depth, seed, opts = {}) {
   const cfg = FLOORS[Math.min(depth, FLOORS.length) - 1];
   if (!cfg) throw new Error(`No floor config for depth ${depth}`);
   const rand = seededRandom(seed * 2654435761 + depth * 97);
@@ -271,7 +271,7 @@ export function generateFloor(depth, seed) {
   };
 
   const stairs = takeSpot(stairsRoom);
-  if (!stairs) return generateFloor(depth, seed + 1000003); // rare: no clean wall for the stairs
+  if (!stairs) return generateFloor(depth, seed + 1000003, opts); // rare: no clean wall for the stairs
   chars[at(stairs.x, stairs.y)] = 'S';
 
   // Posters (Borant advertising) in a few rooms; neon screens in offices;
@@ -301,7 +301,7 @@ export function generateFloor(depth, seed) {
 
   // ---------------------------------------------------------- objects
   const objects = new Map(); // cell -> char
-  const solid = new Set(['C', 'b', 'f', 'F']);
+  const solid = new Set(['C', 'K', 'b', 'f', 'F']);
   const start = sc;
   const blockedCell = (x, y) => solid.has(objects.get(at(x, y)));
   // Every open cell must stay reachable and every solid object must have a
@@ -366,6 +366,18 @@ export function generateFloor(depth, seed) {
       if (place('C', c.x, c.y)) { if (rich) loot[`${c.x},${c.y}`] = 'richChest'; break; }
     }
   }
+  // opts.sponsored: the crawler's sponsors leave one more chest, in a room
+  // of its own if possible (K, loot table 'sponsoredChest').
+  if (opts.sponsored) {
+    const taken = new Set(chestRooms.map((c) => c.i));
+    const order = [...shuffle(byDistance.filter((e) => !taken.has(e.i))), ...shuffle(byDistance.filter((e) => taken.has(e.i)))];
+    let done = false;
+    for (const { i } of order) {
+      const r = rooms[i];
+      for (const c of shuffle(cellsOf(r, edgeCell(r)))) if (!done && place('K', c.x, c.y)) done = true;
+      if (done) break;
+    }
+  }
 
   // ------------------------------------------------------------ enemies
   // Rats nest in rooms at least 8 steps from the start, at most two per room.
@@ -404,7 +416,7 @@ export function generateFloor(depth, seed) {
     .sort((a, b) => Math.abs(fromStart[at(center(rooms[a]).x, center(rooms[a]).y)] - mid) - Math.abs(fromStart[at(center(rooms[b]).x, center(rooms[b]).y)] - mid));
   let safe = null;
   for (const i of safeOrder) if (!safe) safe = takeSpot(i, (q) => !objects.has(at(q.in.x, q.in.y)));
-  if (!safe) return generateFloor(depth, seed + 1000003); // rare: no clean wall left
+  if (!safe) return generateFloor(depth, seed + 1000003, opts); // rare: no clean wall left
   chars[at(safe.x, safe.y)] = 'H';
   chars[at(start.x, start.y)] = '@';
   const rows = [];

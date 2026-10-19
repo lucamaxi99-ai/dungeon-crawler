@@ -24,6 +24,8 @@ const chestOpen = animation(
   [chest.closed, chest.ajar, chest.full, chest.full, chest.full, chest.full, chest.empty],
   { frameMs: 110, mode: 'once' },
 );
+// Sponsored chest: the same chest in Borant pink, lit by its own neon glow.
+const pinkMap = { [C.WOOD_D]: C.PLUM_D, [C.WOOD]: C.PLUM, [C.WOOD_L]: C.MAGENTA, [C.LEATHER]: C.NEON };
 
 // Creatures: idle cycle, lunge and flinch frames, facing left (L), right (R)
 // and the viewer (F, front view), plus the corpse (side view on its back)
@@ -51,7 +53,11 @@ export const CREATURES = {
 //   wall: hangs on a wall (decoration, placed with a lift, not interactive).
 //   open: animation played once when the object is opened (flags.openedAt).
 export const SPRITES = {
-  chest: { anim: animation(chest.closed), open: chestOpen, solid: true },
+  chest: { anim: animation(chest.closed), open: chestOpen, solid: true, chest: true },
+  sponsoredChest: {
+    anim: recolor(animation(chest.closed), pinkMap, 'sponsored'), open: recolor(chestOpen, pinkMap, 'sponsored'),
+    solid: true, chest: true, light: LIGHT_PRESETS.sponsor,
+  },
   barrel: { anim: animation(paintBarrel()), solid: true },
   brazier: { anim: brazier, solid: true, light: LIGHT_PRESETS.brazier },
   coldBrazier: { anim: recolor(brazier, coldMap, 'cold'), solid: true, light: LIGHT_PRESETS.coldBrazier },

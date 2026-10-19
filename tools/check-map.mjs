@@ -88,6 +88,21 @@ for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
   console.log(`floor ${depth}: ${SEEDS} seeds, avg ${avg(sum.cells)} open cells, stairs ${avg(sum.stairs)} steps away, countdown ${avg(sum.turns)} turns, rats >= ${sum.minRatGap} cells from start`);
 }
 
+// Sponsored floors: one extra (pink) chest, everything still reachable.
+let sponsored = 0;
+for (let depth = 2; depth <= FINAL_DEPTH; depth++) {
+  for (let seed = 1; seed <= 60; seed++) {
+    const level = new Level(generateFloor(depth, seed, { sponsored: true }));
+    const r = checkLevel(level);
+    if (r.problems.length) fail(`sponsored floor ${depth} seed ${seed}`, r.problems);
+    const pink = level.objects.filter((o) => o.type === 'sponsoredChest');
+    if (pink.length !== 1) fail(`sponsored floor ${depth} seed ${seed}`, [`${pink.length} sponsored chests`]);
+    else if (pink[0].loot !== 'sponsoredChest') fail(`sponsored floor ${depth} seed ${seed}`, ['sponsored chest has the wrong loot table']);
+    sponsored++;
+  }
+}
+console.log(`sponsored floors: ${sponsored} checked`);
+
 if (!ok) process.exit(1);
 console.log('maps OK');
 

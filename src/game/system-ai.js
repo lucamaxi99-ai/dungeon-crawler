@@ -258,6 +258,14 @@ export const LINES = {
     '{n} viewers! The Syndicate\'s ratings desk has learned how to spell your name. Mostly.',
     'Attention: {n} viewers. Somewhere a sponsor is taking notes.',
   ],
+  sponsorNew: [
+    'Breaking: {name} has chosen to sponsor you, Crawler! A Sponsored {tier} Box is waiting for you in the next Safe Room.',
+    'Sponsor alert! {name} wants its logo near your face. They sent a Sponsored {tier} Box. Open it in a Safe Room.',
+  ],
+  sponsorChest: [
+    'Your sponsors have left a gift on this floor. Look for the pink glow. Do not ask what it cost them. Or you.',
+    'A sponsored chest is somewhere on this floor. It is pink. Borant regrets nothing.',
+  ],
   closeCall: [
     'That was close. The viewers are on the edge of their seats. Several species do not have seats. They are on the edge of whatever they have.',
     'Survived with almost nothing left. The chat is spamming hearts. Some of them are anatomical.',

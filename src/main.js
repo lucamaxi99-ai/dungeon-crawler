@@ -45,6 +45,7 @@ import { Viewers, VIEWERS, formatViewers } from './game/viewers.js';
 import { SafeRoomScreen } from './game/safe-ui.js';
 import { mentorGreeting, mentorLine } from './game/mentor.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
+import { sponsorFor, SPONSOR_TIERS, SPONSOR_CHEST_AT } from './game/sponsors.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -78,7 +79,7 @@ const safe = new SafeRoomScreen();
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
-  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0, boxesOpened: 0 };
+  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0, boxesOpened: 0, sponsors: [], sponsorsTold: 0 };
   inventory = new Inventory();
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
@@ -95,7 +96,9 @@ function newRun() {
 // Builds floor `depth` of the current run and puts the crawler at its start.
 function enterFloor(depth) {
   run.depth = depth;
-  const def = params.get('floor') === 'test' ? TEST_FLOOR : generateFloor(depth, run.seed + depth * 7919);
+  // Popular crawlers find a sponsored chest on every new floor.
+  const sponsored = depth > 1 && viewers.count >= SPONSOR_CHEST_AT;
+  const def = params.get('floor') === 'test' ? TEST_FLOOR : generateFloor(depth, run.seed + depth * 7919, { sponsored });
   level = new Level(def);
   const steps = player ? player.steps : 0;
   player = new Player(level.start);
@@ -193,7 +196,7 @@ function interact() {
   if (w === WALL.POSTER) return log.push(line('poster'), 'info');
   if (w === WALL.SAFE) return enterSafeRoom();
   const o = level.objectAt(f.x, f.y);
-  if (o && o.type === 'chest') return openChest(o);
+  if (o && SPRITES[o.type].chest) return openChest(o);
   if (o) {
     if (o.type === 'barrel') note('barrel');
     return log.push(line(o.type));
@@ -234,6 +237,7 @@ function descend() {
   const comment = line(depth >= FINAL_DEPTH ? 'finalFloor' : 'floorArrive').replace('{n}', depth);
   card = { at: performance.now(), title: level.name.toUpperCase(), sub: depth >= FINAL_DEPTH ? 'SEASON FINALE' : '', comment };
   log.push(comment);
+  if (level.objects.some((o) => o.type === 'sponsoredChest')) log.push(line('sponsorChest'), 'warn');
 }
 
 // The run is over: died in combat (killer), or survived the last floor (won).
@@ -328,9 +332,24 @@ function note(kind, data) {
 function hype(kind, data) {
   const r = viewers.note(kind, data);
   if (r.gain > 0) state.viewersAt = performance.now();
-  for (const n of r.crossed) log.push(line('viewersMilestone').replace('{n}', n.toLocaleString('en-US')), 'warn');
-  // TODO(M6): sponsors answer the thresholds (step 5).
+  for (const n of r.crossed) {
+    log.push(line('viewersMilestone').replace('{n}', n.toLocaleString('en-US')), 'warn');
+    newSponsor(VIEWERS.thresholds.indexOf(n));
+  }
   if (r.gain > 0) note('viewers', { count: viewers.count });
+}
+
+// A sponsor answers a viewer threshold with a sponsored loot box (better
+// odds for tomes and skill potions; bigger audience, bigger box).
+function newSponsor(index) {
+  const sponsor = sponsorFor(index, run.seed);
+  const tier = SPONSOR_TIERS[Math.min(index, SPONSOR_TIERS.length - 1)];
+  ach.boxes.push({ tier, sponsored: true, from: sponsor.name });
+  run.sponsors.push(sponsor.name);
+  popups.push({ head: 'NEW SPONSOR!', name: sponsor.short, reward: { box: tier, sponsored: true } });
+  log.push(line('sponsorNew').replace('{name}', sponsor.name).replace('{tier}', boxName(tier).replace(' Box', '')), 'warn');
+  log.push(`${sponsor.name}: "${sponsor.msg}"`, 'info');
+  note('sponsor');
 }
 
 // The inventory changed in a way achievements care about.
@@ -353,7 +372,9 @@ function enterSafeRoom() {
     visits: run.safeVisits, floorVisits: level.safeRoom.visits, depth: run.depth,
     hpShare: crawler.hp / crawler.hpMax, points: crawler.points, boxes: ach.boxes.length,
     kills: crawler.kills, viewers: viewers.shown,
+    newSponsor: run.sponsors.length > run.sponsorsTold ? run.sponsors[run.sponsors.length - 1] : null,
   });
+  run.sponsorsTold = run.sponsors.length;
   run.safeVisits++;
   level.safeRoom.visits++;
   safe.enter(greeting, performance.now());

@@ -19,7 +19,7 @@ import { SPRITES } from './assets.js';
 import { Enemy } from './enemies.js';
 
 const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER, H: WALL.SAFE, n: WALL.NEON, u: WALL.RUNES };
-const OBJECT_CHARS = { C: 'chest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
+const OBJECT_CHARS = { C: 'chest', K: 'sponsoredChest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
 const ENEMY_CHARS = { R: 'rat' };
 const SIDES = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
 
@@ -108,6 +108,7 @@ export class Level {
         else if (ch in OBJECT_CHARS) {
           const o = { type: OBJECT_CHARS[ch], x, y, flags: {} };
           if (o.type === 'chest') o.loot = def.loot?.[`${x},${y}`] ?? 'chest';
+          if (o.type === 'sponsoredChest') o.loot = 'sponsoredChest';
           this.objects.push(o);
         }
         else if (ch in ENEMY_CHARS) this.enemies.push(new Enemy(ENEMY_CHARS[ch], x, y));

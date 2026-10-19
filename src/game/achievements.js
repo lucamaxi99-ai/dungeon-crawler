@@ -178,6 +178,18 @@ export const ACHIEVEMENTS = [
     text: 'Ten thousand viewers. Somewhere a species you have never heard of is naming its children after you. Badly.',
     test: (s) => s.viewers >= 10000,
   },
+  {
+    id: 'soldOut', name: 'Sold Out', reward: null,
+    hint: 'Get a sponsor.',
+    text: 'You have a sponsor! Your soul now has a logo on it. Small print available on request. Request denied.',
+    test: (s) => s.sponsors >= 1,
+  },
+  {
+    id: 'brandAmbassador', name: 'Brand Ambassador', reward: { item: 'lanyard' },
+    hint: 'Get three sponsors.',
+    text: 'Three sponsors. You are now legally a billboard. Borant has issued you the matching lanyard. Wear it with shame.',
+    test: (s) => s.sponsors >= 3,
+  },
   // ---------------------------------------------------------- safe rooms
   {
     id: 'safeAndSound', name: 'Safe and Sound', reward: null,
@@ -260,7 +272,7 @@ export const ACHIEVEMENT = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])
 const COUNT = {
   crit: 'crits', flee: 'flees', chest: 'chests', learn: 'learned', won: 'won',
   bump: 'bumps', wastedHeal: 'wastedHeals', lockedStairs: 'lockedStairs',
-  drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests', boxOpened: 'boxesOpened',
+  drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests', boxOpened: 'boxesOpened', sponsor: 'sponsors',
 };
 
 // How the other events change the counters. Unknown kinds are ignored
@@ -303,7 +315,7 @@ export class Achievements {
       steps: 0, kills: 0, floorKills: 0, unarmedKills: 0, crits: 0, flees: 0,
       byAThread: 0, flawless: 0, level: 1, maxSkill: 1, learned: 0, slotsFilled: 0,
       fashion: 0, tails: 0, floors: 0, lateStairs: 0, peacefulFloors: 0, cleanFloors: 0,
-      won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, boxesOpened: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
+      won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, boxesOpened: 0, sponsors: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
     };
     this.unlocked = [];  // ids in the order they were earned
     this.boxes = [];     // unopened loot boxes: { tier, sponsored, from }

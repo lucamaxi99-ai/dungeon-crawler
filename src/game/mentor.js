@@ -180,6 +180,10 @@ export const MENTOR_LINES = {
   noBoxes: [
     'No loot boxes. The System gives those for achievements, and achievements for doing things. Do things.',
   ],
+  sponsor: [
+    'I see {s} is sponsoring you now. Congratulations. Read the contract. Actually, don\'t. It\'ll only upset you.',
+    '{s}, huh? I was sponsored once. By a mattress company. I still can\'t talk about it.',
+  ],
   boxPick: [
     'Pick a box. They all contain disappointment, just in different sizes.',
     'Go on, open one. I\'ll pretend to be excited. I\'ve had practice.',
@@ -212,12 +216,13 @@ export function mentorLine(topic, vars = {}) {
 
 // What Ozzle says when the crawler walks in, most urgent first.
 // ctx: { visits (before this one), floorVisits, depth, hpShare, points,
-//        boxes, kills, viewers }
+//        boxes, kills, viewers, newSponsor (name, or null) }
 export function mentorGreeting(ctx) {
-  const v = { p: ctx.points, n: ctx.boxes, k: ctx.kills, v: ctx.viewers, d: ctx.depth };
+  const v = { p: ctx.points, n: ctx.boxes, k: ctx.kills, v: ctx.viewers, d: ctx.depth, s: ctx.newSponsor };
   if (!ctx.visits) return mentorLine('firstVisit', v);
   if (ctx.hpShare <= 0.35) return mentorLine('lowHp', v);
   if (ctx.points > 0) return mentorLine('points', v);
+  if (ctx.newSponsor) return mentorLine('sponsor', v);
   if (ctx.boxes > 0) return mentorLine('boxes', v);
   if (!ctx.floorVisits && ctx.depth > 1) return mentorLine('newFloor', v);
   if (ctx.kills >= 8) return mentorLine('manyKills', v);

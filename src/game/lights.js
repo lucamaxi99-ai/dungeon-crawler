@@ -21,6 +21,7 @@ export const LIGHT_PRESETS = {
   coldBrazier: { radius: 4.5, intensity: 0.9, tint: TINT.COLD, flicker: 0.2 },
   torch: { radius: 4.2, intensity: 0.75, tint: TINT.TORCH, flicker: 0.3 },
   coldTorch: { radius: 3.8, intensity: 0.7, tint: TINT.COLD, flicker: 0.15 },
+  sponsor: { radius: 3.4, intensity: 0.7, tint: TINT.NEON, flicker: 0.12 },
 };
 
 // The player's lantern: a small warm light that follows the camera.

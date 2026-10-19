@@ -25,7 +25,7 @@ function text2(fb, str, x, y, color) {
 // What the reward line says, and in which color.
 export function rewardLabel(reward) {
   if (!reward) return { text: 'REWARD: NONE', color: C.ASH };
-  if (reward.box) return { text: `REWARD: ${boxName(reward.box).toUpperCase()}`, color: TIER[reward.box].color };
+  if (reward.box) return { text: `REWARD: ${boxName(reward.box, reward.sponsored).toUpperCase()}`, color: TIER[reward.box].color };
   return { text: `REWARD: ${ITEMS[reward.item].name.toUpperCase()}`, color: C.BONE };
 }
 
@@ -67,7 +67,7 @@ export class AchievementPopups {
     const glow = a.reward && a.reward.box ? TIER[a.reward.box].color : C.GOLD;
     fb.bevel(x, y, w, h, C.NIGHT, glow, C.BLACK);
     fb.rect(x + 2, y + 2, w - 4, 1, C.SHADOW);
-    const head = 'ACHIEVEMENT UNLOCKED!';
+    const head = a.head || 'ACHIEVEMENT UNLOCKED!';
     const blink = t < 900 && Math.floor(t / 110) % 2;
     drawText(fb, head, (W - textWidth(head)) >> 1, y + 4, blink ? C.WHITE : C.GOLD);
     text2(fb, title, (W - textWidth(title) * 2) >> 1, y + 11, C.WHITE);

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { ACHIEVEMENTS, Achievements } from '../src/game/achievements.js';
 import { BOX_TIERS, TIER, openBox } from '../src/game/lootboxes.js';
 import { LEARNING } from '../src/game/loot.js';
+import { SPONSORS, SPONSOR_TIERS, sponsorFor } from '../src/game/sponsors.js';
 import { RARITY_ORDER } from '../src/game/items.js';
 import { ITEMS } from '../src/game/items.js';
 import { textWidth } from '../src/engine/font.js';
@@ -99,6 +100,7 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   script.push(['floorDone', { turnsShare: 0.5, allDead: true }], ['floorDone', { turnsShare: 0.5, allDead: true }], ['won']);
   script.push(['viewers', { count: 12000 }]);
   for (let i = 0; i < 5; i++) script.push(['boxOpened', { tier: 0 }]);
+  for (let i = 0; i < 3; i++) script.push(['sponsor']);
   script.push(['safeRoom'], ['rest'], ['rest'], ['rest'], ['floorDone', { turnsShare: 0.5, allDead: false, safeVisited: false }]);
   for (const [k, d] of script) t.note(k, d);
   // The pacifist season needs a run of its own.
@@ -197,6 +199,18 @@ assert.ok(mid(charming) > mid(plain) * 2, 'charisma pays off over a run');
     return learn / all;
   };
   assert.ok(learnShare(true) > learnShare(false) + 0.25, 'sponsored boxes lean toward tomes and skill potions');
+}
+
+// ---------------------------------------------------------- sponsors
+
+assert.equal(SPONSOR_TIERS.length, VIEWERS.thresholds.length, 'one sponsor box tier per viewer threshold');
+for (const sp of SPONSORS) {
+  assert.ok(sp.name && sp.short && sp.msg, `sponsor ${sp.name}: name, short name and message`);
+  assert.ok(textWidth(sp.short) * 2 + 28 <= 316, `sponsor ${sp.name}: short name too long for the pop-up`);
+}
+for (const seed of [1, 42, 99999]) {
+  const names = VIEWERS.thresholds.map((_, i) => sponsorFor(i, seed).name);
+  assert.equal(new Set(names).size, names.length, 'a different sponsor for every threshold in a run');
 }
 
 // ---------------------------------------------------------- safe room

@@ -135,6 +135,7 @@ function cellColor(level, x, y) {
   if (w) return C.STONE_M;
   const o = level.objectAt(x, y);
   if (o && o.type === 'chest') return o.flags.openedAt != null ? C.RUST : C.GOLD;
+  if (o && o.type === 'sponsoredChest') return o.flags.openedAt != null ? C.PLUM : C.NEON;
   if (o && o.type === 'brazier') return C.AMBER; // red is for enemies
   if (o && o.type === 'bag') return C.LEATHER;
   if (o && o.type === 'coldBrazier') return C.SKY;
