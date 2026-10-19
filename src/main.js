@@ -50,6 +50,8 @@ import { JOB, jobOpen, checkUnlocks, cleanName, NAME_MAX } from './game/jobs.js'
 import { CreationScreen } from './game/creation-ui.js';
 import { rollStock, buy, sell } from './game/shop.js';
 import { merchantLine } from './game/merchant.js';
+import { saveRun, loadRun, clearRun, packSeen, unpackSeen, enemyState, crawlerState, restoreCrawler } from './game/save.js';
+import { Enemy } from './game/enemies.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
 import { sponsorFor, SPONSOR_TIERS, SPONSOR_CHEST_AT } from './game/sponsors.js';
 
@@ -74,8 +76,9 @@ const isWall = (x, y) => level.wall(x, y) !== 0;
 // URL parameters for testing: ?seed=123 fixes the run, ?floor=test plays
 // the hand-built test floor, ?fresh=1 forgets the profile.
 const params = new URLSearchParams(location.search);
-const profile = new Profile(browserStorage());
-if (params.get('fresh') === '1') profile.reset();
+const storage = browserStorage();
+const profile = new Profile(storage);
+if (params.get('fresh') === '1') { profile.reset(); clearRun(storage); }
 let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd, countdown;
 let dead = null; // { at, won, killer, depth, level, steps, kills, gold, comment } when the run is over
 let card = null; // title card between floors (floor-ui.js)
@@ -134,11 +137,13 @@ function beginRun() {
 }
 
 // Builds floor `depth` of the current run and puts the crawler at its start.
-function enterFloor(depth) {
+// opts.sponsored overrides the sponsored chest (resuming a saved run).
+function enterFloor(depth, opts = {}) {
   run.depth = depth;
   profile.reached(depth);
   // Popular crawlers find a sponsored chest on every new floor.
-  const sponsored = depth > 1 && viewers.count >= SPONSOR_CHEST_AT;
+  const sponsored = opts.sponsored ?? (depth > 1 && viewers.count >= SPONSOR_CHEST_AT);
+  run.floorSponsored = sponsored;
   const def = params.get('floor') === 'test' ? TEST_FLOOR : generateFloor(depth, run.seed + depth * 7919, { sponsored });
   level = new Level(def);
   const steps = player ? player.steps : 0;
@@ -170,7 +175,9 @@ function spendTurn() {
   level.stairsOpen = countdown.stairsOpen;
   return true;
 }
-newRun();
+// A run saved in a Safe Room comes back there (and the save is used up).
+const savedRun = params.get('fresh') === '1' ? null : loadRun(storage);
+if (savedRun) resumeRun(savedRun); else newRun();
 
 const enemyAt = (x, y) => level.enemies.find((e) => e.alive && e.x === x && e.y === y) || null;
 
@@ -287,6 +294,7 @@ function endRun({ won = false, killer = '', comment = line(won ? 'victory' : 'de
   state.showMap = false;
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
+  clearRun(storage);
   const { record } = profile.endRun({ won, depth: run.depth, killer, level: crawler.level, kills: crawler.kills });
   const unlocked = checkUnlocks(profile);
   freshJobs = new Set(unlocked.map((j) => j.id));
@@ -532,10 +540,76 @@ function onShopAction(action, dir) {
   if (action === 'close') return closeShop();
 }
 
+// ------------------------------------------------------------ save and quit
+
+// Everything about the run that the floor's seed can not rebuild.
+function snapshot() {
+  return {
+    run,
+    level: {
+      objects: level.objects.map((o) => ({ ...o, flags: { ...o.flags, openedAt: o.flags.openedAt == null ? undefined : -1e9 } })),
+      enemies: level.enemies.map(enemyState),
+      seen: packSeen(level.seen),
+      safeRoom: level.safeRoom,
+    },
+    player: { x: player.x, y: player.y, dir: player.dir, steps: player.steps },
+    countdown: { total: countdown.total, left: countdown.left, openAfter: countdown.openAfter, warned: countdown.warned },
+    inventory: { bag: inventory.bag, equip: inventory.equip, gold: inventory.gold },
+    crawler: crawlerState(crawler),
+    ach: { s: ach.s, unlocked: ach.unlocked, boxes: ach.boxes },
+    viewers: { count: viewers.count, peak: viewers.peak, quiet: viewers.quiet, trend: 0, passed: viewers.passed },
+  };
+}
+
+function suspendRun() {
+  if (!saveRun(storage, snapshot())) return safe.talk(mentorLine('saveFailed'), performance.now());
+  safe.page = 'saved';
+  safe.talk(mentorLine('suspend'), performance.now());
+  log.push(line('suspend'), 'info');
+}
+
+// Back from the break: the save is used up, the run goes on.
+function unsuspend() {
+  clearRun(storage);
+  safe.page = 'menu';
+  safe.talk(mentorLine('unsuspend'), performance.now());
+}
+
+// Rebuilds a saved run and puts the crawler back in the Safe Room.
+function resumeRun(snap) {
+  clearRun(storage);
+  run = snap.run;
+  inventory = new Inventory();
+  Object.assign(inventory, structuredClone(snap.inventory));
+  crawler = restoreCrawler(new Crawler(inventory), snap.crawler);
+  invScreen = new InventoryScreen(inventory, crawler);
+  ach = new Achievements();
+  Object.assign(ach, structuredClone(snap.ach));
+  viewers = new Viewers(crawler.cha);
+  Object.assign(viewers, snap.viewers);
+  popups.clear();
+  safe.close();
+  dead = null;
+  card = null;
+  banner = null;
+  enterFloor(run.depth, { sponsored: run.floorSponsored });
+  level.objects = snap.level.objects;
+  level.enemies = snap.level.enemies.map((e) => Object.assign(new Enemy(e.type, e.home.x, e.home.y), e));
+  unpackSeen(snap.level.seen, level.seen);
+  level.safeRoom = snap.level.safeRoom;
+  Object.assign(countdown, snap.countdown);
+  level.stairsOpen = countdown.stairsOpen;
+  Object.assign(player, snap.player);
+  hinted = true;
+  safe.enter(mentorLine('resume'), performance.now());
+  log.push(line('resume').replace('{name}', crawler.name || 'Crawler'));
+}
+
 // A choice on the Safe Room terminal.
 function safeCommand(id) {
   const now = performance.now();
   if (id === 'leave') return leaveSafeRoom();
+  if (id === 'save') return suspendRun();
   if (id === 'shop') return openShop();
   if (id === 'talk') {
     safe.topicCursor = 0;
@@ -599,6 +673,7 @@ function onSafeAction(action) {
   const dir = { forward: 'up', back: 'down', turnLeft: 'left', turnRight: 'right', left: 'left', right: 'right' }[action];
   if (safe.page === 'topics' || safe.page === 'talk') return onTalkAction(action, dir === 'up' || dir === 'down' ? dir : null);
   if (safe.page === 'shop') return onShopAction(action, dir);
+  if (safe.page === 'saved') { if (action === 'interact' || action === 'close') unsuspend(); return; }
   if (safe.page === 'achievements') {
     if (dir) return safe.move(dir, ACHIEVEMENTS.length);
     if (['close', 'interact', 'character'].includes(action)) safe.page = 'menu';

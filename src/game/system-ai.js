@@ -99,6 +99,12 @@ export const LINES = {
     'And that is how you die. Ratings spiked. Borant thanks you for your sacrifice.',
     'Deceased. Somewhere a sponsor is quietly peeling your name off a banner.',
   ],
+  suspend: [
+    'Run saved. The broadcast goes to an ad break. Close the page whenever you like; the Safe Room will wait.',
+  ],
+  resume: [
+    'Welcome back, {name}. The ad break is over. Your viewers have returned, mostly out of spite.',
+  ],
   shopOpen: [
     'Thrum\'s Previously Owned is open for business. Borant takes a 40 percent cut of every sale. And of Thrum.',
     'Commerce! The viewers love a montage of you counting coins.',

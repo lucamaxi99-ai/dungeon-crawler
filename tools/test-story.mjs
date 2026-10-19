@@ -16,6 +16,8 @@ import { MERCHANT, MERCHANT_POSES, MERCHANT_LINES, paintThrum } from '../src/gam
 import { MENTOR_LINES } from '../src/game/mentor.js';
 import { Inventory } from '../src/game/inventory.js';
 import { ITEMS } from '../src/game/items.js';
+import { SAVE_KEY, saveRun, loadRun, clearRun, packSeen, unpackSeen, crawlerState, restoreCrawler } from '../src/game/save.js';
+import { Crawler } from '../src/game/crawler.js';
 
 // A localStorage stand-in.
 function memoryStorage() {
@@ -303,6 +305,42 @@ assert.ok(MENTOR_LINES.afterShop.every((l) => l.length < 190));
   assert.equal(inv.count('ratTail'), 2, 'one at a time');
   assert.equal(inv.gold, 88 - 12 + 1);
   assert.equal(sell(inv, 99, 5).ok, false);
+}
+
+// ---------------------------------------------------------- save and quit
+
+{
+  const seen = new Uint8Array(42 * 42);
+  for (let i = 0; i < seen.length; i++) seen[i] = (i * 7) % 5 === 0 ? 1 : 0;
+  const packed = packSeen(seen);
+  assert.ok(packed.length <= Math.ceil(seen.length / 6));
+  assert.deepEqual(unpackSeen(packed, new Uint8Array(seen.length)), seen, 'the explored map survives packing');
+  assert.ok(!/["\\]/.test(packed), 'packed map is JSON-friendly');
+
+  const inv = new Inventory();
+  const c = new Crawler(inv);
+  c.name = 'GRETA'; c.job = 'mallCop'; c.attrs.con = 9; c.hp = 7; c.xp = 33; c.level = 3; c.points = 2;
+  c.skills.learn('pocketSand');
+  const back = restoreCrawler(new Crawler(new Inventory()), JSON.parse(JSON.stringify(crawlerState(c))));
+  assert.equal(back.name, 'GRETA');
+  assert.equal(back.hpMax, c.hpMax);
+  assert.equal(back.hp, 7);
+  assert.deepEqual(back.skills.list(), c.skills.list(), 'skills come back');
+  c.attrs.con = 1;
+  assert.equal(back.attrs.con, 9, 'restored state is a copy');
+
+  const store = memoryStorage();
+  assert.equal(loadRun(store), null);
+  assert.ok(saveRun(store, { run: { depth: 2 } }));
+  assert.equal(loadRun(store).run.depth, 2);
+  store.setItem(SAVE_KEY, JSON.stringify({ v: 999, run: {} }));
+  assert.equal(loadRun(store), null, 'saves from another version are ignored');
+  store.setItem(SAVE_KEY, '{oops');
+  assert.equal(loadRun(store), null, 'a broken save is no save');
+  saveRun(store, { run: {} });
+  clearRun(store);
+  assert.equal(loadRun(store), null);
+  assert.equal(saveRun(null, {}), false, 'without storage there is no save');
 }
 
 console.log('story: profile, reruns, Ozzle greetings and tally OK');

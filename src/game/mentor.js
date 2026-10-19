@@ -222,6 +222,19 @@ export const MENTOR_LINES = {
   boxLearn: [
     'A book. You know what those are, right? You open them and knowledge falls out. Use it from your inventory.',
   ],
+  suspend: [
+    'Going on break? Fine. The room will wait. I will wait. I\'m very good at waiting. It\'s most of my contract.',
+  ],
+  unsuspend: [
+    'Changed your mind? Typical. The break is cancelled. Borant thanks you for your dedication.',
+  ],
+  resume: [
+    'Oh. You\'re back. I didn\'t move. I can\'t, technically. The floor is exactly where you left it.',
+    'Welcome back from your break. Nothing happened. Nothing ever happens in here. That\'s the point.',
+  ],
+  saveFailed: [
+    'The System won\'t let you take a break. Your browser ate the save. Keep going, then.',
+  ],
   afterShop: [
     'Is he gone? He sold me this mug. It belonged to a crawler. I try not to think about which one.',
     'Thrum pays his rent in "previously owned" coffee. I don\'t ask. I drink.',

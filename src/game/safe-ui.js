@@ -9,6 +9,7 @@
 //   LOOT BOXES    open the boxes earned so far
 //   ACHIEVEMENTS  the list, earned and still open
 //   REST          HP and MP back to full, once per Safe Room
+//   SAVE & QUIT   suspends the run (save.js); the page can be closed
 //   LEAVE         back to the dungeon, in front of the door
 // The achievements list is a page of its own; the loot boxes have theirs
 // in lootbox-ui.js.
@@ -28,7 +29,7 @@ const W = 320, H = 140;
 const COUNTER_Y = 100;                         // top of the bar counter
 const OZ = { x: 72, y: COUNTER_Y + 3 - MENTOR.h }; // Ozzle's sprite position
 const TERM = { x: 213, y: 3, w: 104, h: 134 };     // the terminal on the right
-const MENU_Y = 22, MENU_H = 11;
+const MENU_Y = 22, MENU_H = 10;
 const BUBBLE = { x: 5, y: 4, w: 202 };
 
 export const SAFE_MENU = [
@@ -38,6 +39,7 @@ export const SAFE_MENU = [
   { id: 'boxes', label: 'LOOT BOXES' },
   { id: 'achievements', label: 'ACHIEVEMENTS' },
   { id: 'rest', label: 'REST' },
+  { id: 'save', label: 'SAVE & QUIT' },
   { id: 'leave', label: 'LEAVE' },
 ];
 
@@ -245,6 +247,7 @@ export class SafeRoomScreen {
       if (px >= TERM.x && j >= 0 && j < 8) return { kind: 'box', row: j };
       return px >= TERM.x && py > TERM.y + TERM.h - 14 ? { kind: 'back' } : null;
     }
+    if (this.page === 'saved') return { kind: 'continue' };
     if (this.page === 'achievements') {
       const j = Math.floor((py - LIST.y + 1) / LIST.rowH);
       if (px < 200 && j >= 0 && j < LIST.rows && this.listTop + j < ACHIEVEMENTS.length) {
@@ -277,6 +280,9 @@ export class SafeRoomScreen {
       drawBoxList(fb, TERM, info.boxes, this.boxCursor, now);
     } else if (this.page === 'shop') {
       this.drawShop(fb, now, info.shop);
+    } else if (this.page === 'saved') {
+      this.drawTerminal(fb, now, info);
+      this.drawSaved(fb, now);
     } else if (this.page === 'topics') {
       this.drawTopics(fb);
     } else if (this.page === 'talk') {
@@ -298,7 +304,7 @@ export class SafeRoomScreen {
     const t = now - this.sayAt;
     // Talking for a moment after a new line (mouth flaps), otherwise
     // breathing with a slow blink.
-    const talking = ['menu', 'topics', 'talk'].includes(this.page) && t < Math.min(2600, 400 + this.say.length * 18);
+    const talking = ['menu', 'topics', 'talk', 'saved'].includes(this.page) && t < Math.min(2600, 400 + this.say.length * 18);
     let pose = 'idle0';
     if (talking) pose = Math.floor(t / 140) % 2 ? 'talk' : 'idle0';
     else if (now % 3400 < 260) pose = 'idle1';
@@ -365,6 +371,21 @@ export class SafeRoomScreen {
     drawText(fb, mp, x + w - 8 - textWidth(mp), ry, C.SKY);
     row('VIEWERS', info.viewers, C.NEON, 1);
     drawText(fb, 'COUNTDOWN PAUSED', x + 8, y + h - 12, blink ? C.TEAL_M : C.TEAL);
+  }
+
+  // After SAVE & QUIT: the run is safe; close the page or keep playing.
+  drawSaved(fb, now) {
+    const b = { x: 40, y: 44, w: 240, h: 54 };
+    fb.bevel(b.x, b.y, b.w, b.h, C.NIGHT, C.MINT, C.TEAL_D);
+    fb.bevel(b.x + 2, b.y + 2, b.w - 4, b.h - 4, C.BLACK, C.TEAL_D, C.TEAL_D);
+    const t = 'RUN SAVED';
+    drawText(fb, t, b.x + ((b.w - textWidth(t)) >> 1), b.y + 8, C.MINT);
+    const lines = ['YOU CAN CLOSE THE PAGE NOW.', 'NEXT TIME YOU ARE BACK IN THIS SAFE ROOM.', 'THE SAVE IS USED UP WHEN YOU RETURN.'];
+    lines.forEach((l, i) => drawText(fb, l, b.x + ((b.w - textWidth(l)) >> 1), b.y + 18 + i * 7, i === 2 ? C.ASH : C.BONE));
+    if (Math.floor(now / 500) % 2) {
+      const k = 'SPACE: KEEP PLAYING';
+      drawText(fb, k, b.x + ((b.w - textWidth(k)) >> 1), b.y + b.h - 10, C.YELLOW);
+    }
   }
 
   // Thrum at the counter, in Ozzle's place: talking, idle, wings settling.
