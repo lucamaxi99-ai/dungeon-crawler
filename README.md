@@ -47,6 +47,7 @@ portrait), rated by how well Claude can produce them alone.
 | Q / ←, E / → | Turn 90° |
 | Space / Enter | Interact with what's in front of you (attacks an enemy) |
 | I / Tab | Inventory (X / Del drops, Esc closes) |
+| C | Character sheet: STR, INT, CON, DEX, CHA and what they do |
 | M | Map |
 | G | Picture quality: AUTO, 960, 640, 320 |
 
@@ -56,7 +57,8 @@ Touch buttons below the screen do the same on phones.
 one. ↑/↓ pick an action (Attack, Defend, Item, Flee), Space confirms, ←/→ pick
 the target when there are several, Esc goes back from the item list. Tapping
 the menu works too. Enemies move one cell for each of your actions and show up
-on the map as red dots once you can see them.
+on the map as red dots once you can see them. Most enemies guard a territory
+around their home and give up when you leave it.
 
 ## Project layout
 

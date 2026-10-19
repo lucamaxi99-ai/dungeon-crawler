@@ -7,6 +7,8 @@
 //   CON constitution  hit points and how fast they come back
 //   DEX dexterity     aim, dodging, initiative, running away
 //   CHA charisma      viewers and merchants (not used yet)
+//
+// TODO(M6): CHA feeds the viewer count; TODO(M7): CHA lowers merchant prices.
 
 export const ATTRS = ['str', 'int', 'con', 'dex', 'cha'];
 export const ATTR_NAMES = { str: 'Strength', int: 'Intelligence', con: 'Constitution', dex: 'Dexterity', cha: 'Charisma' };
