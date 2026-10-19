@@ -241,9 +241,6 @@ export const LINES = {
     'You wave at the empty air. Twelve viewers wave back.',
     'There is nothing here. That will not last.',
   ],
-  firstSteps: [
-    'Achievement unlocked: Took A Walk! Reward: none. Loot boxes are not yet in stock.',
-  ],
 };
 
 const counters = {};

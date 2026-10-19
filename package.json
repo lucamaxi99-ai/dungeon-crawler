@@ -6,7 +6,7 @@
   "description": "Retro first-person dungeon crawler with a raycaster and code-defined pixel art.",
   "scripts": {
     "build": "node tools/build.mjs",
-    "check": "node tools/check-map.mjs && node tools/test-sprites.mjs && node tools/test-engine.mjs && node tools/test-items.mjs && node tools/test-combat.mjs && node tools/test-bestiary.mjs",
+    "check": "node tools/check-map.mjs && node tools/test-sprites.mjs && node tools/test-engine.mjs && node tools/test-items.mjs && node tools/test-combat.mjs && node tools/test-bestiary.mjs && node tools/test-show.mjs",
     "serve": "npx --yes http-server -c-1 -p 8080 ."
   },
   "devDependencies": {

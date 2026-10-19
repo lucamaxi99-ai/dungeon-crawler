@@ -38,6 +38,9 @@ import { CombatScreen } from './game/combat-ui.js';
 import { drawGameOver, gameOverReady } from './game/gameover-ui.js';
 import { drawFloorCard, cardDone, cardSkippable, CARD_MS } from './game/floor-ui.js';
 import { rng } from './engine/texgen.js';
+import { Achievements } from './game/achievements.js';
+import { AchievementPopups } from './game/achievement-ui.js';
+import { boxName } from './game/lootboxes.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -64,6 +67,8 @@ let run, level, player, inventory, crawler, invScreen, state, light, decor, enem
 let dead = null; // { at, won, killer, depth, level, steps, kills, gold, comment } when the run is over
 let card = null; // title card between floors (floor-ui.js)
 let banner = null; // big LEVEL UP text; starts once nothing else is on screen
+let ach;          // the run's achievements and unopened loot boxes
+const popups = new AchievementPopups();
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
@@ -71,6 +76,8 @@ function newRun() {
   inventory = new Inventory();
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
+  ach = new Achievements();
+  popups.clear();
   dead = null;
   card = null;
   banner = null;
@@ -85,7 +92,7 @@ function enterFloor(depth) {
   const steps = player ? player.steps : 0;
   player = new Player(level.start);
   player.steps = depth === 1 ? 0 : steps;
-  state = { showMap: false, bumps: 0, saidFirstSteps: depth > 1, notice: null, noticeUntil: 0 };
+  state = { showMap: false, bumps: 0, notice: null, noticeUntil: 0 };
   light = new LightMap(level.w, level.h, isWall, TINTS.length);
   for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a.h - 1, a.ambient, a.tint);
   for (const l of level.lights) light.addLight(l);
@@ -150,8 +157,9 @@ const world = {
     state.bumps++;
     if (level.objectAt(x, y)) {
       if (state.bumps % 3 === 1) log.push(line('bumpObject'));
-    } else if (state.bumps % 4 === 1) {
-      log.push(line('bumpWall'));
+    } else {
+      if (state.bumps % 4 === 1) log.push(line('bumpWall'));
+      note('bump');
     }
   },
   onEnter(x, y) {
@@ -161,10 +169,7 @@ const world = {
       log.push(line('bones'), 'info');
     }
     if (level.bagAt(x, y)) log.push(line('bagHere'), 'info');
-    if (!state.saidFirstSteps && player.steps >= 12) {
-      state.saidFirstSteps = true;
-      log.push(line('firstSteps'));
-    }
+    note('step', { steps: player.steps });
   },
 };
 
@@ -179,23 +184,36 @@ function interact() {
   if (w === WALL.POSTER) return log.push(line('poster'), 'info');
   const o = level.objectAt(f.x, f.y);
   if (o && o.type === 'chest') return openChest(o);
-  if (o) return log.push(line(o.type));
+  if (o) {
+    if (o.type === 'barrel') note('barrel');
+    return log.push(line(o.type));
+  }
   const ownBag = level.bagAt(player.x, player.y);
   if (ownBag) return pickUp(ownBag);
-  if (!w) log.push(line('nothing'), 'info');
+  if (!w) {
+    log.push(line('nothing'), 'info');
+    note('wave');
+  }
 }
 
 // The first SPACE at the stairwell asks, the second one descends (so a
 // stray key never skips a floor). After the last floor the run is won.
 function useStairs(cell) {
-  if (!countdown.stairsOpen) return log.push(line('stairsLocked').replace('{n}', countdown.stairsIn), 'warn');
+  if (!countdown.stairsOpen) {
+    note('lockedStairs');
+    return log.push(line('stairsLocked').replace('{n}', countdown.stairsIn), 'warn');
+  }
   const key = `${cell.x},${cell.y},${player.x},${player.y}`;
   if (state.stairsAsked !== key) {
     state.stairsAsked = key;
     return log.push(line(run.depth >= FINAL_DEPTH ? 'finalStairs' : 'stairs'), 'warn');
   }
   gainXp(LEVELING.stairsXp(run.depth), 'stairs');
-  if (run.depth >= FINAL_DEPTH) return endRun({ won: true });
+  note('floorDone', { turnsShare: countdown.left / countdown.total, allDead: level.enemies.every((e) => !e.alive) });
+  if (run.depth >= FINAL_DEPTH) {
+    note('won');
+    return endRun({ won: true });
+  }
   log.push(line('descend'));
   descend();
 }
@@ -226,6 +244,7 @@ function gainXp(n, why) {
   const ups = crawler.gainXp(n);
   log.push(`+${n} XP${why === 'stairs' ? ' for surviving the floor' : ''}.`, 'info');
   if (!ups) return;
+  note('level', { level: crawler.level });
   log.push(line('levelUp').replace('{n}', crawler.level).replace('{p}', crawler.points));
   if (combat) {
     combat.ui.float('LEVEL UP!', C.YELLOW, 160, 30, performance.now());
@@ -246,14 +265,14 @@ function castOutside(id) {
   if (!def) return;
   const p = def.act(crawler.spells.level(id), crawler);
   if (p.target !== 'self') return log.push(`${def.name} needs a target. Save it for a fight.`, 'info');
-  if (p.heal && crawler.hp >= crawler.hpMax) return log.push(line('healFull'), 'info');
+  if (p.heal && crawler.hp >= crawler.hpMax) { note('wastedHeal'); return log.push(line('healFull'), 'info'); }
   if (crawler.mp < def.mp) return log.push(line('noMana'), 'info');
   crawler.mp -= def.mp;
   const n = crawler.heal(p.heal || 0);
   log.push(`You cast ${def.name}. -${def.mp} MP, +${n} HP.`, 'info');
   log.push(line('castOutside'));
   const up = crawler.spells.train(id);
-  if (up) log.push(line('skillUp').replace('{name}', def.name).replace('{n}', up));
+  if (up) skillUp(def.name, up);
   afterTurn();
 }
 
@@ -262,6 +281,35 @@ function raiseAttr(attr) {
   if (!crawler.raise(attr)) return;
   log.push(`${ATTR_NAMES[attr]} +1 (now ${crawler[attr]}).`, 'info');
   if (!crawler.points) log.push(line('pointsSpent'));
+}
+
+// A skill or spell went up a level.
+function skillUp(name, n) {
+  log.push(line('skillUp').replace('{name}', name).replace('{n}', n));
+  note('skillUp', { level: n });
+}
+
+// ------------------------------------------------------------ the show
+
+// Something worth noticing happened. The achievements hear about it; an
+// unlock shows a pop-up, the System's verdict in the log, and the reward:
+// a loot box for later (Safe Room) or an item right away.
+function note(kind, data) {
+  for (const a of ach.note(kind, data)) {
+    popups.push(a);
+    log.push(`Achievement unlocked: ${a.name}!`, 'warn');
+    log.push(a.text);
+    if (a.reward && a.reward.box) log.push(`Reward: ${boxName(a.reward.box)}. Loot boxes are opened in a Safe Room.`, 'info');
+    if (a.reward && a.reward.item) {
+      inventory.add(a.reward.item);
+      log.push(`Reward: ${ITEMS[a.reward.item].name}. It is in your inventory.`, 'info');
+    }
+  }
+}
+
+// The inventory changed in a way achievements care about.
+function noteBag() {
+  note('bag', { tails: inventory.count('ratTail') });
 }
 
 const itemLabel = ({ id, n }) => (n > 1 ? `${n}x ${ITEMS[id].name}` : ITEMS[id].name);
@@ -273,6 +321,7 @@ function pickUp(bag) {
   level.removeObject(bag);
   log.push(`Picked up: ${bag.items.map(itemLabel).join(', ')}.`, 'info');
   log.push(line('pickup'));
+  noteBag();
 }
 
 // Drops a stack into a bag on the floor: in front of the player if there is
@@ -290,6 +339,7 @@ function dropStack(stack) {
   if (same) same.n += stack.n; else bag.items.push({ ...stack });
   log.push(`Dropped: ${itemLabel(stack)}.`, 'info');
   log.push(line('drop'));
+  note('drop');
 }
 
 // SPACE / X inside the inventory screen.
@@ -309,7 +359,8 @@ function inventoryCommand(cmd) {
   if (def.kind === 'gear') {
     const r = inventory.equipFromBag(sel.index);
     log.push(`Equipped: ${def.name}${r.swapped ? ` (instead of ${ITEMS[r.swapped].name})` : ''}.`, 'info');
-    return log.push(line('equip'));
+    log.push(line('equip'));
+    return note('gear', { equip: inventory.equip });
   }
   if (def.kind === 'consumable') {
     return useConsumable(sel.index);
@@ -324,6 +375,7 @@ function useConsumable(index) {
   if (def.teach || def.skillPotion) return study(index, def);
   if (def.heal && crawler.hp >= crawler.hpMax) {
     log.push(line('healFull'), 'info');
+    note('wastedHeal');
     return false;
   }
   inventory.use(index);
@@ -346,6 +398,7 @@ function study(index, def) {
   inventory.use(index);
   log.push(`Used: ${def.name}.`, 'info');
   announceLearned(r);
+  note('learn');
   return true;
 }
 
@@ -356,7 +409,7 @@ function announceLearned(r, how = '') {
     log.push(line(how || (r.what === 'spell' ? 'learnSpell' : 'learnSkill')).replace('{name}', r.name));
     banner = { text: r.what === 'spell' ? 'NEW SPELL' : 'NEW SKILL', sub: `${r.name.toUpperCase()}  -  SEE C, SKILLS`, at: null };
   } else if (r.kind === 'boost') {
-    log.push(line('skillUp').replace('{name}', r.name).replace('{n}', r.level));
+    skillUp(r.name, r.level);
   }
 }
 
@@ -382,6 +435,8 @@ function openChest(o) {
   const best = Math.max(0, ...loot.items.map(({ id }) => RARITY_ORDER.indexOf(ITEMS[id].rarity)));
   const verdict = ['lootCommon', 'lootGood', 'lootGood', 'lootGreat', 'lootLegendary'][best];
   log.push(line(verdict));
+  note('chest');
+  noteBag();
   if (!state.saidInventoryHint) { state.saidInventoryHint = true; log.push(line('inventoryHint'), 'info'); }
 }
 
@@ -518,7 +573,7 @@ function crawlerTurn(choice) {
   let events;
   if (choice.kind === 'useItem') {
     const def = ITEMS[inventory.bag[choice.index].id];
-    if (def.heal && crawler.hp >= crawler.hpMax) return log.push(line('healFull'), 'info');
+    if (def.heal && crawler.hp >= crawler.hpMax) { note('wastedHeal'); return log.push(line('healFull'), 'info'); }
     inventory.use(choice.index);
     events = fight.crawlerAct({ kind: 'item', name: def.name, healed: crawler.heal(def.heal) });
   } else {
@@ -554,11 +609,13 @@ function report(events) {
     const foe = mine ? ev.target : ev.actor;
     switch (ev.kind) {
       case 'hit':
+        if (!mine) combat.hurt = true;
         log.push(mine ? `You hit the ${foe.name} for ${ev.amount}.` : `The ${foe.name} bites you for ${ev.amount}.`, mine ? 'info' : 'warn');
         break;
       case 'crit':
         log.push(`You hit the ${foe.name} for ${ev.amount}.`, 'info');
         log.push(line('crit'));
+        note('crit');
         break;
       case 'miss':
         log.push(mine ? `You miss the ${foe.name}.` : `The ${foe.name} misses.`, 'info');
@@ -575,10 +632,12 @@ function report(events) {
       case 'kill':
         log.push(`The ${foe.name} dies.`, 'info');
         log.push(line('kill'));
+        note('kill', { type: foe.type, unarmed: crawler.weapon === 'unarmed' });
         gainXp(foe.stats.xp || 0);
         break;
       case 'flee':
         log.push(line('fled'));
+        note('flee');
         break;
       case 'fleeFail':
         log.push(line('fleeFail').replace('{name}', combat.fight.alive[0].name), 'warn');
@@ -588,6 +647,7 @@ function report(events) {
         break;
       case 'skill':
         log.push(`You use ${ev.name}.`, 'info');
+        note('skill', { id: ev.id });
         break;
       case 'cast':
         log.push(`You cast ${ev.name}. -${ev.amount} MP.`, 'info');
@@ -603,7 +663,7 @@ function report(events) {
         log.push(`The ${ev.actor.name} is still seeing stars.`, 'info');
         break;
       case 'skillUp':
-        log.push(line('skillUp').replace('{name}', ev.name).replace('{n}', ev.level));
+        skillUp(ev.name, ev.level);
         break;
       default:
     }
@@ -611,7 +671,7 @@ function report(events) {
 }
 
 function endCombat() {
-  const { fight } = combat;
+  const { fight, hurt } = combat;
   combat = null;
   if (state.levelUpAfterFight && fight.result !== 'lost') showLevelBanner();
   state.levelUpAfterFight = false;
@@ -629,6 +689,8 @@ function endCombat() {
     if (gold) loot.push(`${gold} gold`);
     log.push(`Loot: ${loot.length ? loot.join(', ') : 'nothing'}.`, 'info');
     log.push(line('combatWon'));
+    note('fightWon', { hp: crawler.hp, foes: fight.enemies.length, hurt: !!hurt });
+    noteBag();
   } else if (fight.result === 'lost') {
     const killer = fight.enemies.find((e) => e.alive) || fight.enemies[0];
     endRun({ killer: killer.name });
@@ -789,7 +851,8 @@ function loop(now) {
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
   if (combat) combat.ui.draw(overlayFb, now);
-  if (banner && !combat && !dead && !card && !charScreen.open && !invScreen.open) {
+  popups.draw(overlayFb, now, !!(combat || dead || card || charScreen.open || invScreen.open || (banner && banner.at !== null)));
+  if (banner && !popups.busy && !combat && !dead && !card && !charScreen.open && !invScreen.open) {
     if (banner.at === null) banner.at = now;
     if (!drawBanner(overlayFb, banner, now)) banner = null;
   }
@@ -827,6 +890,8 @@ window.game = {
   get combat() { return combat; },
   get dead() { return dead; },
   get card() { return card; },
+  get ach() { return ach; },
+  popups, note,
   descend,
   log, onAction, stats, engage, restart, gainXp,
   get resolution() { return { mode: res.mode, ...res.step }; },
