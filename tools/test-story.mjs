@@ -7,7 +7,10 @@ import { mentorGreeting, killerPhrase } from '../src/game/mentor.js';
 import { LINES } from '../src/game/system-ai.js';
 import { TALLY, drawTally, REPLY_BOX } from '../src/game/safe-ui.js';
 import { CAST, Conversation, topicsFor, reachable, sayText } from '../src/game/dialogue.js';
-import { textWidth } from '../src/engine/font.js';
+import { textWidth, wrapText } from '../src/engine/font.js';
+import { JOBS, JOB, checkUnlocks, jobOpen, startAttrs, cleanName, NAMES, NAME_MAX } from '../src/game/jobs.js';
+import { CreationScreen } from '../src/game/creation-ui.js';
+import { START, ATTRS } from '../src/game/crawler.js';
 
 // A localStorage stand-in.
 function memoryStorage() {
@@ -182,6 +185,56 @@ for (const [who, cast] of Object.entries(CAST)) {
   assert.match(new Conversation('ozzle', { start: 'tally1' }, ctx(1, 7)).text, /^7\./, 'the tally names the count');
   const advice = CAST.ozzle.nodes.advice;
   assert.notEqual(sayText(advice, {}, 'x'), sayText(advice, {}, 'x'), 'advice rotates');
+}
+
+// ---------------------------------------------------------- jobs and intake
+
+{
+  for (const j of JOBS) {
+    assert.ok(ATTRS.includes(j.attr), `${j.id}: unknown attribute`);
+    assert.ok(j.name && j.blurb && j.intro, `${j.id}: needs name, blurb and intro`);
+    assert.ok(wrapText(j.blurb, 146).length <= 6, `${j.id}: blurb too long for the details pane`);
+    assert.ok(textWidth(j.name.toUpperCase()) <= 80, `${j.id}: name too wide for the list`);
+    if (j.unlock) assert.ok(wrapText(`Unlock: ${j.unlock.hint}.`, 146).length <= 3, `${j.id}: unlock hint too long`);
+  }
+  assert.equal(JOBS.filter((j) => !j.unlock).length, 3, 'three jobs to start with');
+  assert.equal(new Set(JOBS.map((j) => j.attr)).size, ATTRS.length, 'every attribute has a job');
+  assert.deepEqual(startAttrs(START, JOB.barista), { ...START, cha: 7 });
+
+  const p = new Profile(null);
+  assert.ok(!jobOpen(JOB.accountant, p));
+  assert.deepEqual(checkUnlocks(p), []);
+  p.startRun(); p.reached(2); p.endRun({ depth: 2, killer: 'Giant Rat' });
+  assert.deepEqual(checkUnlocks(p).map((j) => j.id), ['accountant'], 'floor 2 unlocks the accountant');
+  assert.deepEqual(checkUnlocks(p), [], 'once');
+  for (let i = 0; i < 2; i++) { p.startRun(); p.endRun({ depth: 1, killer: 'Giant Rat' }); }
+  assert.deepEqual(checkUnlocks(p).map((j) => j.id), ['gymTeacher'], 'three deaths unlock the gym teacher');
+
+  assert.equal(cleanName('  donna!? the 3rd~'), 'DONNA THE 3R', 'upper case, font-safe, at most 12 characters');
+  assert.equal(cleanName('ab   cd'), 'AB CD');
+  assert.ok(cleanName('x'.repeat(40)).length <= NAME_MAX);
+  for (const n of NAMES) assert.equal(cleanName(n), n, `suggested name ${n} is clean`);
+
+  // The form: rows NAME, jobs, START; locked jobs can't be chosen.
+  const f = new CreationScreen();
+  const q = new Profile(null);
+  f.show({ name: 'GRETA', isOpen: (j) => jobOpen(j, q) });
+  assert.equal(f.act(), 'edit', 'SPACE on the name edits it');
+  f.move('down'); f.move('down');
+  assert.equal(f.job, 'barista', 'moving the cursor does not choose');
+  f.act();
+  assert.equal(f.job, 'mallCop', 'SPACE chooses');
+  f.move('down'); f.move('down');
+  assert.equal(f.rowJob(f.cursor).id, 'accountant');
+  f.act();
+  assert.equal(f.job, 'mallCop', 'a locked job can not be chosen');
+  f.move('up'); f.move('up'); f.move('up'); f.move('up');
+  f.move('right');
+  assert.notEqual(f.name, 'GRETA', 'LEFT/RIGHT on the name suggests another');
+  f.move('up');
+  assert.equal(f.act(), 'start', 'SPACE on START starts');
+  f.name = ' ';
+  assert.equal(f.act(), 'edit', 'no start without a name');
 }
 
 console.log('story: profile, reruns, Ozzle greetings and tally OK');

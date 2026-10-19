@@ -46,6 +46,8 @@ import { SafeRoomScreen } from './game/safe-ui.js';
 import { mentorGreeting, mentorLine, killerPhrase } from './game/mentor.js';
 import { Profile, browserStorage } from './game/profile.js';
 import { CAST, Conversation, topicsFor } from './game/dialogue.js';
+import { JOB, jobOpen, checkUnlocks, cleanName, NAME_MAX } from './game/jobs.js';
+import { CreationScreen } from './game/creation-ui.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
 import { sponsorFor, SPONSOR_TIERS, SPONSOR_CHEST_AT } from './game/sponsors.js';
 
@@ -80,6 +82,10 @@ let ach;          // the run's achievements and unopened loot boxes
 let viewers;      // the audience (hype model, viewers.js)
 const popups = new AchievementPopups();
 const safe = new SafeRoomScreen();
+const intake = new CreationScreen();
+let freshJobs = new Set(); // jobs unlocked at the end of the last run
+let nameField = null;      // hidden text field for the crawler's name (intake form)
+let hinted = false;        // the controls hint, once per page
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
@@ -98,6 +104,31 @@ function newRun() {
   card = null;
   banner = null;
   enterFloor(1);
+  // The intake form comes first; ?intake=skip goes straight in (tests).
+  intake.show({ name: profile.d.name, rerun: run.rerun, isOpen: (j) => jobOpen(j, profile), fresh: freshJobs, job: profile.d.job });
+  if (params.get('intake') === 'skip') beginRun();
+}
+
+// The intake form is done: the new body gets its name and job.
+function beginRun() {
+  stopNaming();
+  const job = JOB[intake.job];
+  const name = cleanName(intake.name).trim() || 'CRAWLER';
+  intake.close();
+  crawler.name = name;
+  crawler.job = job.id;
+  crawler.attrs[job.attr] += 2;
+  crawler.hp = crawler.hpMax;
+  crawler.mp = crawler.mpMax;
+  viewers.cha = crawler.cha;
+  profile.d.name = name;
+  profile.d.job = job.id;
+  profile.save();
+  freshJobs = new Set();
+  introduce();
+  log.push(`Crawler ${name} has entered the dungeon. ${job.intro}`, 'info');
+  if (!hinted) log.push(LINES.welcome[1], 'info');
+  hinted = true;
 }
 
 // Builds floor `depth` of the current run and puts the crawler at its start.
@@ -255,7 +286,10 @@ function endRun({ won = false, killer = '', comment = line(won ? 'victory' : 'de
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
   const { record } = profile.endRun({ won, depth: run.depth, killer, level: crawler.level, kills: crawler.kills });
+  const unlocked = checkUnlocks(profile);
+  freshJobs = new Set(unlocked.map((j) => j.id));
   dead = {
+    unlocked: unlocked.map((j) => j.name),
     at: performance.now(), won, killer, depth: run.depth, level: crawler.level, steps: player.steps, kills: crawler.kills,
     gold: inventory.gold, comment, viewers: formatViewers(viewers.peak), achievements: ach.unlocked.length,
     record, nextRerun: profile.runs,
@@ -696,6 +730,7 @@ function onAction(action) {
     if ((action === 'interact' || action === 'close') && gameOverReady(dead, performance.now())) restart();
     return;
   }
+  if (intake.open) return onIntakeAction(action);
   if (card) {
     if ((action === 'interact' || action === 'close') && cardSkippable(card, performance.now())) card.at = Math.min(card.at, performance.now() - CARD_MS);
     return;
@@ -958,6 +993,15 @@ function hudPoint(e) {
   };
 }
 canvas.addEventListener('pointerdown', (e) => {
+  if (intake.open) {
+    const p = hudPoint(e);
+    if (p.y >= OVERLAY_H) return;
+    if (intake.editing) { stopNaming(); return; }
+    const what = intake.hit(p.x, p.y);
+    if (what === 'edit') startNaming();
+    if (what === 'start') beginRun();
+    return;
+  }
   if (dead || card) { e.preventDefault(); return onAction('interact'); }
   if (charScreen.open) {
     e.preventDefault();
@@ -1004,6 +1048,10 @@ canvas.addEventListener('pointerdown', (e) => {
   if (target.kind === 'outside') return;
   if (invScreen.select(target)) inventoryCommand('interact');
 });
+// Phones only raise the keyboard for a focus inside a click.
+canvas.addEventListener('click', () => {
+  if (intake.open && intake.editing && nameField && document.activeElement !== nameField) nameField.focus();
+});
 canvas.addEventListener('wheel', (e) => {
   if (!invScreen.open) return;
   e.preventDefault();
@@ -1017,12 +1065,55 @@ function introduce() {
   const last = run.last;
   if (last) log.push(last.won ? line('previouslyWon') : line('previously').replace('{k}', killerPhrase(last.killer)).replace('{d}', last.depth), 'info');
 }
-introduce();
-log.push(LINES.welcome[1], 'info');  // controls hint
-
 function restart() {
   newRun();
-  introduce();
+}
+
+// ------------------------------------------------------------ intake form
+
+// The crawler's name is typed into a hidden text field, so phones show
+// their keyboard; the intake form only draws what is in it.
+function makeNameField() {
+  const f = Object.assign(document.createElement('input'), {
+    type: 'text', maxLength: NAME_MAX, autocomplete: 'off', spellcheck: false, autocapitalize: 'characters',
+  });
+  f.setAttribute('aria-label', 'Crawler name');
+  Object.assign(f.style, { position: 'fixed', left: '0', top: '0', width: '1px', height: '1px', opacity: '0', fontSize: '16px', border: '0', padding: '0' });
+  document.body.appendChild(f);
+  f.addEventListener('input', () => {
+    intake.name = cleanName(f.value);
+    f.value = intake.name;
+  });
+  f.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); stopNaming(); }
+  });
+  f.addEventListener('blur', () => { intake.editing = false; });
+  return f;
+}
+
+function startNaming() {
+  if (!nameField) nameField = makeNameField();
+  intake.editing = true;
+  intake.cursor = 0;
+  nameField.value = intake.name;
+  nameField.focus();
+  nameField.setSelectionRange(0, nameField.value.length);
+}
+
+function stopNaming() {
+  intake.editing = false;
+  if (nameField && document.activeElement === nameField) nameField.blur();
+  if (!intake.name.trim()) intake.name = intake.randomName();
+}
+
+function onIntakeAction(action) {
+  if (intake.editing) { if (action === 'interact' || action === 'close') stopNaming(); return; }
+  const dir = { forward: 'up', back: 'down', turnLeft: 'left', turnRight: 'right', left: 'left', right: 'right' }[action];
+  if (dir) return intake.move(dir);
+  if (action !== 'interact') return;
+  const what = intake.act();
+  if (what === 'edit') startNaming();
+  if (what === 'start') beginRun();
 }
 
 // ------------------------------------------------------------ loop
@@ -1120,15 +1211,16 @@ function loop(now) {
     newTopics: safe.open && topicsFor('ozzle', talkContext()).some((t) => t.fresh),
   });
   invScreen.draw(overlayFb, now);
-  charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold }, now);
+  charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold, name: crawler.name, job: crawler.job && JOB[crawler.job].name }, now);
   if (combat) combat.ui.draw(overlayFb, now);
-  popups.draw(overlayFb, now, !!(combat || dead || card || safe.open || charScreen.open || invScreen.open || (banner && banner.at !== null)));
+  popups.draw(overlayFb, now, !!(intake.open || combat || dead || card || safe.open || charScreen.open || invScreen.open || (banner && banner.at !== null)));
   if (banner && !popups.busy && !combat && !dead && !card && !safe.open && !charScreen.open && !invScreen.open) {
     if (banner.at === null) banner.at = now;
     if (!drawBanner(overlayFb, banner, now)) banner = null;
   }
   if (card) { drawFloorCard(overlayFb, card, now); if (cardDone(card, now)) card = null; }
   if (dead) drawGameOver(overlayFb, dead, now);
+  intake.draw(overlayFb, now);
   updateStatus(now);
   const menu = combat ? (fb, box) => combat.ui.drawMenu(fb, box, now) : null;
   drawPanel(panelFb, { log, level, player, status, marks, menu });
@@ -1163,7 +1255,7 @@ window.game = {
   get card() { return card; },
   get ach() { return ach; },
   get viewers() { return viewers; },
-  profile,
+  profile, intake, beginRun,
   safe, enterSafeRoom, safeCommand, openSelectedBox,
   popups, note,
   descend,

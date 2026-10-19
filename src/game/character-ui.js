@@ -83,7 +83,7 @@ export class CharacterScreen {
     return { kind: 'outside' };
   }
 
-  // crawler: Crawler. record: { steps, gold }.
+  // crawler: Crawler. record: { steps, gold, name, job }.
   draw(fb, crawler, record, now = 0) {
     if (!this.open) return;
     fb.bevel(WIN.x, WIN.y, WIN.w, WIN.h, C.NIGHT, C.STONE_M, C.BLACK);
@@ -101,6 +101,12 @@ export class CharacterScreen {
     const right = WIN.x + WIN.w - 6;
     drawText(fb, xp, right - textWidth(xp), 6, C.BONE);
     drawText(fb, lvl, right - textWidth(xp) - 8 - textWidth(lvl), 6, C.YELLOW);
+    // Who this is: the name and former job from the intake form.
+    if (record.name) {
+      const who = record.job ? `${record.name}, ${record.job.toUpperCase()}` : record.name;
+      const x0 = 80, x1 = right - textWidth(xp) - 16 - textWidth(lvl);
+      if (textWidth(who) <= x1 - x0) drawText(fb, who, x0 + ((x1 - x0 - textWidth(who)) >> 1), 6, C.BONE);
+    }
     fb.rect(LEFT, 13, WIN.w - 12, 1, C.STONE_D);
     fb.rect(LEFT, 13, Math.round((WIN.w - 12) * crawler.xpShare), 1, C.GOLD);
     if (this.tab === 'skills') this.drawSkills(fb, crawler);

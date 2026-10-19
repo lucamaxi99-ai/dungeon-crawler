@@ -18,6 +18,8 @@ const KEYS = {
 
 export function bindInput(onAction, root = document) {
   window.addEventListener('keydown', (e) => {
+    // Typing into a text field (the crawler's name) is not playing.
+    if (e.target && e.target.tagName === 'INPUT') return;
     const action = KEYS[e.code];
     if (!action) return;
     e.preventDefault();

@@ -14,7 +14,7 @@ export function gameOverReady(dead, now) {
   return now - dead.at >= READY_MS;
 }
 
-// dead: { at, won, killer, depth, level, steps, kills, gold, comment, viewers, achievements, record, nextRerun }
+// dead: { at, won, killer, depth, level, steps, kills, gold, comment, viewers, achievements, record, nextRerun, unlocked }
 export function drawGameOver(fb, dead, now) {
   const t = now - dead.at;
   const fade = Math.min(1, t / FADE_MS);
@@ -54,6 +54,11 @@ export function drawGameOver(fb, dead, now) {
     y += 10;
     const rec = `NEW PERSONAL RECORD: FLOOR ${dead.depth}`;
     drawText(fb, rec, (W - textWidth(rec)) >> 1, y, C.GOLD);
+  }
+  for (const job of dead.unlocked || []) {
+    y += 8;
+    const t = `NEW JOB UNLOCKED: ${job.toUpperCase()}`;
+    drawText(fb, t, (W - textWidth(t)) >> 1, y, C.LIME);
   }
   if (dead.nextRerun) {
     y += dead.record ? 8 : 10;
