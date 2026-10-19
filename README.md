@@ -1,7 +1,7 @@
 # Dungeon Crawler (working title)
 
 A retro first-person dungeon crawler for the browser, in the spirit of early-90s
-RPGs like *The Elder Scrolls: Arena*. Grid movement, turn-based combat (coming),
+RPGs like *The Elder Scrolls: Arena*. Grid movement, turn-based combat
 and lots of loot. A fan project set in the world of *Dungeon Crawler Carl*,
 with its own crawler and story.
 
@@ -45,11 +45,18 @@ portrait), rated by how well Claude can produce them alone.
 | W / ↑, S / ↓ | Step forward / back |
 | A, D | Sidestep |
 | Q / ←, E / → | Turn 90° |
-| Space / Enter | Interact with what's in front of you |
+| Space / Enter | Interact with what's in front of you (attacks an enemy) |
+| I / Tab | Inventory (X / Del drops, Esc closes) |
 | M | Map |
 | G | Picture quality: AUTO, 960, 640, 320 |
 
 Touch buttons below the screen do the same on phones.
+
+**Combat** opens its own screen when an enemy steps next to you or you attack
+one. ↑/↓ pick an action (Attack, Defend, Item, Flee), Space confirms, ←/→ pick
+the target when there are several, Esc goes back from the item list. Tapping
+the menu works too. Enemies move one cell for each of your actions and show up
+on the map as red dots once you can see them.
 
 ## Project layout
 
@@ -72,10 +79,19 @@ src/game/                 this game's content and rules
   assets.js               sprite registry (SPRITES), texture exports
   textures.js             64x64 wall, floor and ceiling textures
   objects.js              painted objects: chest, barrel, braziers, bones, torch
+  creatures.js            painted creatures in poses (giant rat)
   materials.js            paint materials and the procedural flame
   lights.js               light colors, light presets, the lantern
   map.js                  level data (areas, torches) and Level class
   player.js               grid movement and animation
+  crawler.js              the crawler's stats: HP, ATK, DEF, SPD, regeneration
+  enemies.js              enemy types, turn-based movement (notice, chase, roam)
+  combat.js               combat rules: initiative, attack, defend, item, flee
+  combat-ui.js            combat screen (lit stage) and action menu
+  gameover-ui.js          game over screen
+  items.js, loot.js       item catalogue, loot tables
+  inventory.js            bag, equipment slots, gold
+  inventory-ui.js, icons.js  inventory screen and 12x12 item icons
   hud.js                  3x pixel HUD: status, log, minimap, overlays
   input.js                keyboard and touch
   system-ai.js            the System AI's lines
@@ -87,6 +103,8 @@ tools/build.mjs           bundle game, editor and showroom into single HTML file
 tools/check-map.mjs       map validation (reachability)
 tools/test-sprites.mjs    sprite engine and editor round-trip tests
 tools/test-engine.mjs     engine tests (automatic resolution)
+tools/test-items.mjs      items, loot tables, inventory
+tools/test-combat.mjs     crawler stats, combat rules and balance, enemy movement
 ```
 
 The design document (GDD) lives in the Claude project and is the source of truth
