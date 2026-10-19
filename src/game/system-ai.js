@@ -52,6 +52,11 @@ export const LINES = {
     'Consumed. Your body has been informed.',
     'Down the hatch. The audience winces on your behalf.',
   ],
+  enemyNotice: [
+    'A {name} has noticed you. It looks hungry. You look like food.',
+    'Heads up, Crawler: a {name} is coming your way. The viewers are thrilled.',
+    'A {name} spots you. Somewhere, a betting pool opens.',
+  ],
   healed: [
     'Healed. The audience is relieved. Mostly the ones who bet on you.',
     'Your wounds close. The scars stay, for the highlight reel.',

@@ -9,6 +9,7 @@ import { defineSprite, animation, recolor, rampMap } from '../engine/sprite.js';
 import { Painter } from '../engine/paint.js';
 import { M, mats, frames, FIRE_COLORS, COLD_COLORS } from '../game/materials.js';
 import { paintBrazier, paintWallTorch } from '../game/objects.js';
+import { paintRat } from '../game/creatures.js';
 
 const UNIT = 64;
 const hd = (s) => ({ ...s, unit: UNIT });
@@ -209,38 +210,7 @@ function slime() {
 }
 
 // ------------------------------------------------------------ rat
-
-function rat() {
-  const { list, id } = mats('fur', 'pink');
-  return frames(2, (f) => {
-    const p = new Painter(48, 28, { seed: 5, scale: S });
-    const sway = f ? 2 : -1;
-    // Tail: chain of tapering capsules curving away behind.
-    let px = 35, py = 18;
-    for (let k = 0; k < 6; k++) {
-      const nx = px + 2.2, ny = py + 0.6 + Math.sin(k * 0.9 + sway * 0.4) * 1.4;
-      p.capsule(px, py, 1.4 - k * 0.18, nx, ny, 1.2 - k * 0.18, id.pink, { z0: 2, z1: 1 });
-      px = nx; py = ny;
-    }
-    p.capsule(13, 21, 1.6, 12, 26, 1.2, id.pink, { z0: 3 });      // front legs
-    p.capsule(30, 21, 2.2, 31, 26, 1.3, id.pink, { z0: 3 });      // back leg
-    p.ellipse(24, 17, 13, 8, id.fur, { z: 4, depth: 0.8 });       // body
-    p.ellipse(31, 18, 7.5, 7, id.fur, { z: 5, depth: 0.8 });      // haunch
-    p.ellipse(10, 16, 7, 5.5, id.fur, { z: 7, depth: 0.9 });      // head
-    p.capsule(7, 17, 4, 2 - (f ? 0.5 : 0), 19, 1.6, id.fur, { z0: 9, z1: 8 }); // snout
-    p.ellipse(1.6 - (f ? 0.5 : 0), 19, 1.4, 1.2, id.pink, { z: 11 }); // nose
-    p.ellipse(12, 10, 3, 3.3, id.pink, { z: 6 });                  // ear
-    p.ellipse(15, 11, 2.6, 3, id.pink, { z: 5 });                  // far ear
-    p.capsule(14, 22, 1.8, 15, 26, 1.2, id.pink, { z0: 9 });       // near front leg
-    p.dot(12, 10, C.WINE).dot(12, 11, C.WINE);
-    // Glowing eye and teeth.
-    p.dot(7, 15, C.RED).dot(8, 15, C.FIRE);
-    p.dot(4, 21, C.BONE);
-    // Whiskers
-    for (const [dx, dy] of [[-5, -2], [-5, 1], [-4, 3]]) p.line(4, 18, 4 + dx, 18 + dy, id.pink, { z: 12 });
-    return p.shade(list, { name: `rat_${f}`, glowColors: [C.RED, C.FIRE] });
-  });
-}
+// The giant rat now lives in the game (src/game/creatures.js).
 
 // ------------------------------------------------------------ spider
 
@@ -498,7 +468,7 @@ export function buildSprites(scale = 1) {
     sword: animation(small ? swordSmall : sword),
     coins: animation(coinPile()),
     slime: animation(slime(), { frameMs: 160 }),
-    rat: animation(rat(), { frameMs: 260 }),
+    rat: animation([paintRat('idle0', S), paintRat('idle1', S)], { frameMs: 260 }),
     spider: animation(spider(), { frameMs: 300 }),
     skeleton: animation(skeleton(), { frameMs: 700 }),
     goblin: goblinAnim,

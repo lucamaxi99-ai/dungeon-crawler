@@ -4,6 +4,7 @@
 //   r rough rock   # stone blocks   m mossy blocks   S stairwell   P Borant poster
 //   . floor        @ player start
 //   C chest        b barrel         f brazier        F cold brazier   x bones
+//   R giant rat (enemy)
 //
 // Materials and light are set per rectangle ("areas", later ones win):
 //   floor/ceil: FLAT names, ambient: base brightness, tint: light color name.
@@ -13,9 +14,11 @@
 import { WALL, FLAT } from './textures.js';
 import { TINT_BY_NAME } from './lights.js';
 import { SPRITES } from './assets.js';
+import { Enemy } from './enemies.js';
 
 const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER };
 const OBJECT_CHARS = { C: 'chest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
+const ENEMY_CHARS = { R: 'rat' };
 const SIDES = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
 
 export const TEST_FLOOR = {
@@ -25,7 +28,7 @@ export const TEST_FLOOR = {
     'rrrrrrrrrrrrrrrrrrrrrrrr',
     'r....rrrrr####P#####rrrr',
     'r.@..rrrrr#f.......f#rrr',
-    'r....rrrrr#.........#rrr',
+    'r....rrrrr#.....R...#rrr',
     'r....rrrrr#....C....#rrr',
     'rr.rrrrrrr#.........#rrr',
     'rr.rrrrrrr#f.......f#rrr',
@@ -33,9 +36,9 @@ export const TEST_FLOOR = {
     'rrrrrrrrr.rrrr.rrrrrrrrr',
     'rrrrrrrrr.rrrr.rrrrrrrrr',
     'rmmmmmmmm.mmmm.......rrr',
-    'rm.b....m.....mmmmmm.rrr',
-    'rm......mmmmm.m....m.rrr',
-    'rm..x.........m..C.m.rrr',
+    'rm.b....m.R...mmmmmm.rrr',
+    'rm...R..mmmmm.m....m.rrr',
+    'rm..x.........m.RC.m.rrr',
     'rm......P...m.mm.mmm.rrr',
     'rm.b...bm.f.m........rrr',
     'rmmmmmmmmmmmm.mmmmmmmrrr',
@@ -87,6 +90,7 @@ export class Level {
     this.ceil = new Uint8Array(n);
     this.seen = new Uint8Array(n);
     this.objects = [];   // interactive things standing on a cell
+    this.enemies = [];   // Enemy instances (enemies.js)
     this.decor = [];     // wall decorations: { type, x, y, lift } in world units
     this.lights = [];    // static light sources for the light map
     this.ambient = [];   // { x, y, w, h, ambient, tint } rectangles, later wins
@@ -101,6 +105,7 @@ export class Level {
           if (o.type === 'chest') o.loot = def.loot?.[`${x},${y}`] ?? 'chest';
           this.objects.push(o);
         }
+        else if (ch in ENEMY_CHARS) this.enemies.push(new Enemy(ENEMY_CHARS[ch], x, y));
         else if (ch === '@') this.start = { x, y, dir: def.startDir ?? 0 };
         else if (ch !== '.') throw new Error(`Unknown map char '${ch}' at ${x},${y}`);
       });

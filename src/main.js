@@ -7,11 +7,12 @@
 //   panel     320 x 60 HUD pixels, scaled 3x under the view.
 
 import { FrameBuffer } from './engine/framebuffer.js';
+import { C } from './engine/palette.js';
 import { LitRaycaster } from './engine/raycaster-lit.js';
 import { buildLitTables, LightMap } from './engine/lighting.js';
 import { AutoResolution } from './engine/resolution.js';
 import { frameAt } from './engine/sprite.js';
-import { buildTextures, SPRITES, WALL } from './game/assets.js';
+import { buildTextures, SPRITES, CREATURES, WALL } from './game/assets.js';
 import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
 import { Player } from './game/player.js';
@@ -26,6 +27,8 @@ import { ITEMS, RARITY_ORDER } from './game/items.js';
 import { rollLoot } from './game/loot.js';
 import { InventoryScreen } from './game/inventory-ui.js';
 import { Crawler } from './game/crawler.js';
+import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
+import { rng } from './engine/texgen.js';
 
 const canvas = document.getElementById('screen');
 canvas.width = SCREEN_W;
@@ -50,6 +53,8 @@ for (const a of level.ambient) light.setAmbient(a.x, a.y, a.x + a.w - 1, a.y + a
 for (const l of level.lights) light.addLight(l);
 
 const decor = level.decor.map((d, i) => ({ ...d, phase: i * 3 + 1 }));
+const enemyRnd = rng(level.seed * 31 + 7);
+const enemyAt = (x, y) => level.enemies.find((e) => e.alive && e.x === x && e.y === y) || null;
 
 // ------------------------------------------------------------ renderer
 
@@ -76,11 +81,13 @@ if (fixed >= 0) setResolution(res.setMode(fixed));
 
 const world = {
   canEnter(x, y) {
-    if (level.wall(x, y)) return false;
+    if (level.wall(x, y) || enemyAt(x, y)) return false;
     const o = level.objectAt(x, y);
     return !(o && SPRITES[o.type].solid);
   },
   onBlocked(x, y) {
+    const foe = enemyAt(x, y);
+    if (foe) return engage(foe, 'crawler');
     // Only comment on every few bumps so the log doesn't drown in sarcasm.
     state.bumps++;
     if (level.objectAt(x, y)) {
@@ -105,6 +112,8 @@ const world = {
 
 function interact() {
   const f = player.front();
+  const foe = enemyAt(f.x, f.y);
+  if (foe) return engage(foe, 'crawler');
   const frontBag = level.bagAt(f.x, f.y);
   if (frontBag) return pickUp(frontBag);
   const w = level.wall(f.x, f.y);
@@ -246,9 +255,24 @@ function onAction(action) {
   if (player.act(action, world)) afterTurn();
 }
 
-// Everything that happens once per crawler action outside combat.
+// Everything that happens once per crawler action outside combat: slow
+// healing, then every enemy takes its turn.
 function afterTurn() {
   if (crawler.tick() && crawler.hp === crawler.hpMax) log.push(line('regenFull'), 'info');
+  const blocked = (x, y) => { const o = level.objectAt(x, y); return !!(o && SPRITES[o.type].solid); };
+  const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
+  for (const ev of events) {
+    if (ev.kind === 'notice') log.push(line('enemyNotice').replace('{name}', ev.enemy.name), 'warn');
+  }
+  const foe = events.find((ev) => ev.kind === 'engage');
+  if (foe) engage(foe.enemy, 'enemy');
+}
+
+// Combat starts. initiator: 'crawler' (attacked) or 'enemy' (came close).
+// TODO(M4): placeholder until the combat screen exists (next step).
+function engage(foe, initiator) {
+  player.queued = null;
+  log.push(initiator === 'crawler' ? `You poke the ${foe.name}. It squeaks, offended.` : `A ${foe.name} squeaks at you menacingly.`, 'warn');
 }
 
 bindInput(onAction);
@@ -295,7 +319,7 @@ function updateStatus() {
   status.def = crawler.def;
 }
 
-function spriteList(time) {
+function spriteList(time, dt) {
   const list = level.objects.map((o) => {
     const spr = SPRITES[o.type];
     const opened = spr.open && o.flags.openedAt != null;
@@ -305,7 +329,30 @@ function spriteList(time) {
     };
   });
   for (const d of decor) list.push({ x: d.x, y: d.y, lift: d.lift, img: frameAt(SPRITES[d.type].anim, time, d.phase) });
+  // Enemies face the way they walk, or the crawler when next to it. Sprites
+  // look left; the right-facing set is used when that direction points to
+  // the right side of the screen.
+  const a = player.camera().angle;
+  const rx = -Math.sin(a), ry = Math.cos(a);
+  level.enemies.forEach((e, i) => {
+    if (!e.alive) return;
+    const near = adjacent(e, player);
+    const dx = near ? player.x - e.x : e.dx, dy = near ? player.y - e.y : e.dy;
+    const side = dx * rx + dy * ry;
+    if (Math.abs(side) > 0.2) e.face = side > 0 ? 1 : -1;
+    const set = CREATURES[e.def.sprite][e.face > 0 ? 'R' : 'L'];
+    const p = e.pos(dt);
+    list.push({ x: p.x, y: p.y, img: frameAt(set.idle, time, i * 2) });
+  });
   return list;
+}
+
+// Enemies the crawler can see show up on the map as red dots.
+function enemyMarks() {
+  return level.enemies
+    .filter((e) => e.alive && Math.abs(e.x - player.x) + Math.abs(e.y - player.y) <= 8
+      && lineOfSight(isWall, player.x, player.y, e.x, e.y))
+    .map((e) => ({ x: e.x, y: e.y, color: C.RED }));
 }
 
 const stats = { fps: 0, renderMs: 0 };
@@ -327,7 +374,7 @@ function loop(now) {
     map: level,
     walls: textures.walls,
     flats: textures.flats,
-    sprites: spriteList(now),
+    sprites: spriteList(now, dt),
     light,
     seen: level.seen,
   }, cam, now);
@@ -337,10 +384,11 @@ function loop(now) {
   if (next >= 0) { setResolution(next); showNotice(); }
   if (state.notice && now > state.noticeUntil) state.notice = null;
 
-  drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice });
+  const marks = enemyMarks();
+  drawOverlay(overlayFb, { level, player, showMap: state.showMap && !invScreen.open, notice: state.notice, marks });
   invScreen.draw(overlayFb, now);
   updateStatus();
-  drawPanel(panelFb, { log, level, player, status });
+  drawPanel(panelFb, { log, level, player, status, marks });
   viewFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
   overlayFb.presentScaled(ctx, 0, 0, SCREEN_W, VIEW_H);
   panelFb.presentScaled(ctx, 0, VIEW_H, SCREEN_W, SCREEN_H - VIEW_H);

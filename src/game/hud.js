@@ -116,7 +116,7 @@ function cellColor(level, x, y) {
   if (w) return C.STONE_M;
   const o = level.objectAt(x, y);
   if (o && o.type === 'chest') return o.flags.openedAt != null ? C.RUST : C.GOLD;
-  if (o && o.type === 'brazier') return C.RED;
+  if (o && o.type === 'brazier') return C.AMBER; // red is for enemies
   if (o && o.type === 'bag') return C.LEATHER;
   if (o && o.type === 'coldBrazier') return C.SKY;
   return C.DUSK;
@@ -124,7 +124,8 @@ function cellColor(level, x, y) {
 
 // Draws explored cells around the player. cell = pixels per map cell.
 // With fit=true the whole level is shown instead of following the player.
-function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false) {
+// marks: [{ x, y, color }] drawn on top (enemies in sight, as red dots).
+function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false, marks = []) {
   if (fit) cell = Math.max(1, Math.min(Math.floor(w / level.w), Math.floor(h / level.h)));
   const cols = fit ? level.w : Math.floor(w / cell);
   const rows = fit ? level.h : Math.floor(h / cell);
@@ -139,6 +140,12 @@ function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false) {
       fb.rect(padX + i * cell, padY + j * cell, cell, cell, cellColor(level, mx, my));
     }
   }
+  for (const m of marks) {
+    const i = m.x - ox, j = m.y - oy;
+    if (i < 0 || j < 0 || i >= cols || j >= rows) continue;
+    const mx = padX + i * cell, my = padY + j * cell;
+    fb.rect(mx + (cell > 2 ? 1 : 0), my + (cell > 2 ? 1 : 0), Math.max(1, cell - 2), Math.max(1, cell - 2), m.color);
+  }
   // Player marker: a dot with a nose pointing where we look.
   const px = padX + (player.x - ox) * cell, py = padY + (player.y - oy) * cell;
   fb.rect(px, py, cell, cell, C.LIME);
@@ -150,14 +157,14 @@ function drawMapArea(fb, level, player, x0, y0, w, h, cell, fit = false) {
 
 // status: { hp, hpMax, atk, def, timeLeft, viewers } with null for systems
 // that do not exist yet.
-export function drawPanel(fb, { log, level, player, status }) {
+export function drawPanel(fb, { log, level, player, status, marks = [] }) {
   frame(fb);
   drawStatus(fb, { level, status });
   drawLog(fb, log);
-  drawMapArea(fb, level, player, MAP.x, MAP.y, MAP.w, MAP.h, 4);
+  drawMapArea(fb, level, player, MAP.x, MAP.y, MAP.w, MAP.h, 4, false, marks);
 }
 
-export function drawOverlay(fb, { level, player, showMap, notice }) {
+export function drawOverlay(fb, { level, player, showMap, notice, marks = [] }) {
   fb.clear(TRANSPARENT);
   const heading = DIRS[player.dir].name;
   const compass = `- ${heading} -`;
@@ -168,7 +175,7 @@ export function drawOverlay(fb, { level, player, showMap, notice }) {
     const mw = 240, mh = 132;
     const mx = (HUD_W - mw) >> 1, my = 4;
     fb.bevel(mx - 2, my - 2, mw + 4, mh + 4, C.BLACK, C.STONE_M, C.NIGHT);
-    drawMapArea(fb, level, player, mx, my, mw, mh - 8, 5, true);
+    drawMapArea(fb, level, player, mx, my, mw, mh - 8, 5, true, marks);
     drawText(fb, 'MAP - PRESS M TO CLOSE', mx + 2, my + mh - 6, C.FOG);
   }
 }

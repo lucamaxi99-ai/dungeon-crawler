@@ -2,10 +2,13 @@
 // Textures live in textures.js (64 x 64, procedural), object sprites in
 // objects.js (painted, 64 px per wall height).
 
-import { animation, recolor, rampMap } from '../engine/sprite.js';
+import { animation, recolor, rampMap, mirror, flip } from '../engine/sprite.js';
+import { TRANSPARENT } from '../engine/framebuffer.js';
+import { C } from '../engine/palette.js';
 import { FIRE_COLORS, COLD_COLORS } from './materials.js';
 import { paintBrazier, paintWallTorch, paintChest, paintBarrel, paintBones, paintBag } from './objects.js';
 import { LIGHT_PRESETS } from './lights.js';
+import { paintRat } from './creatures.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
 
@@ -22,6 +25,25 @@ const chestOpen = animation(
   { frameMs: 110, mode: 'once' },
 );
 
+// Creatures: idle cycle, lunge and flinch frames, facing left (L) and right
+// (R), plus the corpse (idle pose on its back) that stays on the floor.
+function trimBottom(s) {
+  let h = s.h;
+  while (h > 1 && s.data.subarray((h - 1) * s.w, h * s.w).every((c) => c === TRANSPARENT)) h--;
+  return { ...s, h, data: s.data.slice(0, h * s.w) };
+}
+function creature(paint, frameMs) {
+  const idle = [paint('idle0'), paint('idle1')];
+  const L = { idle: animation(idle, { frameMs }), lunge: paint('lunge'), flinch: paint('flinch') };
+  const R = { idle: mirror(L.idle), lunge: mirror(L.lunge), flinch: mirror(L.flinch) };
+  // The corpse's eye stops glowing.
+  const corpse = recolor(trimBottom(flip(idle[0])), { [C.RED]: C.SOOT, [C.FIRE]: C.GORE }, 'dead');
+  return { L, R, corpse };
+}
+export const CREATURES = {
+  rat: creature(paintRat, 260),
+};
+
 // Every object type has an animation (single-frame ones just never change).
 //   solid: blocks movement. light: preset from lights.js the object emits.
 //   wall: hangs on a wall (decoration, placed with a lift, not interactive).
@@ -33,6 +55,7 @@ export const SPRITES = {
   coldBrazier: { anim: recolor(brazier, coldMap, 'cold'), solid: true, light: LIGHT_PRESETS.coldBrazier },
   bones: { anim: animation(paintBones()), solid: false },
   bag: { anim: animation(paintBag()), solid: false },
+  ratCorpse: { anim: animation(CREATURES.rat.corpse), solid: false },
   torch: { anim: torch, wall: true, light: LIGHT_PRESETS.torch },
   coldTorch: { anim: recolor(torch, coldMap, 'cold'), wall: true, light: LIGHT_PRESETS.coldTorch },
 };

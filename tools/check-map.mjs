@@ -37,6 +37,9 @@ for (let y = 0; y < level.h; y++) {
     }
   }
 }
-console.log(`${seen.size} walkable cells reachable, ${level.objects.length} objects`);
+for (const e of level.enemies) {
+  if (!seen.has(`${e.x},${e.y}`)) { ok = false; console.error(`unreachable ${e.type} at ${e.x},${e.y}`); }
+}
+console.log(`${seen.size} walkable cells reachable, ${level.objects.length} objects, ${level.enemies.length} enemies`);
 if (!ok) process.exit(1);
 console.log('map OK');
