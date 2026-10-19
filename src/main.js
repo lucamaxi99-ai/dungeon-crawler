@@ -15,7 +15,7 @@ import { frameAt } from './engine/sprite.js';
 import { buildTextures, SPRITES, CREATURES, WALL } from './game/assets.js';
 import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
-import { generateFloor } from './game/floorgen.js';
+import { generateFloor, FINAL_DEPTH } from './game/floorgen.js';
 import { Player } from './game/player.js';
 import {
   MENU_BOX, MessageLog, drawPanel, drawOverlay,
@@ -33,6 +33,7 @@ import { enemyTurns, adjacent, lineOfSight } from './game/enemies.js';
 import { Combat } from './game/combat.js';
 import { CombatScreen } from './game/combat-ui.js';
 import { drawGameOver, gameOverReady } from './game/gameover-ui.js';
+import { drawFloorCard, cardDone, cardSkippable, CARD_MS } from './game/floor-ui.js';
 import { rng } from './engine/texgen.js';
 
 const canvas = document.getElementById('screen');
@@ -55,7 +56,8 @@ const isWall = (x, y) => level.wall(x, y) !== 0;
 // TODO(M5): permadeath and saving are decided with the floor generator.
 const params = new URLSearchParams(location.search);
 let run, level, player, inventory, crawler, invScreen, state, light, decor, enemyRnd;
-let dead = null; // { at, killer, steps, kills, gold } after the crawler died
+let dead = null; // { at, won, killer, depth, steps, kills, gold, comment } when the run is over
+let card = null; // title card between floors (floor-ui.js)
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
@@ -64,6 +66,7 @@ function newRun() {
   crawler = new Crawler(inventory);
   invScreen = new InventoryScreen(inventory, crawler);
   dead = null;
+  card = null;
   enterFloor(1);
 }
 
@@ -147,7 +150,7 @@ function interact() {
   const frontBag = level.bagAt(f.x, f.y);
   if (frontBag) return pickUp(frontBag);
   const w = level.wall(f.x, f.y);
-  if (w === WALL.STAIRS) return log.push(line('stairs'), 'warn');
+  if (w === WALL.STAIRS) return useStairs(f);
   if (w === WALL.POSTER) return log.push(line('poster'), 'info');
   const o = level.objectAt(f.x, f.y);
   if (o && o.type === 'chest') return openChest(o);
@@ -155,6 +158,37 @@ function interact() {
   const ownBag = level.bagAt(player.x, player.y);
   if (ownBag) return pickUp(ownBag);
   if (!w) log.push(line('nothing'), 'info');
+}
+
+// The first SPACE at the stairwell asks, the second one descends (so a
+// stray key never skips a floor). After the last floor the run is won.
+function useStairs(cell) {
+  const key = `${cell.x},${cell.y},${player.x},${player.y}`;
+  if (state.stairsAsked !== key) {
+    state.stairsAsked = key;
+    return log.push(line(run.depth >= FINAL_DEPTH ? 'finalStairs' : 'stairs'), 'warn');
+  }
+  if (run.depth >= FINAL_DEPTH) return endRun({ won: true });
+  log.push(line('descend'));
+  descend();
+}
+
+function descend() {
+  const depth = run.depth + 1;
+  enterFloor(depth);
+  const comment = line(depth >= FINAL_DEPTH ? 'finalFloor' : 'floorArrive').replace('{n}', depth);
+  card = { at: performance.now(), title: level.name.toUpperCase(), sub: depth >= FINAL_DEPTH ? 'SEASON FINALE' : '', comment };
+  log.push(comment);
+}
+
+// The run is over: died in combat (killer), or survived the last floor (won).
+function endRun({ won = false, killer = '', comment = line(won ? 'victory' : 'death') }) {
+  player.queued = null;
+  state.showMap = false;
+  if (invScreen.open) invScreen.toggle();
+  if (charScreen.open) charScreen.toggle();
+  dead = { at: performance.now(), won, killer, depth: run.depth, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment };
+  log.push(comment);
 }
 
 const itemLabel = ({ id, n }) => (n > 1 ? `${n}x ${ITEMS[id].name}` : ITEMS[id].name);
@@ -275,6 +309,10 @@ function onAction(action) {
     if ((action === 'interact' || action === 'close') && gameOverReady(dead, performance.now())) restart();
     return;
   }
+  if (card) {
+    if ((action === 'interact' || action === 'close') && cardSkippable(card, performance.now())) card.at = Math.min(card.at, performance.now() - CARD_MS);
+    return;
+  }
   if (combat) return onCombatAction(action);
   if (charScreen.open) {
     if (['character', 'close', 'interact', 'inventory'].includes(action)) charScreen.toggle();
@@ -303,6 +341,7 @@ function onAction(action) {
 // Everything that happens once per crawler action outside combat: slow
 // healing, then every enemy takes its turn.
 function afterTurn() {
+  state.stairsAsked = null;
   if (crawler.tick() && crawler.hp === crawler.hpMax) log.push(line('regenFull'), 'info');
   const blocked = (x, y) => { const o = level.objectAt(x, y); return !!(o && SPRITES[o.type].solid); };
   const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
@@ -468,8 +507,7 @@ function endCombat() {
     log.push(line('combatWon'));
   } else if (fight.result === 'lost') {
     const killer = fight.enemies.find((e) => e.alive) || fight.enemies[0];
-    dead = { at: performance.now(), killer: killer.name, steps: player.steps, kills: crawler.kills, gold: inventory.gold, comment: line('death') };
-    log.push(dead.comment);
+    endRun({ killer: killer.name });
   } else if (fight.result === 'fled') {
     // Stumble one cell away; the enemies need two turns to react. Whether
     // they follow depends on their territory (leash) and tracking.
@@ -495,7 +533,7 @@ function hudPoint(e) {
   };
 }
 canvas.addEventListener('pointerdown', (e) => {
-  if (dead) { e.preventDefault(); return onAction('interact'); }
+  if (dead || card) { e.preventDefault(); return onAction('interact'); }
   if (charScreen.open) { e.preventDefault(); return onAction('close'); }
   if (combat) {
     e.preventDefault();
@@ -613,6 +651,7 @@ function loop(now) {
   invScreen.draw(overlayFb, now);
   charScreen.draw(overlayFb, crawler, { steps: player.steps, gold: inventory.gold });
   if (combat) combat.ui.draw(overlayFb, now);
+  if (card) { drawFloorCard(overlayFb, card, now); if (cardDone(card, now)) card = null; }
   if (dead) drawGameOver(overlayFb, dead, now);
   updateStatus();
   const menu = combat ? (fb, box) => combat.ui.drawMenu(fb, box, now) : null;
@@ -644,6 +683,8 @@ window.game = {
   get crawler() { return crawler; },
   get combat() { return combat; },
   get dead() { return dead; },
+  get card() { return card; },
+  descend,
   log, onAction, stats, engage, restart,
   get resolution() { return { mode: res.mode, ...res.step }; },
   setResolution: (mode) => setResolution(res.setMode(mode)),

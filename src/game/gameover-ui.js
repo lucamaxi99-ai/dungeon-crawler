@@ -1,5 +1,6 @@
-// Game over screen over the 3D view (overlay, 320 x 140 HUD pixels): the
-// view dithers to black, then the System's verdict and the run's numbers.
+// End of a run over the 3D view (overlay, 320 x 140 HUD pixels): the view
+// dithers to black, then the System's verdict and the run's numbers. Used
+// for death and for surviving the last floor (won: true).
 
 import { C } from '../engine/palette.js';
 import { BAYER4 } from '../engine/lighting.js';
@@ -13,7 +14,7 @@ export function gameOverReady(dead, now) {
   return now - dead.at >= READY_MS;
 }
 
-// dead: { at, killer, steps, kills, gold, comment }
+// dead: { at, won, killer, depth, steps, kills, gold, comment }
 export function drawGameOver(fb, dead, now) {
   const t = now - dead.at;
   const fade = Math.min(1, t / FADE_MS);
@@ -23,13 +24,13 @@ export function drawGameOver(fb, dead, now) {
       const b = BAYER4[((y & 3) << 2) | (x & 3)];
       if (b > fade) continue;
       const edge = Math.max(Math.abs(x - W / 2) / (W / 2), Math.abs(y - H / 2) / (H / 2));
-      fb.pixels[y * fb.width + x] = edge > 0.85 && b < (edge - 0.85) * 4 ? C.GORE : C.BLACK;
+      fb.pixels[y * fb.width + x] = edge > 0.85 && b < (edge - 0.85) * 4 ? (dead.won ? C.LEATHER : C.GORE) : C.BLACK;
     }
   }
   if (fade < 1) return;
 
-  const title = 'YOU DIED';
-  big(fb, title, (W - textWidth(title) * 3) >> 1, 18, C.RED, 3);
+  const title = dead.won ? 'YOU SURVIVED' : 'YOU DIED';
+  big(fb, title, (W - textWidth(title) * 3) >> 1, 18, dead.won ? C.GOLD : C.RED, 3);
 
   let y = 44;
   for (const l of wrapText(dead.comment, 260)) {
@@ -38,20 +39,20 @@ export function drawGameOver(fb, dead, now) {
   }
 
   y += 6;
-  const killer = `KILLED BY: ${dead.killer.toUpperCase()}`;
+  const killer = dead.won ? `FLOOR ${dead.depth} CLEARED. SEASON OVER... FOR NOW.` : `KILLED BY: ${dead.killer.toUpperCase()} ON FLOOR ${dead.depth}`;
   drawText(fb, killer, (W - textWidth(killer)) >> 1, y, C.BONE);
   y += 10;
   const numbers = `STEPS ${dead.steps}   KILLS ${dead.kills}   GOLD ${dead.gold}`;
   drawText(fb, numbers, (W - textWidth(numbers)) >> 1, y, C.SILVER);
 
   if (gameOverReady(dead, now) && Math.floor(now / 500) % 2 === 0) {
-    const hint = 'SPACE OR TAP TO TRY AGAIN';
+    const hint = 'SPACE OR TAP FOR A NEW RUN';
     drawText(fb, hint, (W - textWidth(hint)) >> 1, H - 16, C.FOG);
   }
 }
 
 // Text scaled up n times, with a drop shadow.
-function big(fb, text, x, y, color, n) {
+export function big(fb, text, x, y, color, n) {
   const at = (ox) => ({
     set(px, py, c) {
       for (let k = 0; k < n * n; k++) fb.set(x + ox + px * n + (k % n), y + ox + py * n + ((k / n) | 0), c);

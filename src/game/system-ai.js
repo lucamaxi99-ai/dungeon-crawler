@@ -100,8 +100,11 @@ export const LINES = {
     'Deceased. Somewhere a sponsor is quietly peeling your name off a banner.',
   ],
   restart: [
-    'Replay requested by the Syndicate. Same floor, same crawler, empty pockets. Try not to die so quickly.',
-    'The broadcast has been rewound. Your inventory has not. Good luck, Crawler.',
+    'A new Crawler enters the dungeon. The last one is already a meme. Try not to become a sequel.',
+    'New run, new floors, new victim. Borant reminds you that every Crawler is unique and replaceable.',
+  ],
+  victory: [
+    'Against all odds and most betting pools, the Crawler survived the season. The Syndicate demands a rematch.',
   ],
   enemyGiveUp: [
     'The {name} stops at the edge of its territory and squeaks something rude.',
@@ -159,7 +162,21 @@ export const LINES = {
     'You step on someone who did not read the tutorial.',
   ],
   stairs: [
-    'The stairwell is sealed. Stairs open when the floor timer allows it. The floor timer has not been invented yet.',
+    'The stairwell. Press SPACE again to descend. There is no coming back up. There never is.',
+  ],
+  descend: [
+    'Down you go. The floor above will be recycled into content shortly.',
+    'Descending. Mind the step. Mind all of them, really.',
+  ],
+  floorArrive: [
+    'Welcome to Floor {n}, Crawler. Bigger, darker and statistically worse. The viewers are thrilled.',
+    'Floor {n}. The rats down here have heard about you. They are not impressed.',
+  ],
+  finalFloor: [
+    'Floor {n}, the season finale. Find the stairs and the Syndicate might even let you live. Might.',
+  ],
+  finalStairs: [
+    'This is the last stairwell of the season. Press SPACE again to step through and end the broadcast.',
   ],
   poster: [
     'A notice from Borant Corporation: "Your suffering is our content. Smile, you are on screen."',
