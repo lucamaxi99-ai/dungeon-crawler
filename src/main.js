@@ -536,18 +536,19 @@ function spriteList(time, dt) {
     };
   });
   for (const d of decor) list.push({ x: d.x, y: d.y, lift: d.lift, img: frameAt(SPRITES[d.type].anim, time, d.phase) });
-  // Enemies face the way they walk, or the crawler when next to it. Sprites
-  // look left; the right-facing set is used when that direction points to
-  // the right side of the screen.
+  // Enemies face the way they walk, or the crawler when next to it. Coming
+  // toward the camera they show their front view; otherwise the side view,
+  // looking left or right on screen.
   const a = player.camera().angle;
-  const rx = -Math.sin(a), ry = Math.cos(a);
+  const fx = Math.cos(a), fy = Math.sin(a), rx = -fy, ry = fx;
   level.enemies.forEach((e, i) => {
     if (!e.alive) return;
     const near = adjacent(e, player);
     const dx = near ? player.x - e.x : e.dx, dy = near ? player.y - e.y : e.dy;
     const side = dx * rx + dy * ry;
     if (Math.abs(side) > 0.2) e.face = side > 0 ? 1 : -1;
-    const set = CREATURES[e.stats.sprite][e.face > 0 ? 'R' : 'L'];
+    const views = CREATURES[e.stats.sprite];
+    const set = dx * fx + dy * fy < -0.5 ? views.F : views[e.face > 0 ? 'R' : 'L'];
     const p = e.pos(dt);
     list.push({ x: p.x, y: p.y, img: frameAt(set.idle, time, i * 2) });
   });

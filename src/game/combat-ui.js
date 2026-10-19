@@ -158,12 +158,12 @@ export class CombatScreen {
             this.float(`-${ev.amount}`, C.RED, ME.x, ME.y, now);
           } else {
             this.poses.set(ev.target, { pose: 'flinch', until: now + POSE_MS, flash: now + 90 });
-            this.float(ev.kind === 'crit' ? `CRIT ${ev.amount}!` : `${ev.amount}`, ev.kind === 'crit' ? C.YELLOW : C.WHITE, at(ev.target), FEET - 74, now);
+            this.float(ev.kind === 'crit' ? `CRIT ${ev.amount}!` : `${ev.amount}`, ev.kind === 'crit' ? C.YELLOW : C.WHITE, at(ev.target), FEET - 54, now);
           }
           break;
         case 'miss':
           if (ev.target === this.fight.crawler) this.float('MISS', C.SILVER, ME.x, ME.y, now);
-          else this.float('MISS', C.SILVER, at(ev.target), FEET - 74, now);
+          else this.float('MISS', C.SILVER, at(ev.target), FEET - 54, now);
           break;
         case 'blocked':
           this.float('BLOCKED', C.SKY, ME.x, ME.y, now);
@@ -297,10 +297,10 @@ export class CombatScreen {
       const set = CREATURES[e.stats.sprite];
       const p = this.poses.get(e);
       const pose = p && (p.until > now || p.pose === 'dead') ? p.pose : 'idle';
-      const img = pose === 'dead' ? set.corpse : pose === 'idle' ? frameAt(set.L.idle, now, i * 2) : set.L[pose];
+      const img = pose === 'dead' ? set.corpse : pose === 'idle' ? frameAt(set.F.idle, now, i * 2) : set.F[pose];
       const flash = p && p.flash > now;
       const w = img.w * SCALE, h = img.h * SCALE;
-      const x0 = xs[i] - (w >> 1) + shake + (pose === 'lunge' ? -4 : 0);
+      const x0 = xs[i] - (w >> 1) + shake;
       const y0 = FEET - h + (pose === 'dead' ? 2 : 0);
       // A dying enemy sinks into the floor and fades out in a dither.
       const fade = pose === 'dead' ? Math.min(1, (now - p.at) / 900) : 0;
@@ -322,7 +322,7 @@ export class CombatScreen {
       }
       if (!e.alive) return;
       // Name and hit points above the enemy.
-      const top = FEET - set.L.lunge.h * SCALE - 4;
+      const top = FEET - set.F.idle.frames[0].h * SCALE - 4;
       const name = e.name.toUpperCase();
       const nx = xs[i] - (textWidth(name) >> 1);
       drawText(fb, name, nx, top - 13, e === target && showTarget ? C.YELLOW : C.BONE, C.BLACK);

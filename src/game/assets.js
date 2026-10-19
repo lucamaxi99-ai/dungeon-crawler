@@ -8,7 +8,7 @@ import { C } from '../engine/palette.js';
 import { FIRE_COLORS, COLD_COLORS } from './materials.js';
 import { paintBrazier, paintWallTorch, paintChest, paintBarrel, paintBones, paintBag } from './objects.js';
 import { LIGHT_PRESETS } from './lights.js';
-import { paintRat } from './creatures.js';
+import { paintRat, paintRatFront } from './creatures.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
 
@@ -25,23 +25,25 @@ const chestOpen = animation(
   { frameMs: 110, mode: 'once' },
 );
 
-// Creatures: idle cycle, lunge and flinch frames, facing left (L) and right
-// (R), plus the corpse (idle pose on its back) that stays on the floor.
+// Creatures: idle cycle, lunge and flinch frames, facing left (L), right (R)
+// and the viewer (F, front view), plus the corpse (side view on its back)
+// that stays on the floor.
 function trimBottom(s) {
   let h = s.h;
   while (h > 1 && s.data.subarray((h - 1) * s.w, h * s.w).every((c) => c === TRANSPARENT)) h--;
   return { ...s, h, data: s.data.slice(0, h * s.w) };
 }
-function creature(paint, frameMs) {
+function creature(paint, paintFront, frameMs) {
   const idle = [paint('idle0'), paint('idle1')];
   const L = { idle: animation(idle, { frameMs }), lunge: paint('lunge'), flinch: paint('flinch') };
   const R = { idle: mirror(L.idle), lunge: mirror(L.lunge), flinch: mirror(L.flinch) };
+  const F = { idle: animation([paintFront('idle0'), paintFront('idle1')], { frameMs }), lunge: paintFront('lunge'), flinch: paintFront('flinch') };
   // The corpse's eye stops glowing.
   const corpse = recolor(trimBottom(flip(idle[0])), { [C.RED]: C.SOOT, [C.FIRE]: C.GORE }, 'dead');
-  return { L, R, corpse };
+  return { L, R, F, corpse };
 }
 export const CREATURES = {
-  rat: creature(paintRat, 260),
+  rat: creature(paintRat, paintRatFront, 260),
 };
 
 // Every object type has an animation (single-frame ones just never change).
