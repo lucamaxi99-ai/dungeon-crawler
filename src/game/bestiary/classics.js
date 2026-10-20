@@ -13,8 +13,14 @@ import { poseFlags, spot, strokes } from './common.js';
 const JELLY = { ramp: [C.TEAL_D, C.TEAL, C.TEAL_M, C.MINT], spec: C.WHITE, shine: 0.25, outline: C.NIGHT };
 const PUDDLE = { ramp: [C.TEAL_D, C.TEAL, C.TEAL_M], outline: C.NIGHT };
 
-export function paintSlimeFront(pose = 'idle0', scale = 1) {
-  const { list, id } = mats(JELLY, PUDDLE);
+// The miniboss version has been down here a lot longer: murkier jelly,
+// and a whole suitcase among the lost property.
+const OLD_JELLY = { ramp: [C.PLUM_D, C.PLUM, C.MAGENTA, C.NEON], spec: C.WHITE, shine: 0.25, outline: C.NIGHT };
+const OLD_PUDDLE = { ramp: [C.PLUM_D, C.PLUM, C.MAGENTA], outline: C.NIGHT };
+const jellies = (kit) => (kit === 'xl' ? [OLD_JELLY, OLD_PUDDLE] : [JELLY, PUDDLE]);
+
+export function paintSlimeFront(pose = 'idle0', scale = 1, kit = 'normal') {
+  const { list, id } = mats(...jellies(kit));
   id.slime = 0; id.puddle = 1;
   const { b, lunge, flinch } = poseFlags(pose);
   const W = 46, G = 35;
@@ -51,9 +57,10 @@ export function paintSlimeFront(pose = 'idle0', scale = 1) {
   strokes(p, [[kx - 1.5, ky, kx + 1.5, ky], [kx + 1.5, ky, kx + 3.5, ky + 2], [kx - 1.5, ky, kx - 3, ky + 2.5]], C.GOLD, 0.6);
   p.dot(kx - 2, ky - 1, C.AMBER).dot(kx - 1, ky - 2, C.AMBER).dot(kx, ky - 1, C.AMBER);
 
+  if (kit === 'xl') suitcase(p, cx - 1, cy - 5 + sink, b);
   // Bubbles.
   for (const [bx, by, br] of [[cx - 2, cy - 4, 1.4], [cx + 12, cy + 5, 1.1], [cx - 13, cy - 2, 1]]) {
-    spot(p, bx, by - b, br, br, C.TEAL);
+    spot(p, bx, by - b, br, br, kit === 'xl' ? C.PLUM : C.TEAL);
     p.dot(bx - 0.5, by - b - 0.5, C.MINT);
   }
   // Eyes: wide when it lunges, squeezed when hit.
@@ -72,6 +79,79 @@ export function paintSlimeFront(pose = 'idle0', scale = 1) {
   // Mouth: a gaping hole when it lunges.
   if (lunge) spot(p, cx, ey + 6, 4.5, 2.6, C.TEAL_D), spot(p, cx, ey + 6.5, 3, 1.6, C.NIGHT);
   return p.shade(list, { name: `slime_front_${pose}`, glowColors: [C.SKY, C.ICE] });
+}
+
+// A suitcase floating in the jelly, luggage tag and all.
+function suitcase(p, x, y, b) {
+  p.decal(x - 6, y - 5, x + 6, y + 4, (px, py) => {
+    const u = px + 0.5 - x, v = py + 0.5 - y;
+    if (Math.abs(u) > 5.5 || v < -2.5 || v > 3.5) return Math.abs(u) < 2 && v >= -4.5 && v < -2.5 && Math.abs(u) > 0.9 ? C.SOOT : -1;
+    if (Math.abs(u) > 4.6 || v < -1.6 || v > 2.6) return C.WOOD_D;
+    if (Math.abs(u) < 0.6) return C.STEEL_L;
+    return C.WOOD;
+  });
+  p.dot(x + 4, y - 4 - b, C.PARCHMENT).dot(x + 5, y - 5 - b, C.PARCHMENT);
+}
+
+// Side view, facing left: a teardrop that leans into its next lurch. The
+// lost property sloshes inside, one big eye at the front.
+export function paintSlimeSide(pose = 'idle0', scale = 1, kit = 'normal') {
+  const { list, id } = mats(...jellies(kit));
+  id.slime = 0; id.puddle = 1;
+  const { b, lunge, flinch } = poseFlags(pose);
+  const W = 52, G = 35;
+  const p = new Painter(W, 36, { seed: 4, scale });
+  const cx = W / 2 + 2 - lunge * 4 + flinch * 2;
+  const ry = 12.5 - b * 1 + lunge * 1.5 - flinch * 3.5;
+  const cy = G - ry;
+  // Front lobe (the head end) and the trailing back end.
+  p.ellipse(cx - 4, cy, 13 + b + lunge * 2 + flinch * 2, ry, id.slime, { z: 2, depth: 0.9 });
+  p.ellipse(cx + 8, G - ry * 0.6, 13 - lunge * 2 + flinch, ry * 0.6 + 0.5, id.slime, { z: 1, depth: 0.8 });
+  p.ellipse(cx + 1, G - 1.5, 22 + lunge * 2, 2.5, id.puddle, { z: -2, depth: 0.4 });
+
+  const sink = b * 0.6 + flinch * 1.5;
+  // Sneaker in profile.
+  const sx = cx + 8, sy = cy + 4 + sink;
+  p.decal(sx - 6, sy - 3, sx + 6, sy + 3, (x, y) => {
+    const u = x + 0.5 - sx, v = y + 0.5 - sy;
+    if (Math.hypot(u / 5.5, v / 2.4) > 1) return -1;
+    if (v > 1.2) return C.STEEL_M;
+    if (Math.abs(u + 1 - v * 0.8) < 0.8 && v < 1) return C.BLOOD;
+    return C.PARCHMENT;
+  });
+  // Phone, screen on.
+  const px = cx - 2, py = cy + 1 - sink * 0.5;
+  p.decal(px - 3, py - 4, px + 3, py + 4, (x, y) => {
+    const u = x + 0.5 - px, v = y + 0.5 - py;
+    if (Math.abs(u) > 2.2 || Math.abs(v) > 3.6) return -1;
+    if (Math.abs(u) > 1.3 || Math.abs(v) > 2.6) return C.NIGHT;
+    return (y + (b ? 1 : 0)) % 3 === 0 ? C.ICE : C.SKY;
+  });
+  // Keys.
+  const kx = cx + 3, ky = cy + 8 + sink;
+  strokes(p, [[kx - 1.5, ky, kx + 1.5, ky], [kx + 1.5, ky, kx + 3.5, ky + 1.5]], C.GOLD, 0.6);
+  p.dot(kx - 2, ky - 1, C.AMBER).dot(kx - 1, ky - 2, C.AMBER);
+  if (kit === 'xl') suitcase(p, cx + 6, cy - 4 + sink, b);
+  for (const [bx, by, br] of [[cx + 2, cy - 5, 1.3], [cx + 12, cy + 2, 1], [cx - 9, cy + 5, 1]]) {
+    spot(p, bx, by - b, br, br, kit === 'xl' ? C.PLUM : C.TEAL);
+    p.dot(bx - 0.5, by - b - 0.5, kit === 'xl' ? C.NEON : C.MINT);
+  }
+  // One eye near the front, the far one peeking over the top.
+  const ex = cx - 10 - lunge, ey = cy - ry * 0.4;
+  if (flinch) {
+    strokes(p, [[ex - 2.5, ey - 1, ex + 2.5, ey + 1], [ex - 2.5, ey + 1, ex + 2.5, ey - 1]], C.BLACK, 0.6);
+  } else {
+    const r = 3 + lunge * 0.6;
+    for (const [fx, fy, fr] of [[ex + 6, ey - 2, r * 0.75], [ex, ey, r]]) {
+      p.decal(fx - 4, fy - 4, fx + 4, fy + 4, (x, y) => {
+        const d = Math.hypot((x + 0.5 - fx) / (fr * 0.85), (y + 0.5 - fy) / fr);
+        if (d > 1) return -1;
+        return Math.hypot(x + 0.5 - fx + 0.9, y + 0.5 - fy - 0.6) < fr * 0.45 + lunge * 0.3 ? C.BLACK : C.WHITE;
+      });
+    }
+  }
+  if (lunge) { spot(p, cx - 15, cy + 3, 2.6, 3.4, C.TEAL_D); spot(p, cx - 15.5, cy + 3.5, 1.6, 2.2, C.NIGHT); }
+  return p.shade(list, { name: `slime_${kit}_${pose}`, glowColors: [C.SKY, C.ICE] });
 }
 
 // ------------------------------------------------------------ spider

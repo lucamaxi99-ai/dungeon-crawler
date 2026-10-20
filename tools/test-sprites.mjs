@@ -55,14 +55,17 @@ function roundTrip(list) {
   });
 }
 roundTrip(frames);
-for (const [name, def] of Object.entries(SPRITES)) roundTrip(def.anim.frames, name);
+// The editor handles up to 64 x 64; bigger painted sprites (corpses of
+// minibosses) are not editor material.
+const editable = Object.entries(SPRITES).filter(([, def]) => def.anim.frames.every((f) => f.w <= 64 && f.h <= 64));
+for (const [name, def] of editable) roundTrip(def.anim.frames, name);
 
 // defineSprite still works the old way
 const single = defineSprite({ key, rows: ['kw'] });
 assert.equal(single.w, 2);
 
 // Editor: export code, import it again, same pixels/glow/timing
-for (const [id, def] of Object.entries(SPRITES)) {
+for (const [id, def] of editable) {
   const doc = new SpriteDoc();
   doc.load({ name: id, frames: def.anim.frames, frameMs: def.anim.frameMs, mode: def.anim.mode });
   doc.recolor = [[C.FIRE, C.BLUE]];
@@ -81,4 +84,4 @@ d.frame.set([C.RED, C.RED, C.BLUE, C.BLUE]);
 d.resize(4, 4);
 assert.deepEqual([...d.frame.slice(12)], [TRANSPARENT, C.BLUE, C.BLUE, TRANSPARENT]);
 
-console.log(`sprite engine OK (${Object.keys(SPRITES).length} game sprites round-tripped)`);
+console.log(`sprite engine OK (${editable.length} game sprites round-tripped)`);

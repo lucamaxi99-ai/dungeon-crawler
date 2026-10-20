@@ -34,6 +34,29 @@ export const ENEMY_TYPES = {
     sight: 5, roam: 3, leash: 6, track: 4,   // territorial: guards its nest
     drops: [['ratTail', 0.6], ['ratPamphlet', 0.03]], gold: [0, 2], xp: 5,
   },
+  // Leads a rat pack: the others bite harder while it lives, and scatter
+  // when it dies.
+  ratAlpha: {
+    name: 'Rat Pack Alpha', sprite: 'ratAlpha', family: 'rat', rank: 'leader', verb: 'mauls',
+    hp: 6, atk: 3, def: 0, dex: 6, dmg: [1, 2],
+    sight: 6, roam: 2, leash: 7, track: 5,
+    traits: { aura: { atk: 1, dmg: 0 }, morale: true },
+    drops: [['ratTail', 1], ['ratPamphlet', 0.08]], gold: [1, 4], xp: 14,
+  },
+  // Slow and easy to run from, but it soaks up punishment.
+  slime: {
+    name: 'Lost & Found Slime', sprite: 'slime', family: 'slime', verb: 'engulfs',
+    hp: 6, atk: 2, def: 0, dex: 2, dmg: [1, 2], slow: true,
+    sight: 4, roam: 2, leash: 5, track: 3,
+    drops: [['shoes', 0.08], ['potion', 0.12]], gold: [1, 6], xp: 7,
+  },
+  // Floor 1 miniboss: everything the dungeon ever lost ended up in here.
+  slimeXL: {
+    name: 'Unclaimed Baggage', sprite: 'slimeXL', family: 'slime', rank: 'miniboss', verb: 'engulfs',
+    hp: 22, atk: 3, def: 1, dex: 2, dmg: [2, 3], slow: true,
+    sight: 5, roam: 1, leash: 4, track: 3,
+    drops: [['shoes', 0.3]], gold: [10, 25], loot: 'richChest', xp: 40,
+  },
 };
 
 // Every type gets defaults for the optional fields.

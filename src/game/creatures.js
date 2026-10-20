@@ -11,9 +11,26 @@ import { mats } from './materials.js';
 
 export const POSES = ['idle0', 'idle1', 'lunge', 'flinch'];
 
+// The pack's alpha: grizzled silver fur, a scar across one eye and a bottle
+// cap worn as a crown. Painted bigger (scale) by its caller.
+const ALPHA_FUR = { ramp: [C.SOOT, C.SHADOW, C.DUSK, C.STEEL_M, C.STEEL_L], rough: 0.35, outline: C.BLACK };
+const ALPHA_DARK = { ramp: [C.BLACK, C.SOOT, C.SHADOW, C.DUSK], rough: 0.3, outline: C.BLACK };
+
+// A bottle cap: gold with a crimped edge. (Not red: red pixels are the
+// glowing eyes.)
+function bottleCap(p, id, x, y, tilt = 0) {
+  p.ellipse(x, y, 3.4, 1.7, id.hardhat, { z: 30, depth: 0.5 });
+  p.decal(x - 4, y - 2, x + 4, y + 2, (px, py) => {
+    const d = Math.hypot((px + 0.5 - x) / 3.4, (py + 0.5 - y - tilt * (px + 0.5 - x) * 0.1) / 1.7);
+    return d > 0.72 && d <= 1 && (px & 1) === 0 ? C.RUST : -1;
+  });
+}
+
 // Giant rat: grey fur, pink tail and paws, glowing red eye.
-export function paintRat(pose = 'idle0', scale = 1) {
-  const { list, id } = mats('fur', 'pink');
+export function paintRat(pose = 'idle0', scale = 1, kit = 'normal') {
+  const alpha = kit === 'alpha';
+  const { list, id } = mats(alpha ? ALPHA_FUR : 'fur', 'pink', 'hardhat');
+  id.fur = 0;
   const f = pose === 'idle1' ? 1 : 0;
   const lunge = pose === 'lunge' ? 1 : 0;
   const flinch = pose === 'flinch' ? 1 : 0;
@@ -46,11 +63,16 @@ export function paintRat(pose = 'idle0', scale = 1) {
   p.dot(hx + 12, hy + 10 - flinch, C.WINE).dot(hx + 12, hy + 11 - flinch, C.WINE);
   // Glowing eye; teeth, bared when attacking.
   p.dot(hx + 7, hy + 15, C.RED).dot(hx + 8, hy + 15, C.FIRE);
+  if (alpha) {
+    // Scar across the eye, and the crown.
+    p.dot(hx + 6, hy + 13, C.WINE).dot(hx + 7, hy + 14, C.WINE).dot(hx + 9, hy + 16, C.WINE).dot(hx + 10, hy + 17, C.WINE);
+    bottleCap(p, id, hx + 10.5, hy + 10 - flinch, 1);
+  }
   p.dot(hx + 4, hy + 21, C.BONE);
   if (lunge) p.dot(hx + 3, hy + 21, C.BONE).dot(hx + 4, hy + 22, C.BONE).dot(hx + 2, hy + 20, C.BLACK);
   // Whiskers
   for (const [dx, dy] of [[-5, -2], [-5, 1], [-4, 3]]) p.line(hx + 4, hy + 18, hx + 4 + dx, hy + 18 + dy, id.pink, { z: 12 });
-  return p.shade(list, { name: `rat_${pose}`, glowColors: [C.RED, C.FIRE] });
+  return p.shade(list, { name: `rat_${kit}_${pose}`, glowColors: [C.RED, C.FIRE] });
 }
 
 // Distance from a pixel center to a segment, for thin decal lines.
@@ -63,9 +85,11 @@ function segDist(x, y, x0, y0, x1, y1) {
 // Giant rat seen from the front: a dark hunched back, a lighter wedge of a
 // head pointing at you, beady glowing eyes, incisors, whiskers, pink paws
 // and the tail curling out to one side.
-export function paintRatFront(pose = 'idle0', scale = 1) {
-  const darkFur = { ramp: [C.BLACK, C.SOOT, C.GRAVEL_D, C.GRAVEL], rough: 0.3, outline: C.BLACK };
-  const { list, id } = mats('fur', 'pink', darkFur);
+export function paintRatFront(pose = 'idle0', scale = 1, kit = 'normal') {
+  const alpha = kit === 'alpha';
+  const darkFur = alpha ? ALPHA_DARK : { ramp: [C.BLACK, C.SOOT, C.GRAVEL_D, C.GRAVEL], rough: 0.3, outline: C.BLACK };
+  const { list, id } = mats(alpha ? ALPHA_FUR : 'fur', 'pink', darkFur, 'hardhat');
+  id.fur = 0;
   const dark = 2;
   const breathe = pose === 'idle1' ? 1 : 0;
   const lunge = pose === 'lunge' ? 1 : 0;
@@ -130,6 +154,11 @@ export function paintRatFront(pose = 'idle0', scale = 1) {
       return dx * s < 0 && dy < 0 ? C.FIRE : C.RED;
     });
   }
+  if (alpha) {
+    // Scar over the left eye; bottle cap crown between the ears.
+    for (let i = -2; i <= 2; i++) p.dot(cx - 4.3 * k + i, hy - 0.5 * k - 3 + i * 1.5, C.WINE);
+    bottleCap(p, id, cx, hy - 7 * k + flinch * 2);
+  }
   // Whiskers: thin pale lines fanning out from the snout.
   const wy = hy + 8 * k;
   for (const s of [-1, 1]) {
@@ -137,5 +166,5 @@ export function paintRatFront(pose = 'idle0', scale = 1) {
     const x0 = Math.min(cx, cx + s * 15), x1 = Math.max(cx, cx + s * 15);
     p.decal(x0, wy - 5, x1, wy + 5, (x, y) => (segs.some((g) => segDist(x + 0.5, y + 0.5, ...g) < 0.5) ? C.GRAVEL_L : -1));
   }
-  return p.shade(list, { name: `rat_front_${pose}`, glowColors: [C.RED, C.FIRE] });
+  return p.shade(list, { name: `rat_front_${kit}_${pose}`, glowColors: [C.RED, C.FIRE] });
 }

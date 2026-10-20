@@ -293,7 +293,7 @@ function descend() {
 // The System plugs the floor's miniboss like a game-show guest.
 function announceGuests() {
   const boss = level.enemies.find((e) => e.alive && e.stats.rank === 'miniboss');
-  if (boss) log.push(line('minibossFloor').replace('{name}', boss.name), 'warn');
+  if (boss) log.push(line('minibossFloor').replace('{name}', boss.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
 }
 
 // The run is over: died in combat (killer), or survived the last floor (won).
@@ -366,7 +366,7 @@ function raiseAttr(attr) {
 
 // A skill or spell went up a level.
 function skillUp(name, n) {
-  log.push(line('skillUp').replace('{name}', name).replace('{n}', n));
+  log.push(line('skillUp').replace('{name}', name).replace(/\ba ([AEIOU])/g, 'an $1').replace('{n}', n));
   note('skillUp', { level: n });
 }
 
@@ -409,7 +409,7 @@ function newSponsor(index) {
   ach.boxes.push({ tier, sponsored: true, from: sponsor.name });
   run.sponsors.push(sponsor.name);
   popups.push({ head: 'NEW SPONSOR!', name: sponsor.short, reward: { box: tier, sponsored: true } });
-  log.push(line('sponsorNew').replace('{name}', sponsor.name).replace('{tier}', boxName(tier).replace(' Box', '')), 'warn');
+  log.push(line('sponsorNew').replace('{name}', sponsor.name).replace(/\ba ([AEIOU])/g, 'an $1').replace('{tier}', boxName(tier).replace(' Box', '')), 'warn');
   log.push(`${sponsor.name}: "${sponsor.msg}"`, 'info');
   note('sponsor');
 }
@@ -813,7 +813,7 @@ function study(index, def) {
 function announceLearned(r, how = '') {
   if (r.kind === 'learn') {
     log.push(`New ${r.what}: ${r.name}!`, 'info');
-    log.push(line(how || (r.what === 'spell' ? 'learnSpell' : 'learnSkill')).replace('{name}', r.name));
+    log.push(line(how || (r.what === 'spell' ? 'learnSpell' : 'learnSkill')).replace('{name}', r.name).replace(/\ba ([AEIOU])/g, 'an $1'));
     banner = { text: r.what === 'spell' ? 'NEW SPELL' : 'NEW SKILL', sub: `${r.name.toUpperCase()}  -  SEE C, SKILLS`, at: null };
   } else if (r.kind === 'boost') {
     skillUp(r.name, r.level);
@@ -905,9 +905,9 @@ function afterTurn() {
   const blocked = (x, y) => { const o = level.objectAt(x, y); return !!(o && SPRITES[o.type].solid); };
   const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
   for (const ev of events) {
-    if (ev.kind === 'notice') log.push(line(ev.enemy.hunter ? 'hunterNotice' : 'enemyNotice').replace('{name}', ev.enemy.name), 'warn');
-    if (ev.kind === 'giveUp') log.push(line(ev.reason === 'territory' ? 'enemyGiveUp' : 'enemyLostTrail').replace('{name}', ev.enemy.name), 'info');
-    if (ev.kind === 'ambush') log.push(line('ambush').replace('{name}', ev.enemy.name), 'warn');
+    if (ev.kind === 'notice') log.push(line(ev.enemy.hunter ? 'hunterNotice' : 'enemyNotice').replace('{name}', ev.enemy.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
+    if (ev.kind === 'giveUp') log.push(line(ev.reason === 'territory' ? 'enemyGiveUp' : 'enemyLostTrail').replace('{name}', ev.enemy.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'info');
+    if (ev.kind === 'ambush') log.push(line('ambush').replace('{name}', ev.enemy.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
   }
   const foe = events.find((ev) => ev.kind === 'ambush') || events.find((ev) => ev.kind === 'engage');
   if (foe) engage(foe.enemy, 'enemy');
@@ -935,7 +935,7 @@ function engage(foe, initiator) {
   combat = { fight, ui: new CombatScreen({ fight, scene: stageFor(foe), tables, inventory, now }), nextAt: now + PACE.start, endAt: 0 };
   const same = foes.every((e) => e.type === foe.type);
   const name = foes.length === 1 ? foe.name : same ? `pack of ${foes.length} ${foe.name}s` : `${foe.name} and ${foes.length - 1 === 1 ? 'a friend' : 'friends'}`;
-  log.push(line(initiator === 'crawler' ? 'combatStartCrawler' : 'combatStartEnemy').replace('{name}', name), 'warn');
+  log.push(line(initiator === 'crawler' ? 'combatStartCrawler' : 'combatStartEnemy').replace('{name}', name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
   log.push(fight.crawlersTurn ? 'You are faster. Your move.' : `The ${foe.name} is faster.`, 'info');
 }
 
@@ -1060,7 +1060,7 @@ function report(events) {
       case 'rout':
         if (!ev.leader.routSaid) {
           ev.leader.routSaid = true;
-          log.push(line('rout').replace('{name}', ev.leader.name), 'warn');
+          log.push(line('rout').replace('{name}', ev.leader.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
         }
         break;
       case 'blocked':
@@ -1074,7 +1074,7 @@ function report(events) {
         break;
       case 'kill':
         log.push(`The ${foe.name} dies.`, 'info');
-        log.push(line(foe.stats.rank === 'miniboss' ? 'minibossDown' : 'kill').replace('{name}', foe.name));
+        log.push(line(foe.stats.rank === 'miniboss' ? 'minibossDown' : 'kill').replace('{name}', foe.name).replace(/\ba ([AEIOU])/g, 'an $1'));
         if (foe.loot) {
           inventory.gold += foe.loot;
           log.push(`You get your ${foe.loot} gold back.`, 'info');
@@ -1088,7 +1088,7 @@ function report(events) {
         note('flee');
         break;
       case 'fleeFail':
-        log.push(line('fleeFail').replace('{name}', combat.fight.alive[0].name), 'warn');
+        log.push(line('fleeFail').replace('{name}', combat.fight.alive[0].name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
         break;
       case 'death':
         log.push('You die.', 'warn');
@@ -1163,7 +1163,7 @@ function endCombat() {
     // hold a grudge and follow anywhere from now on.
     for (const e of fight.alive) {
       e.stun = 2;
-      if (e.stats.traits.grudge && !e.hunts) { e.hunts = true; log.push(line('grudge').replace('{name}', e.name), 'warn'); }
+      if (e.stats.traits.grudge && !e.hunts) { e.hunts = true; log.push(line('grudge').replace('{name}', e.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn'); }
     }
     const options = [[1, 0], [-1, 0], [0, 1], [0, -1]]
       .map(([dx, dy]) => ({ x: player.x + dx, y: player.y + dy }))

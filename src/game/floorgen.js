@@ -33,7 +33,12 @@ import { ENEMY_TYPES, fightWeight } from './enemies.js';
 export const FLOORS = [
   {
     size: [30, 30], rooms: [7, 8], chests: 2, rich: 0, margin: 3.2,
-    foes: [{ squad: ['rat'], n: 4 }],
+    foes: [
+      { squad: ['rat'], n: 3 },
+      { squad: ['ratAlpha', 'rat'], n: 1 },
+      { squad: ['slime'], n: 2 },
+      { squad: ['slimeXL'], n: 1, where: 'boss' },
+    ],
   },
   {
     size: [36, 36], rooms: [9, 10], chests: 3, rich: 1, margin: 3.0,
