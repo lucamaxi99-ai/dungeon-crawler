@@ -246,3 +246,182 @@ export function paintGoblinFront(kit = 'grunt', pose = 'idle0', scale = 1) {
   const glowColors = { grunt: [C.YELLOW, C.AMBER], sapper: [C.YELLOW, C.AMBER, C.HOT, C.FIRE], shaman: [C.LILAC, C.VIOLET_M, C.HOT, C.YELLOW, C.WHITE], boss: [C.YELLOW, C.AMBER] }[kit];
   return p.shade(list, { name: `goblin_${kit}_front_${pose}`, glowColors });
 }
+
+// Side view, facing left: hunched, big nose first, one long ear swept back.
+// The near (weapon) arm is in front of the body, the off arm behind it.
+export function paintGoblinSide(kit = 'grunt', pose = 'idle0', scale = 1) {
+  const { list, id } = mats('gob', 'leather', 'cloth', 'steel', 'wood', 'bomb', 'robe', 'safety', 'sign', 'chrome', 'tin');
+  const { b, lunge, flinch } = poseFlags(pose);
+  const boss = kit === 'boss';
+  const W = 60, H = boss ? 64 : 55, G = H - 1;
+  const p = new Painter(W, H, { seed: 19, scale });
+  const k = boss ? 1.12 : 1;
+  const lean = lunge * 4 - flinch * 3;               // how far the upper body leans forward (left)
+  const cx = W / 2 + 4 - lunge * 2 + flinch * 2;
+  const Y = (y) => G - (49 - y) * k;
+  const tx = cx - lean * 0.5;                        // torso center x
+  const hx = cx - 3 - lean, hy = Y(14) + b * 0.4 + lunge * 2 - flinch * 1;
+
+  // Boss cape trailing behind.
+  if (boss) {
+    p.poly([[tx + 2, Y(20)], [tx + 9, Y(21)], [tx + 16, Y(44)], [tx + 9, Y(43)], [tx + 3, Y(45)]], id.cloth, { z: -4, normal: [0.3, -0.2, 1] });
+  }
+
+  // Off arm (behind the body).
+  const offHand = [tx + 5 - lunge * 3, Y(34) - flinch * 4];
+  p.capsule(tx + 2, Y(21), 2, tx + 6, Y(28), 1.7, id.gob, { z0: 1 });
+  p.capsule(tx + 6, Y(28), 1.7, ...offHand, 1.5, id.gob, { z0: 1 });
+  p.ellipse(...offHand, 2.2, 2, id.gob, { z: 2 });
+
+  // Legs: far one slightly back, near one forward; big flat feet pointing left.
+  const step = b ? 1 : 0;
+  for (const [s, z] of [[1, 2], [-1, 6]]) {
+    const hip = [cx + s * 1.5, Y(34)];
+    const knee = [cx - 1 + s * 2 - step * s - lunge * (s < 0 ? 3 : 0), Y(41)];
+    const foot = [cx - 1 + s * 3 - lunge * (s < 0 ? 5 : -1) + flinch * 2, G - 2];
+    p.capsule(...hip, 2.4 * k, ...knee, 2 * k, id.gob, { z0: z });
+    p.capsule(...knee, 2 * k, ...foot, 1.8 * k, id.gob, { z0: z });
+    p.ellipse(foot[0] - 2.5, G - 1.5, 4.5 * k, 2, id.gob, { z: z + 1, depth: 0.7 });
+  }
+
+  // Torso, hunched forward.
+  p.ellipse(tx, Y(27) - b * 0.3 + lunge, 7.5 * k, (9 + b * 0.4) * k, id.gob, { z: 4, depth: 0.8 });
+  p.ellipse(tx + 2, Y(22), 6 * k, 5 * k, id.gob, { z: 3, depth: 0.8 }); // hunched back
+
+  if (kit === 'shaman') {
+    p.poly([[tx - 6, Y(19)], [tx + 6, Y(19)], [tx + 9, Y(43)], [tx - 9, Y(43)]], id.robe, { z: 8, normal: [-0.2, -0.15, 1] });
+    p.poly([[tx - 7, Y(30)], [tx - 3, Y(30)], [tx - 5, Y(43)], [tx - 9, Y(43)]], id.robe, { z: 9, normal: [-0.6, -0.1, 0.8] });
+  } else {
+    p.poly([[tx - 7 * k, Y(33)], [tx + 7 * k, Y(33)], [tx + 6 * k, Y(41)], [tx, Y(39)], [tx - 6 * k, Y(42)]], id.cloth, { z: 9, normal: [-0.1, -0.2, 1] });
+    if (kit === 'grunt') p.decal(tx - 8, Y(33), tx + 8, Y(43), (x, y) => (((x >> 1) + (y >> 1)) % 2 === 0 ? C.PARCHMENT : -1));
+    p.capsule(tx - 7.5 * k, Y(33), 1.5, tx + 7.5 * k, Y(33), 1.5, id.leather, { z0: 11 });
+  }
+  if (kit === 'sapper') {
+    p.poly([[tx - 7, Y(24)], [tx - 1, Y(24)], [tx - 1, Y(37)], [tx - 8, Y(37)]], id.leather, { z: 10, normal: [-0.4, -0.1, 1] });
+    p.capsule(tx + 5, Y(20), 1.4, tx - 6, Y(33), 1.4, id.leather, { z0: 12 });
+    for (let t = 0.12; t < 0.95; t += 0.22) {
+      const x = tx + 5 - 11 * t, y = Y(20) + (Y(33) - Y(20)) * t;
+      p.capsule(x - 1.2, y - 2.4, 1, x + 1.2, y + 2.4, 1, id.cloth, { z0: 14 });
+      p.dot(x - 1.4, y - 3.2, C.PARCHMENT);
+    }
+  }
+  if (kit === 'shaman') {
+    const caps = [C.RED, C.GOLD, C.SKY, C.STEEL_L, C.LIME];
+    caps.forEach((c, i) => spot(p, tx - 6 + i * 1.8, Y(21) + Math.sin((i / 4) * Math.PI) * 3, 1.1, 1.1, c));
+  }
+  if (boss) {
+    p.ellipse(tx, Y(20), 4.4, 3.4, id.chrome, { z: 13, depth: 0.4 });
+    p.dot(tx, Y(20), C.STEEL_D);
+  }
+
+  // ---- head: profile with a long hooked nose, jaw and one big swept ear.
+  const ear = flinch ? 3 : 0;
+  p.capsule(hx + 4, hy - 2, 3 * k, hx + (17 - ear) * k, hy - 8 + ear * 2 + b * 0.5, 0.6, id.gob, { z0: 9, z1: 7 });
+  p.decal(hx + 3, hy - 10, hx + 18, hy, (x, y) => {
+    const t = (x + 0.5 - (hx + 4)) / (13 - ear);
+    if (t < 0.15 || t > 0.85) return -1;
+    const ly = hy - 2 - t * (6 - ear * 2);
+    return Math.abs(y + 0.5 - ly) < 1.1 * (1 - t) ? C.WINE : -1;
+  });
+  p.ellipse(hx, hy, 8 * k, 8 * k, id.gob, { z: 12, depth: 0.85 });
+  p.ellipse(hx - 3, hy + 3.5 * k, 6 * k, 4 * k, id.gob, { z: 13, depth: 0.5 });          // jaw
+  p.capsule(hx - 5, hy - 1, 2.8, hx - 12.5 - lunge, hy + 2.5, 1.5, id.gob, { z0: 16 }); // nose
+  // Eye: one, glowing; squeezed shut when hit.
+  const ex = hx - 4, ey = hy - 2.5;
+  if (flinch) strokes(p, [[ex - 1.5, ey - 0.5, ex + 1.5, ey + 0.5]], C.SOOT, 0.55);
+  else {
+    const glow = kit === 'shaman' ? C.LILAC : C.YELLOW, dim = kit === 'shaman' ? C.VIOLET_M : C.AMBER;
+    p.dot(ex - 1, ey, C.BLACK).dot(ex, ey, glow).dot(ex + 1, ey, dim).dot(ex, ey + 1, dim);
+  }
+  p.dot(ex - 2, ey - 2.5, C.MOSS_D).dot(ex - 1, ey - 2, C.MOSS_D).dot(ex + 1, ey - 2.2, C.MOSS_D);
+  // Grin with a tusk.
+  const gy = hy + 4 + lunge;
+  for (let x = -8; x <= -1; x++) p.dot(hx + x, gy + Math.round(((x + 4) * (x + 4)) / 20) * (flinch ? -1 : 1), C.SOOT);
+  p.dot(hx - 6, gy - 1, C.BONE).dot(hx - 6, gy - 2, C.BONE);
+  if (lunge) for (let x = -7; x <= -2; x++) p.dot(hx + x, gy + 1, C.GORE);
+
+  // ---- headgear.
+  if (kit === 'grunt') {
+    p.poly([[hx - 8, hy - 12], [hx + 7, hy - 12], [hx + 7.5, hy - 4.5], [hx - 8.5, hy - 4.5]], id.tin, { z: 22, normal: [-0.3, -0.2, 1] });
+    p.capsule(hx - 9.5, hy - 4.5, 1, hx + 8.5, hy - 4.5, 1, id.steel, { z0: 23 });
+    p.capsule(hx - 8, hy - 9, 1, hx - 19, hy - 13 - b * 0.5, 1.2, id.wood, { z0: 21 });  // handle out front
+    strokes(p, [[hx - 7, hy - 11.5, hx + 6, hy - 11.5]], C.STEEL_L, 0.5);
+  }
+  if (kit === 'sapper') {
+    p.capsule(hx - 7, hy - 5.5, 1, hx + 7, hy - 4.5, 1, id.leather, { z0: 20 });
+    p.ellipse(hx - 4, hy - 6, 3, 2.6, id.steel, { z: 22, depth: 0.6 });
+    spot(p, hx - 4, hy - 6, 1.8, 1.5, C.TEAL_D);
+    p.dot(hx - 5, hy - 7, C.MINT);
+    for (const [x, y] of [[-3, 3], [1, 4], [-1, 5]]) p.dot(hx + x, hy + y, C.MOSS_D);
+  }
+  if (kit === 'shaman') {
+    p.ellipse(hx, hy - 6, 8, 6.5, id.tin, { z: 22, depth: 0.8 });
+    p.decal(hx - 9, hy - 13, hx + 9, hy - 3, (x, y) => (y <= hy - 4 && (x + y * 2) % 4 === 0 && y % 2 === 0 ? C.SOOT : -1));
+    p.capsule(hx - 9.5, hy - 3.5, 0.9, hx + 9.5, hy - 3.5, 0.9, id.tin, { z0: 23 });
+    p.ellipse(hx - 10.5, hy - 4, 1.6, 1.2, id.tin, { z: 23 });
+  }
+  if (boss) {
+    p.poly([[hx - 9, hy - 6], [hx + 9, hy - 6], [hx + 9, hy - 4], [hx - 9, hy - 4]], id.safety, { z: 21, normal: [0, -0.4, 1] });
+    p.poly([[hx - 6.5, hy - 6], [hx - 1, hy - 20], [hx + 1, hy - 20], [hx + 6.5, hy - 6]], id.safety, { z: 22, normal: [-0.3, -0.3, 1] });
+    p.decal(hx - 7, hy - 15, hx + 7, hy - 9, (x, y) => (y >= Math.round(hy - 13) && y <= Math.round(hy - 11) ? C.WHITE : -1));
+  }
+
+  // ---- near arm and weapon, in front of everything.
+  const sh = [tx - 2, Y(21)];
+  const hand = lunge
+    ? (kit === 'shaman' ? [tx - 12, Y(26)] : [tx - 14, Y(17)])
+    : [tx - 6, Y(33)];
+  const elbow = lunge ? [tx - 8, Y(22)] : [tx - 5, Y(28)];
+  p.capsule(...sh, 2.2, ...elbow, 1.8, id.gob, { z0: 24 });
+  p.capsule(...elbow, 1.8, ...hand, 1.6, id.gob, { z0: 25 });
+  const [x, y] = hand;
+  if (kit === 'grunt') {
+    const bx = lunge ? x - 7 : x - 3, by = lunge ? y - 4 : y - 10;
+    p.capsule(x, y, 1, x, lunge ? y - 2 : y - 4, 1, id.wood, { z0: 26 });
+    p.poly([[bx, by], [bx + 7, by - 1], [bx + 7, by + 6], [bx, by + 6]], id.tin, { z: 27, normal: [-0.4, -0.3, 1] });
+    strokes(p, [[bx, by + 6, bx + 7, by + 6]], C.STEEL_L, 0.5);
+    p.dot(bx + 5, by + 1, C.BLACK);
+  }
+  if (kit === 'sapper') {
+    const [bx, by] = lunge ? [x - 3, y - 4] : [x - 1, y - 4];
+    p.ellipse(bx, by, 4, 4, id.bomb, { z: 27 });
+    p.capsule(bx - 1, by - 4, 0.8, bx - 2.5, by - 6.5, 0.6, id.leather, { z0: 28 });
+    const sp = b ? C.HOT : C.YELLOW;
+    p.dot(bx - 3, by - 7, sp).dot(bx - 4, by - 8, C.FIRE).dot(bx - 2, by - 8, C.AMBER);
+  }
+  if (kit === 'shaman') {
+    const top = lunge ? [x - 6, Y(13)] : [x - 1, Y(10)];
+    p.capsule(x + (lunge ? 2 : 0), Math.min(G - 1, y + 9), 1, ...top, 1, id.wood, { z0: 26 });
+    p.ellipse(top[0], top[1] - 1.5, 1.6, 1.4, id.steel, { z: 28 });
+    const br = 3.6 + lunge * 0.8;
+    p.ellipse(top[0], top[1] - 5, br, br + 0.4, id.steel, { z: 29 });
+    spot(p, top[0], top[1] - 5, br, br + 0.4, lunge || b ? C.HOT : C.YELLOW);
+    spot(p, top[0] - 0.5, top[1] - 4.5, br - 1.6, br - 1.4, lunge || b ? C.WHITE : C.HOT);
+    p.dot(top[0] + 1.5, top[1] - 7, C.WHITE);
+  }
+  if (boss) {
+    // STOP sign carried on the near side, seen at an angle; bat over it.
+    const sx = tx - 5, sy = Y(31), R = 10;
+    const oct = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i + 0.5) * (Math.PI / 4);
+      oct.push([sx + Math.cos(a) * R * 0.62, sy + Math.sin(a) * R]);
+    }
+    p.poly(oct, id.sign, { z: 23, normal: [-0.6, -0.1, 0.8] });
+    p.decal(sx - R, sy - R - 1, sx + R, sy + R + 1, (px, py) => {
+      const u = (px + 0.5 - sx) / 0.62, v = py + 0.5 - sy;
+      const d = Math.max(Math.abs(u), Math.abs(v), (Math.abs(u) + Math.abs(v)) / Math.SQRT2);
+      return d > R * 0.84 && d < R * 0.97 ? C.BONE : Math.abs(v) < 1 && Math.abs(u) < 6 ? C.WHITE : -1;
+    });
+    const tip = lunge ? [x - 10, Y(2)] : [x - 3, Y(12)];
+    p.capsule(x, y + 2, 1.1, ...tip, 2.2, id.wood, { z0: 30 });
+    for (let t = 0.65; t <= 1; t += 0.1) {
+      const nx = x + (tip[0] - x) * t, ny = y + 2 + (tip[1] - y - 2) * t;
+      p.dot(nx - 2.5, ny, C.STEEL_L).dot(nx + 2.5, ny + 1, C.STEEL_L);
+    }
+  }
+  p.ellipse(...hand, 2.4, 2.2, id.gob, { z: 31 });
+
+  const glowColors = { grunt: [C.YELLOW, C.AMBER], sapper: [C.YELLOW, C.AMBER, C.HOT, C.FIRE], shaman: [C.LILAC, C.VIOLET_M, C.HOT, C.YELLOW, C.WHITE], boss: [C.YELLOW, C.AMBER] }[kit];
+  return p.shade(list, { name: `goblin_${kit}_${pose}`, glowColors });
+}

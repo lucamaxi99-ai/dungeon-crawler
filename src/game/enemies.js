@@ -50,6 +50,43 @@ export const ENEMY_TYPES = {
     sight: 4, roam: 2, leash: 5, track: 3,
     drops: [['shoes', 0.08], ['potion', 0.12]], gold: [1, 6], xp: 7,
   },
+  // Goblins (floor 2): a society of foot soldiers, specialists and a
+  // warboss. Patrols travel in squads.
+  goblinGrunt: {
+    name: 'Goblin Pot-Head', sprite: 'goblinGrunt', family: 'goblin', verb: 'cleaves',
+    hp: 6, atk: 3, def: 1, dex: 5, dmg: [1, 3],
+    sight: 5, roam: 2, leash: 7, track: 5,
+    drops: [['potLid', 0.12], ['ration', 0.15]], gold: [1, 4], xp: 9,
+  },
+  goblinSapper: {
+    name: 'Goblin Sapper', sprite: 'goblinSapper', family: 'goblin', verb: 'stabs',
+    hp: 5, atk: 2, def: 0, dex: 6, dmg: [1, 2],
+    sight: 5, roam: 2, leash: 7, track: 5,
+    traits: { bomb: { dmg: [2, 4], cooldown: 3, blast: [2, 3] } },
+    drops: [['ration', 0.1]], gold: [2, 6], xp: 10,
+  },
+  goblinShaman: {
+    name: 'Goblin Hedge-Shaman', sprite: 'goblinShaman', family: 'goblin', verb: 'bonks',
+    hp: 6, atk: 1, def: 0, dex: 5, dmg: [1, 2],
+    sight: 5, roam: 2, leash: 7, track: 5,
+    traits: { heal: { amount: [3, 5], below: 0.6, cooldown: 2 }, hex: { turns: 2, cooldown: 4 } },
+    drops: [['tomeHex', 0.06], ['mushroom', 0.2]], gold: [1, 5], xp: 11,
+  },
+  // Floor 2 miniboss: crowned itself with a traffic cone.
+  goblinBoss: {
+    name: 'Goblin Warboss', sprite: 'goblinBoss', family: 'goblin', rank: 'miniboss', verb: 'clubs',
+    hp: 20, atk: 4, def: 2, dex: 4, dmg: [2, 4],
+    sight: 6, roam: 1, leash: 6, track: 6,
+    traits: { aura: { atk: 1, dmg: 1 }, morale: true },
+    drops: [['cone', 0.6]], gold: [10, 30], loot: 'richChest', xp: 45,
+  },
+  // The first hunter: no territory, it mapped the whole floor already.
+  roboVac: {
+    name: 'Feral Robo-Vac', sprite: 'roboVac', family: 'appliance', verb: 'stabs',
+    hp: 5, atk: 3, def: 2, dex: 8, dmg: [1, 3],
+    sight: 6, roam: 6, leash: Infinity, track: 10,
+    gold: [2, 8], xp: 10,
+  },
   // Floor 1 miniboss: everything the dungeon ever lost ended up in here.
   slimeXL: {
     name: 'Unclaimed Baggage', sprite: 'slimeXL', family: 'slime', rank: 'miniboss', verb: 'engulfs',

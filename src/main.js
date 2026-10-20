@@ -934,7 +934,8 @@ function engage(foe, initiator) {
   const now = performance.now();
   combat = { fight, ui: new CombatScreen({ fight, scene: stageFor(foe), tables, inventory, now }), nextAt: now + PACE.start, endAt: 0 };
   const same = foes.every((e) => e.type === foe.type);
-  const name = foes.length === 1 ? foe.name : same ? `pack of ${foes.length} ${foe.name}s` : `${foe.name} and ${foes.length - 1 === 1 ? 'a friend' : 'friends'}`;
+  const kin = foes.every((e) => e.stats.family === foe.stats.family);
+  const name = foes.length === 1 ? foe.name : same ? `pack of ${foes.length} ${foe.name}s` : kin ? `squad of ${foes.length} ${foe.stats.family}s` : `mob of ${foes.length}`;
   log.push(line(initiator === 'crawler' ? 'combatStartCrawler' : 'combatStartEnemy').replace('{name}', name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
   log.push(fight.crawlersTurn ? 'You are faster. Your move.' : `The ${foe.name} is faster.`, 'info');
 }

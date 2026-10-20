@@ -193,7 +193,7 @@ if (ENEMY_TYPES.roboVac) {
   assert.ok(vac.hunter, 'the robo-vac is a hunter');
   const world = { isWall: () => false, blocked: () => false };
   enemyTurns([vac], world, { x: 3, y: 0 }, rng(1));
-  for (let i = 0; i < 25; i++) enemyTurns([vac], world, { x: 5 + i * 2, y: 0 }, rng(i));
+  for (let i = 0; i < 25; i++) enemyTurns([vac], world, { x: 4 + i, y: 0 }, rng(i));
   assert.ok(vac.x > 15, `it follows far (${vac.x})`);
 }
 

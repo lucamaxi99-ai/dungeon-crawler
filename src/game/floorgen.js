@@ -42,7 +42,14 @@ export const FLOORS = [
   },
   {
     size: [36, 36], rooms: [9, 10], chests: 3, rich: 1, margin: 3.0,
-    foes: [{ squad: ['rat'], n: 6 }],
+    foes: [
+      { squad: ['rat'], n: 2 },
+      { squad: ['goblinGrunt', 'goblinGrunt'], n: 1 },
+      { squad: ['goblinGrunt', 'goblinSapper'], n: 1 },
+      { squad: ['goblinGrunt', 'goblinShaman'], n: 1 },
+      { squad: ['roboVac'], n: 1, where: 'anywhere' },
+      { squad: ['goblinBoss', 'goblinGrunt'], n: 1, where: 'boss' },
+    ],
   },
   {
     size: [42, 42], rooms: [11, 12], chests: 3, rich: 1, margin: 2.8,

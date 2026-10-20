@@ -10,6 +10,8 @@ import { paintBrazier, paintWallTorch, paintChest, paintBarrel, paintBones, pain
 import { LIGHT_PRESETS } from './lights.js';
 import { paintRat, paintRatFront } from './creatures.js';
 import { paintSlimeFront, paintSlimeSide } from './bestiary/classics.js';
+import { paintGoblinFront, paintGoblinSide } from './bestiary/goblins.js';
+import { paintRoboVacFront, paintRoboVacSide } from './bestiary/modern.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
 
@@ -44,6 +46,18 @@ function squash(s, k) {
   return { ...s, h, data, name: `${s.name}_squash` };
 }
 
+// Fallen over sideways: rotated a quarter turn (feet to the right), cropped
+// to what is painted, resting on the floor.
+function lieDown(s) {
+  const w = s.h, h = s.w;
+  const data = new Uint8Array(w * h).fill(TRANSPARENT);
+  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) data[x * w + (s.h - 1 - y)] = s.data[y * s.w + x];
+  const rows = [];
+  for (let y = 0; y < h; y++) if (data.subarray(y * w, y * w + w).some((c) => c !== TRANSPARENT)) rows.push(y);
+  const y0 = rows[0], y1 = rows[rows.length - 1];
+  return { ...s, w, h: y1 - y0 + 2, data: Uint8Array.from([...new Array(w).fill(TRANSPARENT), ...data.subarray(y0 * w, (y1 + 1) * w)]), name: `${s.name}_lying` };
+}
+
 // Painted at scale k but shown that much bigger in the world (minibosses,
 // leaders): the painter would otherwise keep the wall height the same.
 const big = (paint, k, kit) => (pose) => ({ ...paint(pose, k, kit), unit: 64 });
@@ -56,16 +70,24 @@ function creature(paint, paintFront, frameMs, opts = {}) {
   const L = { idle: animation(idle, { frameMs }), lunge: paint('lunge'), flinch: paint('flinch') };
   const R = { idle: mirror(L.idle), lunge: mirror(L.lunge), flinch: mirror(L.flinch) };
   const F = { idle: animation([paintFront('idle0'), paintFront('idle1')], { frameMs }), lunge: paintFront('lunge'), flinch: paintFront('flinch') };
-  const body = opts.corpse === 'squash' ? squash(paint('flinch'), 0.5) : trimBottom(flip(idle[0]));
+  const body = opts.corpse === 'squash' ? squash(paint('flinch'), 0.5)
+    : opts.corpse === 'lie' ? lieDown(paint('flinch')) : trimBottom(flip(idle[0]));
   const corpse = recolor(body, opts.dead || {}, 'dead');
   return { L, R, F, corpse, disguise: opts.disguise || null };
 }
+const GOBLIN_DEAD = { [C.YELLOW]: C.SOOT, [C.AMBER]: C.MOSS_D, [C.LILAC]: C.SOOT, [C.VIOLET_M]: C.MOSS_D };
+const goblin = (kit, ms) => creature((pose) => paintGoblinSide(kit, pose), (pose) => paintGoblinFront(kit, pose), ms, { dead: GOBLIN_DEAD, corpse: 'lie' });
 const RAT_DEAD = { [C.RED]: C.SOOT, [C.FIRE]: C.GORE };
 const SLIME_DEAD = { [C.SKY]: C.NIGHT, [C.ICE]: C.STEEL_D }; // the phone finally dies too
 export const CREATURES = {
   rat: creature(paintRat, paintRatFront, 260, { dead: RAT_DEAD }),
   ratAlpha: creature(big(paintRat, 1.25, 'alpha'), big(paintRatFront, 1.25, 'alpha'), 300, { dead: RAT_DEAD }),
   slime: creature(paintSlimeSide, paintSlimeFront, 180, { dead: SLIME_DEAD, corpse: 'squash' }),
+  goblinGrunt: goblin('grunt', 380),
+  goblinSapper: goblin('sapper', 300),
+  goblinShaman: goblin('shaman', 420),
+  goblinBoss: goblin('boss', 450),
+  roboVac: creature(paintRoboVacSide, paintRoboVacFront, 120, { dead: { [C.SKY]: C.STEEL_D, [C.RED]: C.STEEL_D, [C.AMBER]: C.STEEL_D } }),
   slimeXL: creature(big(paintSlimeSide, 1.35, 'xl'), big(paintSlimeFront, 1.35, 'xl'), 220, { dead: SLIME_DEAD, corpse: 'squash' }),
 };
 

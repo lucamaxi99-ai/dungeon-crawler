@@ -223,6 +223,45 @@ export function paintRoboVacFront(pose = 'idle0', scale = 1) {
   return p.shade(list, { name: `robovac_front_${pose}`, glowColors: [C.SKY, C.RED, C.AMBER, C.WHITE] });
 }
 
+// Side view, facing left: a flat puck on two little wheels, the taped
+// knife sticking out ahead like a lance.
+export function paintRoboVacSide(pose = 'idle0', scale = 1) {
+  const { list, id } = mats('plastic', 'tin', 'wood', 'rubber', TAPE);
+  id.tape = 4;
+  const { b, lunge, flinch } = poseFlags(pose);
+  const W = 50, G = 27;
+  const p = new Painter(W, 28, { seed: 62, scale });
+  const cx = W / 2 + 4 - lunge * 4 + flinch * 2;
+  const lift = flinch * 3;
+  const tilt = lunge * 0.08 - flinch * 0.06;   // noses down to charge, rears when hit
+  const by = G - 6 - lift;
+  // Wheels and the spinning side brush at the front.
+  for (const wx of [cx - 9, cx + 10]) p.ellipse(wx, G - 2 - lift, 2.4, 2.2, id.rubber, { z: 1 });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + (b ? 0.7 : 0) + lunge * 1.2;
+    strokes(p, [[cx - 15, G - 2 - lift, cx - 15 + Math.cos(a) * 5, G - 2 - lift + Math.sin(a) * 1.3]], C.GRAVEL_M, 0.45);
+  }
+  // Body: a short wide cylinder seen from the side, top plate on it.
+  p.poly([[cx - 18, by - 3 + 18 * tilt], [cx + 18, by - 3 - 18 * tilt], [cx + 18, by + 3 - 18 * tilt], [cx - 18, by + 3 + 18 * tilt]], id.plastic, { z: 2, normal: [0, 0.1, 1] });
+  p.ellipse(cx - 18, by + 18 * tilt, 2.2, 3, id.plastic, { z: 3 });
+  p.ellipse(cx + 18, by - 18 * tilt, 2.2, 3, id.plastic, { z: 1 });
+  p.poly([[cx - 16, by - 4.5 + 16 * tilt], [cx + 16, by - 4.5 - 16 * tilt], [cx + 16, by - 3 - 16 * tilt], [cx - 16, by - 3 + 16 * tilt]], id.tin, { z: 4, normal: [0, -0.8, 0.6] });
+  p.ellipse(cx + 2, by - 5.2, 3, 1, id.plastic, { z: 6, depth: 0.6 });
+  // LED strip along the front quarter, bumper shadow below.
+  const led = lunge ? C.RED : flinch ? C.AMBER : C.SKY;
+  p.decal(cx - 20, by - 1, cx - 6, by + 2, (x, y) => (Math.abs(y + 0.5 - (by + 0.5 + (cx - x) * tilt)) < 0.6 ? (flinch ? (x % 3 === 0 ? C.AMBER : C.SOOT) : (x + b) % 4 === 0 ? C.WHITE : led) : -1));
+  p.decal(cx - 18, by + 2, cx + 18, by + 4, (x, y) => (y >= by + 2.2 ? C.SOOT : -1));
+  // The knife, taped on top, pointing ahead.
+  const hx = cx - 2, hy = by - 6 + tilt * 2;
+  const kx = cx - 23 - lunge * 2, ky = by - 7 + lunge * 3;
+  p.poly([[hx, hy - 1.6], [kx, ky], [hx, hy + 1.2]], id.tin, { z: 12, normal: [0.2, -0.5, 1] });
+  strokes(p, [[hx, hy - 1.4, kx + 0.5, ky]], C.WHITE, 0.45);
+  for (let t = 0.15; t < 0.9; t += 0.2) p.dot(hx + (kx - hx) * t, hy + 1.1 + (ky - hy - 1) * t, C.STEEL_D);
+  p.capsule(hx, hy, 1.4, hx + 9, hy + 1, 1.5, id.wood, { z0: 11 });
+  for (const t of [0.2, 0.65]) p.capsule(hx + 9 * t, hy - 2.3, 1.1, hx + 9 * t + 0.4, hy + 2.6, 1.1, id.tape, { z0: 14 });
+  return p.shade(list, { name: `robovac_${pose}`, glowColors: [C.SKY, C.RED, C.AMBER, C.WHITE] });
+}
+
 // ------------------------------------------------------------ cart mimic
 
 const TONGUE = { ramp: [C.GORE, C.WINE, C.MAGENTA, C.NEON], spec: C.SKIN_L, shine: 0.5, outline: C.BLACK };
