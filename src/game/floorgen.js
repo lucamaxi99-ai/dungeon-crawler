@@ -53,7 +53,15 @@ export const FLOORS = [
   },
   {
     size: [42, 42], rooms: [11, 12], chests: 3, rich: 1, margin: 2.8,
-    foes: [{ squad: ['rat'], n: 8 }],
+    foes: [
+      { squad: ['rat', 'rat'], n: 1 },
+      { squad: ['raccoon'], n: 2 },
+      { squad: ['gnome', 'gnome'], n: 1 },
+      { squad: ['gnomeCaptain', 'gnome', 'gnome'], n: 1 },
+      { squad: ['goblinGrunt', 'goblinShaman'], n: 1 },
+      { squad: ['cartMimic'], n: 2, where: 'wall' },
+      { squad: ['badLlama'], n: 1, where: 'boss' },
+    ],
   },
 ];
 // How many enemies a floor holds.

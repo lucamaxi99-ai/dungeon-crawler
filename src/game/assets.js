@@ -11,7 +11,10 @@ import { LIGHT_PRESETS } from './lights.js';
 import { paintRat, paintRatFront } from './creatures.js';
 import { paintSlimeFront, paintSlimeSide } from './bestiary/classics.js';
 import { paintGoblinFront, paintGoblinSide } from './bestiary/goblins.js';
-import { paintRoboVacFront, paintRoboVacSide } from './bestiary/modern.js';
+import {
+  paintRoboVacFront, paintRoboVacSide, paintLlamaFront, paintLlamaSide, paintCartFront, paintCartSide,
+  paintRaccoonFront, paintRaccoonSide, paintGnomeFront, paintGnomeSide,
+} from './bestiary/modern.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
 
@@ -77,6 +80,7 @@ function creature(paint, paintFront, frameMs, opts = {}) {
 }
 const GOBLIN_DEAD = { [C.YELLOW]: C.SOOT, [C.AMBER]: C.MOSS_D, [C.LILAC]: C.SOOT, [C.VIOLET_M]: C.MOSS_D };
 const goblin = (kit, ms) => creature((pose) => paintGoblinSide(kit, pose), (pose) => paintGoblinFront(kit, pose), ms, { dead: GOBLIN_DEAD, corpse: 'lie' });
+const EYES_OUT = { [C.YELLOW]: C.SOOT, [C.AMBER]: C.SOOT };
 const RAT_DEAD = { [C.RED]: C.SOOT, [C.FIRE]: C.GORE };
 const SLIME_DEAD = { [C.SKY]: C.NIGHT, [C.ICE]: C.STEEL_D }; // the phone finally dies too
 export const CREATURES = {
@@ -88,6 +92,11 @@ export const CREATURES = {
   goblinShaman: goblin('shaman', 420),
   goblinBoss: goblin('boss', 450),
   roboVac: creature(paintRoboVacSide, paintRoboVacFront, 120, { dead: { [C.SKY]: C.STEEL_D, [C.RED]: C.STEEL_D, [C.AMBER]: C.STEEL_D } }),
+  raccoon: creature(paintRaccoonSide, paintRaccoonFront, 360, { dead: EYES_OUT, corpse: 'lie' }),
+  gnome: creature(paintGnomeSide, paintGnomeFront, 480, { corpse: 'lie' }),
+  gnomeCaptain: creature(big(paintGnomeSide, 1.2, 'captain'), big(paintGnomeFront, 1.2, 'captain'), 520, { corpse: 'lie' }),
+  cartMimic: creature(paintCartSide, paintCartFront, 400, { dead: EYES_OUT, disguise: paintCartSide('disguise') }),
+  badLlama: creature(paintLlamaSide, paintLlamaFront, 520, { corpse: 'lie' }),
   slimeXL: creature(big(paintSlimeSide, 1.35, 'xl'), big(paintSlimeFront, 1.35, 'xl'), 220, { dead: SLIME_DEAD, corpse: 'squash' }),
 };
 

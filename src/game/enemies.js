@@ -87,6 +87,47 @@ export const ENEMY_TYPES = {
     sight: 6, roam: 6, leash: Infinity, track: 10,
     gold: [2, 8], xp: 10,
   },
+  // Floor 3 (a taste of the city above, before it becomes the first story
+  // floor in M9).
+  raccoon: {
+    name: 'Trash Panda Bandit', sprite: 'raccoon', family: 'raccoon', verb: 'claws',
+    hp: 9, atk: 4, def: 1, dex: 9, dmg: [2, 3],
+    sight: 6, roam: 3, leash: 8, track: 6,
+    traits: { steal: { share: 0.2, min: 5, max: 40 } },
+    drops: [['ration', 0.3], ['shoes', 0.05]], gold: [2, 8], xp: 14,
+  },
+  // Ceramic: blunt weapons crack them. They never come alone.
+  gnome: {
+    name: 'Lawn Gnome Militia', sprite: 'gnome', family: 'gnome', verb: 'pickaxes',
+    hp: 8, atk: 4, def: 4, dex: 3, dmg: [2, 3],
+    sight: 5, roam: 2, leash: 6, track: 5,
+    traits: { brittle: 3 },
+    drops: [['mushroom', 0.25]], gold: [1, 5], xp: 11,
+  },
+  gnomeCaptain: {
+    name: 'Gnome Captain', sprite: 'gnomeCaptain', family: 'gnome', rank: 'leader', verb: 'pickaxes',
+    hp: 13, atk: 5, def: 4, dex: 4, dmg: [2, 4],
+    sight: 6, roam: 1, leash: 6, track: 6,
+    traits: { brittle: 3, aura: { atk: 1, dmg: 1 }, morale: true },
+    drops: [['mushroom', 0.5], ['luckyAmulet', 0.05]], gold: [4, 12], xp: 22,
+  },
+  // Looks like a shopping cart until you stand right next to it.
+  cartMimic: {
+    name: 'Cart Mimic', sprite: 'cartMimic', family: 'mimic', verb: 'chomps',
+    hp: 14, atk: 5, def: 3, dex: 4, dmg: [2, 5],
+    sight: 1, roam: 0, leash: 4, track: 3,
+    traits: { disguise: true },
+    gold: [5, 15], loot: 'chest', xp: 20,
+  },
+  // Floor 3 miniboss until the real boss arrives with the story floor.
+  // TODO(M9): Floor 3 becomes the first story floor with its own boss.
+  badLlama: {
+    name: 'Bad Llama', sprite: 'badLlama', family: 'llama', rank: 'miniboss', verb: 'kicks',
+    hp: 40, atk: 6, def: 4, dex: 6, dmg: [3, 6],
+    sight: 6, roam: 2, leash: 6, track: 6,
+    traits: { spit: { dmg: [4, 6], blind: 2, cooldown: 3 }, grudge: true },
+    drops: [['briskBoots', 0.08]], gold: [15, 35], loot: 'richChest', xp: 55,
+  },
   // Floor 1 miniboss: everything the dungeon ever lost ended up in here.
   slimeXL: {
     name: 'Unclaimed Baggage', sprite: 'slimeXL', family: 'slime', rank: 'miniboss', verb: 'engulfs',

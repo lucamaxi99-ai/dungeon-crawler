@@ -169,7 +169,7 @@ if (ENEMY_TYPES.gnome) {
     g.hp = 99;
     const fight = new Combat(me, [g], { rnd: always, initiator: 'crawler' });
     fight.turn = fight.order.indexOf(me);
-    return fight.crawlerAct({ kind: 'attack', target: g }).find((e) => e.kind === 'hit');
+    return fight.crawlerAct({ kind: 'attack', target: g }).find((e) => e.kind === 'hit' || e.kind === 'crit');
   };
   const blade = hit('shiv'), blunt = hit('crowbar');
   assert.ok(blunt.crack && !blade.crack, 'blunt weapons crack ceramic');

@@ -92,6 +92,71 @@ export function paintLlamaFront(pose = 'idle0', scale = 1) {
   return p.shade(list, { name: `llama_front_${pose}`, glowColors: [C.LIME, C.MINT] });
 }
 
+// Side view, facing left: long neck, banana ears, a blanket over the back
+// and an expression of total contempt.
+export function paintLlamaSide(pose = 'idle0', scale = 1) {
+  const { list, id } = mats('wool', 'hide', 'rubber');
+  const { b, lunge, flinch } = poseFlags(pose);
+  const W = 56, G = 61;
+  const p = new Painter(W, 62, { seed: 43, scale });
+  const bx = W / 2 + 6 + flinch * 2, by = 40;       // body centre
+  // Head position: up high, thrust forward and down to spit, back when hit.
+  const hx = bx - 17 - lunge * 6 + flinch * 3, hy = 17 + lunge * 7 + b * 0.5;
+
+  // Far legs (darker by being behind), body, near legs.
+  const leg = (x, z, swing) => {
+    p.capsule(x, by + 5, 2.2, x + swing, G - 1, 1.4, id.wool, { z0: z });
+    p.ellipse(x + swing - 0.5, G - 0.5, 2, 1, id.rubber, { z: z + 1 });
+  };
+  leg(bx - 8, 0, b ? 1 : -1); leg(bx + 9, 0, b ? -1 : 1);
+  p.ellipse(bx + 14, by - 4 + b * 0.5, 3, 4, id.wool, { z: 1, depth: 0.7 });   // fluffy tail
+  p.ellipse(bx, by, 14, 8.5 + b * 0.3, id.wool, { z: 4, depth: 0.8 });
+  leg(bx - 10, 7, lunge ? -2 : 0); leg(bx + 7, 7, flinch ? 2 : 0);
+  // Blanket draped over the back.
+  const BLANKET = [C.MAGENTA, C.GOLD, C.TEAL, C.GOLD, C.MAGENTA];
+  p.decal(bx - 9, by - 9, bx + 9, by + 4, (x, y) => {
+    const u = (x + 0.5 - bx) / 14, v = (y + 0.5 - by) / 8.5;
+    if (u * u + v * v > 0.97 || Math.abs(x + 0.5 - bx) > 8 || y > by + 3) return -1;
+    return BLANKET[Math.floor((x - bx + 9) / 3) % BLANKET.length];
+  });
+  // Neck from the shoulders up to the head.
+  p.capsule(bx - 10, by - 3, 5, hx + 2, hy + 6, 3.6, id.wool, { z0: 8, z1: 10 });
+  // Ears: up like bananas, flat back when it spits or gets hit.
+  const back = lunge || flinch ? 1 : 0;
+  for (const [dx, z] of [[2.5, 9], [0.5, 14]]) {
+    const ex = hx + dx, ey = hy - 4;
+    const tip = back ? [ex + 9, ey - 2] : [ex + 2, ey - 11];
+    p.capsule(ex, ey, 1.6, tip[0], tip[1], 1, id.hide, { z0: z });
+    spot(p, tip[0] + 0.5, tip[1] + 3, 1.3, 1.3, dx > 1 ? C.TEAL : C.MAGENTA);   // tassel
+  }
+  // Head, top-knot, long muzzle pointing left.
+  p.ellipse(hx, hy, 5, 5.5, id.hide, { z: 12, depth: 0.8 });
+  p.ellipse(hx + 1, hy - 5, 4, 2.5, id.wool, { z: 13, depth: 0.7 });
+  p.capsule(hx - 2, hy + 2, 3.6, hx - 8, hy + 4 + lunge, 2.6, id.hide, { z0: 14 });
+  // Eye: half lidded, unimpressed.
+  const ex = hx - 1, ey = hy - 1;
+  if (flinch) strokes(p, [[ex - 1.5, ey, ex + 1.5, ey]], C.BLACK, 0.55);
+  else {
+    spot(p, ex, ey, 1.5, 1.5, C.BLACK);
+    p.dot(ex - 0.5, ey - 0.5, C.STEEL_L);
+    strokes(p, [[ex - 2, ey - 1.2, ex + 2, ey - 1.4]], C.WOOD_D, 0.5);
+  }
+  p.dot(hx - 9.5, hy + 3 + lunge, C.SOOT);                               // nostril
+  const my = hy + 6 + lunge;
+  if (lunge) {
+    spot(p, hx - 8, my, 2, 1.4, C.SOOT);
+    for (const [x, y, r] of [[hx - 13, my + 1, 2.2], [hx - 17, my + 3, 1.6], [hx - 20, my + 6, 1.2]]) {
+      p.ellipse(x, y, r, r, id.wool, { z: 40 });
+      spot(p, x, y, r, r, C.LIME);
+      p.dot(x - 0.5, y - 0.5, C.MINT);
+    }
+  } else {
+    strokes(p, [[hx - 10, my - 1, hx - 5, my - b * 0.3]], C.SOOT, 0.5);
+    p.dot(hx - 9, my, C.PARCHMENT);
+  }
+  return p.shade(list, { name: `llama_${pose}`, glowColors: [C.LIME, C.MINT] });
+}
+
 // ------------------------------------------------------------ vendetta machine
 
 const CANS = [C.SKY, C.LIME, C.GOLD, C.NEON, C.MINT];
@@ -328,6 +393,68 @@ export function paintCartFront(pose = 'idle0', scale = 1) {
   return p.shade(list, { name: `cart_front_${pose}`, glowColors: [C.YELLOW, C.AMBER] });
 }
 
+// Side view, facing left (the front of the cart is the mouth). Pose
+// 'disguise' is the same cart with its mouth shut and eyes closed: just a
+// shopping cart someone left in a dungeon. Nothing to worry about.
+export function paintCartSide(pose = 'idle0', scale = 1) {
+  const { list, id } = mats('chrome', 'rubber', 'nylonRed', TONGUE);
+  id.pink = 3;
+  const hide = pose === 'disguise';
+  const { b, lunge, flinch } = poseFlags(hide ? 'idle0' : pose);
+  const W = 58, G = 47;
+  const p = new Painter(W, 48, { seed: 72, scale });
+  const cx = W / 2 + 2 - lunge * 3 + flinch * 2;
+  const rim = 12, bot = 34;
+  const open = hide ? 0 : 3 + lunge * 6 - flinch * 2; // how far the front lid gapes
+  // Basket outline: front (left) slopes in toward the bottom.
+  const X0 = (y) => cx - 20 + (y - rim) * 0.35, X1 = cx + 14;
+  // Handle at the back, frame down to the wheels.
+  p.capsule(X1, rim, 0.8, X1 + 6, 7 - b * 0.3, 0.8, id.chrome, { z0: 3 });
+  p.capsule(X1 + 6, 7 - b * 0.3, 1.6, X1 + 7, 4 - b * 0.3, 1.6, id.nylonRed, { z0: 4 });
+  p.capsule(X1, bot, 0.8, X1 + 2, G - 4, 0.8, id.chrome, { z0: 3 });
+  p.capsule(X0(bot) + 2, bot, 0.8, X0(bot), G - 4, 0.8, id.chrome, { z0: 3 });
+  p.capsule(X0(bot) + 1, 40, 0.8, X1 + 1, 40, 0.8, id.chrome, { z0: 3 });   // bottom tray
+  const wob = b && !hide ? 1 : 0;
+  p.ellipse(X0(bot) - 0.5 + wob, G - 2.5, 2.4 - wob * 0.6, 2.4, id.rubber, { z: 6 });
+  p.ellipse(X1 + 2, G - 2.5, 2.4, 2.4, id.rubber, { z: 6 });
+  // Dark inside, then the mesh side panel.
+  p.poly([[X0(rim) - open, rim - open * 0.6], [X1, rim], [X1, bot], [X0(bot), bot]], id.rubber, { z: 1, normal: [0, 0, 1] });
+  if (!hide) {
+    // Eyes glowing in the dark at the front end.
+    const ex = X0(rim) + 6 - lunge * 2, ey = rim + 6 - lunge;
+    if (flinch) strokes(p, [[ex - 2, ey, ex + 2, ey]], C.AMBER, 0.5);
+    else {
+      spot(p, ex, ey, 2.6, 1.9 + b * 0.3, C.AMBER);
+      spot(p, ex, ey, 1.8, 1.3 + b * 0.3, C.YELLOW);
+      p.dot(ex - 1, ey, C.BLACK).dot(ex - 1, ey - 1, C.BLACK);
+    }
+  }
+  p.decal(X0(rim) - 10, rim - 8, X1 + 1, bot, (x, y) => {
+    const u = x + 0.5, v = y + 0.5;
+    if (v < rim || u < X0(v) || u > X1) return -1;
+    // Teeth along the upper rim and up from the lower jaw at the front.
+    const tf = ((u - X0(v)) / 3) % 1;
+    if (!hide && u < X0(v) + 14 && v - rim < 3 + lunge - Math.abs(tf - 0.5) * 6) return C.BONE;
+    const vert = Math.abs(((u - X0(v)) / 3) % 1 - 0.5) > 0.36;
+    const hor = (Math.floor(v) - rim) % 4 === 3;
+    return vert || hor ? C.STEEL_M : -1;
+  });
+  // Rim, with the front lid lifted like an upper jaw.
+  p.capsule(X0(rim) - open, rim - open * 0.6, 1.2, X0(rim) + 12, rim, 1.2, id.chrome, { z0: 8 });
+  p.capsule(X0(rim) + 12, rim, 1.2, X1, rim, 1.2, id.chrome, { z0: 8 });
+  p.capsule(X0(bot), bot, 1, X1, bot, 1, id.chrome, { z0: 8 });
+  p.capsule(X0(rim), rim, 1, X0(bot), bot, 1, id.chrome, { z0: 8 });
+  p.capsule(X1, rim, 1, X1, bot, 1, id.chrome, { z0: 8 });
+  if (!hide) {
+    // Tongue lolling out of the front.
+    const tx0 = X0(rim) + 2, ty0 = rim + 2;
+    const tx1 = lunge ? tx0 - 14 : tx0 - 5 - b, ty1 = lunge ? rim + 6 : rim + 12 + b;
+    p.capsule(tx0, ty0, 2.2, (tx0 + tx1) / 2, (ty0 + ty1) / 2 + 1, 2, id.pink, { z0: 12 });
+    p.capsule((tx0 + tx1) / 2, (ty0 + ty1) / 2 + 1, 2, tx1, ty1, 1.6, id.pink, { z0: 13 });
+  }
+  return p.shade(list, { name: `cart_${pose}`, glowColors: hide ? [] : [C.YELLOW, C.AMBER] });
+}
+
 // ------------------------------------------------------------ wacky waving wailer
 
 export function paintTubeFront(pose = 'idle0', scale = 1) {
@@ -465,10 +592,67 @@ export function paintRaccoonFront(pose = 'idle0', scale = 1) {
   return p.shade(list, { name: `raccoon_front_${pose}`, glowColors: [C.AMBER, C.YELLOW] });
 }
 
+// Side view, facing left: upright on its hind legs, snout and mask first,
+// the loot bag on its back and the ringed tail behind.
+export function paintRaccoonSide(pose = 'idle0', scale = 1) {
+  const LIGHT_FUR = { ramp: [C.GRAVEL_M, C.GRAVEL_L, C.PARCHMENT, C.BONE], rough: 0.2, outline: C.SOOT };
+  const DARK_FUR = { ramp: [C.BLACK, C.SOOT, C.GRAVEL_D, C.GRAVEL], rough: 0.25, outline: C.BLACK };
+  const { list, id } = mats('fur', LIGHT_FUR, DARK_FUR, 'bag');
+  const light = 1, dark = 2;
+  const { b, lunge, flinch } = poseFlags(pose);
+  const W = 50, G = 45;
+  const p = new Painter(W, 46, { seed: 93, scale });
+  const cx = W / 2 + 1 - lunge * 3 + flinch * 2;
+  const hx = cx - 4 - lunge * 3 + flinch, hy = 15 + lunge * 3 - flinch + b * 0.4;
+  // Tail behind, rings alternating.
+  let tx = cx + 5, ty = G - 6;
+  for (let i = 0; i < 8; i++) {
+    const nx = tx + 2.1, ny = ty - 1.5 - Math.sin(i * 0.7 + b) * 0.8;
+    p.capsule(tx, ty, 3 - i * 0.1, nx, ny, 3 - (i + 1) * 0.1, i % 2 ? dark : id.fur, { z0: -2 });
+    tx = nx; ty = ny;
+  }
+  // Loot bag on its back.
+  p.ellipse(cx + 8, 24, 7, 8.5, id.bag, { z: -1, depth: 0.9 });
+  p.capsule(cx + 6, 15, 1, cx + 3, 13, 1.2, id.bag, { z0: 0 });
+  strokes(p, [[cx + 9, 16, cx + 10, 13.5], [cx + 9, 16, cx + 12, 14.5]], C.YELLOW, 0.6);
+  // Legs and feet, body, belly.
+  p.ellipse(cx + 2, G - 4, 4, 4.5, id.fur, { z: 2 });
+  p.ellipse(cx - 1, G - 1, 3.4, 1.4, dark, { z: 4 });
+  p.ellipse(cx + 3, G - 1, 3, 1.3, dark, { z: 1 });
+  p.ellipse(cx, 31, 8, 10.5 + b * 0.3, id.fur, { z: 4, depth: 0.8 });
+  p.ellipse(cx - 4, 33, 3.5, 7, light, { z: 6, depth: 0.6 });
+  // Head: snout pointing left, ear on top, pale cheek.
+  p.ellipse(hx + 4, hy - 6 + flinch, 3, 3.2, light, { z: 8 });
+  p.ellipse(hx + 4, hy - 5.6 + flinch, 2, 2.2, dark, { z: 9 });
+  p.ellipse(hx, hy, 7, 6.5, id.fur, { z: 10, depth: 0.85 });
+  p.ellipse(hx - 1, hy + 2, 5, 4, light, { z: 11, depth: 0.6 });
+  p.capsule(hx - 3, hy + 2, 3, hx - 9, hy + 3.5, 1.6, light, { z0: 13 });
+  spot(p, hx - 9.5, hy + 3, 1.2, 1, C.BLACK);
+  // Mask band across the eye.
+  p.decal(hx - 7, hy - 3, hx + 5, hy + 2, (x, y) => (Math.abs(y + 0.5 - hy + 0.3 - (x + 0.5 - hx) * 0.15) < 1.7 && x + 0.5 > hx - 6 && x + 0.5 < hx + 4 ? C.BLACK : -1));
+  strokes(p, [[hx - 5, hy - 2.6, hx - 1.5, hy - 2.4]], C.BONE, 0.5);
+  if (flinch) strokes(p, [[hx - 4, hy, hx - 2, hy]], C.GRAVEL, 0.5);
+  else p.dot(hx - 3, hy, C.YELLOW).dot(hx - 2, hy, C.AMBER);
+  if (lunge) { spot(p, hx - 7, hy + 5, 1.8, 1.2, C.GORE); p.dot(hx - 8, hy + 4, C.BONE); }
+  // Grabby arm: reaching out to snatch.
+  const hand = lunge ? [cx - 15, 24] : flinch ? [cx - 4, 19] : [cx - 6, 30];
+  p.capsule(cx - 2, 24, 2, ...hand, 1.6, id.fur, { z0: 16 });
+  p.ellipse(...hand, 2, 1.8, dark, { z: 17 });
+  return p.shade(list, { name: `raccoon_${pose}`, glowColors: [C.AMBER, C.YELLOW] });
+}
+
 // ------------------------------------------------------------ lawn gnome
 
-export function paintGnomeFront(pose = 'idle0', scale = 1) {
-  const { list, id } = mats('ceramicSkin', 'ceramicRed', 'ceramicBlue', 'beard', 'rubber', 'wood', 'tin', 'leather');
+// kit 'captain': colours swapped (red coat, blue hat) and a medal for
+// services to property values.
+function gnomeMats(kit) {
+  const m = mats('ceramicSkin', 'ceramicRed', 'ceramicBlue', 'beard', 'rubber', 'wood', 'tin', 'leather', 'gold');
+  if (kit === 'captain') [m.id.ceramicRed, m.id.ceramicBlue] = [m.id.ceramicBlue, m.id.ceramicRed];
+  return m;
+}
+
+export function paintGnomeFront(pose = 'idle0', scale = 1, kit = 'militia') {
+  const { list, id } = gnomeMats(kit);
   const { b, lunge, flinch } = poseFlags(pose);
   const W = 34, G = 39;
   const p = new Painter(W, 40, { seed: 101, scale });
@@ -506,10 +690,60 @@ export function paintGnomeFront(pose = 'idle0', scale = 1) {
     strokes(p, [[ex - s * 1.6, hy - 2.4, ex + s * 1.2, hy - 1.6]], C.WHITE, 0.55);
   }
   p.dot(cx - 0.5, hy + 0.5, C.SKIN_D);
+  if (kit === 'captain') { p.ellipse(cx - 4, 27, 1.6, 1.6, id.gold, { z: 16 }); p.dot(cx - 4, 25, C.RED).dot(cx - 4, 24, C.RED); }
   // Hit: the glaze cracks and a chip flies off the hat.
   if (flinch) {
     strokes(p, [[cx - 3, hy - 6, cx - 1, hy - 2], [cx - 1, hy - 2, cx - 2, hy + 1], [cx + 2, hy - 9, cx + 3, hy - 5]], C.SOOT, 0.45);
     p.erase((x, y) => x >= cx + 2 && x <= cx + 4 && y >= hy - 13 && y <= hy - 11);
   }
-  return p.shade(list, { name: `gnome_front_${pose}`, dither: 0.35 });
+  return p.shade(list, { name: `gnome_${kit}_front_${pose}`, dither: 0.35 });
+}
+
+// Side view, facing left: hat leaning back, nose and beard first, pickaxe
+// over the shoulder.
+export function paintGnomeSide(pose = 'idle0', scale = 1, kit = 'militia') {
+  const { list, id } = gnomeMats(kit);
+  const { b, lunge, flinch } = poseFlags(pose);
+  const W = 36, G = 39;
+  const p = new Painter(W, 40, { seed: 103, scale });
+  const cx = W / 2 + 1 - lunge * 2 + flinch;
+  const hx = cx - 1 - lunge, hy = 18 + lunge * 1.5 + b * 0.3;
+  // Pickaxe behind (on the shoulder) or swung down in front.
+  if (!lunge) {
+    p.capsule(cx + 1, 29, 0.9, cx + 8, 12, 0.9, id.wood, { z0: 1 });
+    p.capsule(cx + 4, 10, 0.8, cx + 12, 14, 1, id.tin, { z0: 2 });
+  }
+  // Boots, coat, belt.
+  p.ellipse(cx - 2, G - 1.5, 3.5, 1.8, id.rubber, { z: 4 });
+  p.ellipse(cx + 2, G - 1.6, 3, 1.6, id.rubber, { z: 3 });
+  p.ellipse(cx, 30, 6.5, 7.5, id.ceramicBlue, { z: 5, depth: 0.85 });
+  p.capsule(cx - 6, 32, 1.1, cx + 6, 32, 1.1, id.leather, { z0: 10 });
+  // Head: face, beard down the front, round nose sticking out.
+  p.ellipse(hx, hy, 4.5, 4, id.ceramicSkin, { z: 9, depth: 0.8 });
+  p.ellipse(hx - 2, hy + 6, 4, 6, id.beard, { z: 11, depth: 0.7 });
+  p.ellipse(hx - 4.5, hy + 1, 1.9, 1.7, id.ceramicSkin, { z: 15 });
+  p.ellipse(hx - 3.5, hy + 2.6, 2.4, 1.2, id.beard, { z: 14 });
+  // Hat: stacked rings leaning back.
+  const bend = b ? 0.6 : flinch ? -1.5 : 0;
+  for (let i = 0; i < 12; i++) {
+    const t = i / 11;
+    p.ellipse(hx + 1 + t * 3 + bend * t * t * 3, hy - 3 - t * 12, 5.2 * (1 - t) + 0.6, 1.8, id.ceramicRed, { z: 10 + t * 2, depth: 0.9 });
+  }
+  // Eye and brow.
+  if (!flinch) p.dot(hx - 2, hy - 0.5, C.BLACK);
+  strokes(p, [[hx - 3.6, hy - 2.6, hx - 0.6, hy - 1.6]], C.WHITE, 0.55);
+  // Arm and hand; in the lunge the pickaxe comes down in front.
+  const hand = lunge ? [cx - 6, 22] : [cx + 1, 28];
+  p.capsule(cx, 25, 1.6, ...hand, 1.4, id.ceramicBlue, { z0: 13 });
+  if (lunge) {
+    p.capsule(...hand, 0.9, cx - 13, 12, 0.9, id.wood, { z0: 16 });
+    p.capsule(cx - 16, 15, 1, cx - 10, 9, 0.8, id.tin, { z0: 17 });
+  }
+  p.ellipse(...hand, 1.8, 1.6, id.ceramicSkin, { z: 18 });
+  if (kit === 'captain') { p.ellipse(cx - 3, 27, 1.5, 1.5, id.gold, { z: 16 }); p.dot(cx - 3, 25, C.RED).dot(cx - 3, 24, C.RED); }
+  if (flinch) {
+    strokes(p, [[hx - 2, hy - 6, hx, hy - 2], [hx, hy - 2, hx - 1, hy + 1]], C.SOOT, 0.45);
+    p.erase((x, y) => x >= hx + 4 && x <= hx + 6 && y >= hy - 13 && y <= hy - 11);
+  }
+  return p.shade(list, { name: `gnome_${kit}_${pose}`, dither: 0.35 });
 }

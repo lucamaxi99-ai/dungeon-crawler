@@ -929,6 +929,7 @@ function engage(foe, initiator) {
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
   const foes = [foe, ...level.enemies.filter((e) => e !== foe && e.alive && e.alerted && !e.fear && adjacent(e, player))].slice(0, 3);
+  if (foe.disguised) log.push(line('ambush').replace('{name}', foe.name), 'warn');
   for (const e of foes) { e.alerted = true; e.disguised = false; e.move = null; }
   const fight = new Combat(crawler, foes, { initiator, purse: () => inventory.gold });
   const now = performance.now();
