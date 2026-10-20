@@ -12,11 +12,24 @@
 // worse aim). Every use trains them; passive skills train on hits, wounds
 // and escape attempts and add their bonuses to the numbers below.
 //
+// Enemies bring their traits (enemies.js): leaders make their family hit
+// harder (aura) and when they fall the rest runs (morale); shamans heal and
+// hex, sappers throw bombs and blow up when they die, llamas spit acid,
+// raccoons steal gold and run, ceramic gnomes crack under blunt weapons.
+// Enemies that ran away are out of the fight but still alive on the floor.
+// The crawler can be hexed or blinded too (worse aim for a few actions).
+//
 // Event: { kind, actor, target?, amount?, id?, name?, status?, turns?, level? }
 //   kind: 'hit' | 'crit' | 'miss' | 'blocked' | 'defend' | 'item' | 'flee'
 //         | 'fleeFail' | 'kill' | 'death' | 'skill' | 'cast' | 'heal'
 //         | 'status' (daze/blind/hex put on target) | 'dazed' (enemy skips)
 //         | 'skillUp' (a skill or spell reached `level`; spell: true)
+//         | 'throw' (enemy special: what = 'bomb' | 'spit'; the hit or miss
+//           that follows has special set) | 'blast' (a sapper blew up)
+//         | 'mend' (enemy healed an ally) | 'curse' (enemy put status on
+//           the crawler) | 'steal' (gold taken) | 'escape' (a thief ran)
+//         | 'rout' (lost its leader and ran)
+//   hit events from a blast carry blast: true, on brittle enemies crack: true.
 
 import { SKILLS, trainedBy } from './skills.js';
 import { SPELLS } from './spells.js';
@@ -33,7 +46,11 @@ export const RULES = {
   initiatorBonus: 2,
   blindHit: -0.4,       // enemy hit chance while blinded (Pocket Sand)
   hexHit: -0.25,        // enemy hit chance while hexed
+  selfBlind: -0.3,      // crawler's hit chance while blinded (llama spit)
+  selfHex: -0.2,        // crawler's hit chance while hexed (shaman)
 };
+
+const roll = ([lo, hi], rnd) => lo + Math.floor(rnd() * (hi - lo + 1));
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -59,14 +76,18 @@ const dexBonus = (dex) => RULES.dexHit * (dex - 5);
 
 export class Combat {
   // crawler: Crawler; enemies: Enemy[]; initiator: 'crawler' | 'enemy'.
-  constructor(crawler, enemies, { initiator = 'enemy', rnd = Math.random } = {}) {
+  // purse: () -> the crawler's gold (for thieves).
+  constructor(crawler, enemies, { initiator = 'enemy', rnd = Math.random, purse = () => 0 } = {}) {
     this.crawler = crawler;
     this.enemies = enemies;
     this.rnd = rnd;
+    this.purse = purse;
+    this.out = new Set();   // enemies that ran away (routed, thieves)
+    this.self = { blind: 0, hex: 0 }; // the crawler's own afflictions
     this.round = 1;
     this.defending = false;
     this.result = null;   // null while fighting, then 'won' | 'lost' | 'fled'
-    this.status = new Map(enemies.map((e) => [e, { daze: 0, blind: 0, hex: 0 }]));
+    this.status = new Map(enemies.map((e) => [e, { daze: 0, blind: 0, hex: 0, cd: 0 }]));
     this.cooldowns = {};  // skill id -> own turns until it can be used again
     const roll = (dex, starter) => 1 + Math.floor(rnd() * 6) + dex + (starter ? RULES.initiatorBonus : 0);
     const order = [{ who: crawler, init: roll(crawler.dex, initiator === 'crawler'), first: 1 }];
@@ -78,7 +99,23 @@ export class Combat {
 
   get current() { return this.order[this.turn]; }
   get crawlersTurn() { return !this.result && this.current === this.crawler; }
-  get alive() { return this.enemies.filter((e) => e.alive); }
+  get alive() { return this.enemies.filter((e) => e.alive && !this.out.has(e)); }
+
+  // Aim penalty from the crawler's own afflictions.
+  get selfAim() {
+    return (this.self.blind ? RULES.selfBlind : 0) + (this.self.hex ? RULES.selfHex : 0);
+  }
+
+  // Bonus an enemy gets from leaders of its family in this fight.
+  aura(e) {
+    const b = { atk: 0, dmg: 0 };
+    for (const o of this.alive) {
+      const a = o.stats.traits.aura;
+      if (o === e || !a || o.stats.family !== e.stats.family) continue;
+      b.atk += a.atk || 0; b.dmg += a.dmg || 0;
+    }
+    return b;
+  }
 
   // Own turns until a skill is ready again (0 = ready, Infinity = used up).
   cooldown(id) { return this.cooldowns[id] || 0; }
@@ -103,10 +140,11 @@ export class Combat {
     const bonus = me.bonus;
     if (action.kind === 'attack') {
       const t = this.pick(action.target);
-      if (rnd() < hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex) + bonus.hit)) {
+      if (rnd() < hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex) + bonus.hit + this.selfAim)) {
         const crit = rnd() < RULES.crit + bonus.crit;
-        const dmg = (crawlerDamage(me.atk, t.stats.def, rnd) + bonus.dmg) * (crit ? 2 : 1);
-        this.damage(t, dmg, crit ? 'crit' : 'hit', ev);
+        const crack = me.weapon === 'blunt' && t.stats.traits.brittle ? t.stats.traits.brittle : 0;
+        const dmg = (crawlerDamage(me.atk, t.stats.def, rnd) + bonus.dmg + crack) * (crit ? 2 : 1);
+        this.damage(t, dmg, crit ? 'crit' : 'hit', ev, { crack: !!crack });
         this.trainPassive('hit', ev);
       } else {
         ev.push({ kind: 'miss', actor: me, target: t });
@@ -145,12 +183,14 @@ export class Combat {
     } else {
       throw new Error(`unknown action ${action.kind}`);
     }
-    if (!this.alive.length) this.result = 'won';
+    for (const k of ['blind', 'hex']) if (this.self[k] > 0) this.self[k]--;
+    if (!this.alive.length && !this.result) this.result = 'won';
     this.advance();
     return ev;
   }
 
-  // The current enemy attacks the crawler.
+  // The current enemy acts: a special move if it has one ready, otherwise
+  // it attacks the crawler.
   enemyAct() {
     const e = this.current;
     if (this.result || e === this.crawler) throw new Error('not an enemy\'s turn');
@@ -163,21 +203,67 @@ export class Combat {
       this.advance();
       return ev;
     }
+    const tr = e.stats.traits;
     let bonus = (this.defending ? RULES.defendHit : 0) - dexBonus(me.dex);
     if (st.blind > 0) { bonus += RULES.blindHit; st.blind--; }
     if (st.hex > 0) { bonus += RULES.hexHit; st.hex--; }
-    if (rnd() < hitChance(RULES.enemyHitBase, e.stats.atk, me.def, bonus)) {
-      let dmg = enemyDamage(e.stats.dmg, me.def, rnd);
+    const ready = st.cd <= 0;
+    if (st.cd > 0) st.cd--;
+    const aura = this.aura(e);
+    const allies = this.alive.filter((o) => o !== e);
+    const wounded = tr.heal && allies.filter((o) => o.hp <= o.stats.hp * tr.heal.below).sort((a, b) => a.hp / a.stats.hp - b.hp / b.stats.hp)[0];
+    if (tr.steal && e.loot) {
+      // Got what it came for.
+      this.out.add(e);
+      ev.push({ kind: 'escape', actor: e, amount: e.loot });
+    } else if (ready && wounded) {
+      ev.push({ kind: 'mend', actor: e, target: wounded, amount: wounded.heal(roll(tr.heal.amount, rnd)) });
+      st.cd = tr.heal.cooldown;
+    } else if (ready && (tr.bomb || tr.spit)) {
+      const sp = tr.bomb ? 'bomb' : 'spit';
+      const def = tr[sp];
+      ev.push({ kind: 'throw', actor: e, what: sp });
+      st.cd = def.cooldown;
+      if (rnd() < hitChance(RULES.enemyHitBase, e.stats.atk + aura.atk, me.def, bonus)) {
+        // Explosions and acid don't care about armour.
+        let dmg = roll(def.dmg, rnd);
+        if (this.defending) dmg = Math.floor(dmg / 2);
+        this.wound(e, dmg, ev, { special: sp });
+        if (def.blind && me.alive) {
+          this.self.blind = Math.max(this.self.blind, def.blind);
+          ev.push({ kind: 'curse', actor: e, target: me, status: 'blind', turns: def.blind });
+        }
+      } else {
+        ev.push({ kind: 'miss', actor: e, target: me, special: sp });
+      }
+    } else if (ready && tr.hex && !this.self.hex) {
+      this.self.hex = tr.hex.turns;
+      ev.push({ kind: 'curse', actor: e, target: me, status: 'hex', turns: tr.hex.turns });
+      st.cd = tr.hex.cooldown;
+    } else if (rnd() < hitChance(RULES.enemyHitBase, e.stats.atk + aura.atk, me.def, bonus)) {
+      let dmg = enemyDamage(e.stats.dmg, me.def, rnd) + aura.dmg;
       if (this.defending) dmg = Math.floor(dmg / 2);
-      me.hurt(dmg);
-      ev.push({ kind: dmg ? 'hit' : 'blocked', actor: e, target: me, amount: dmg });
-      if (dmg) this.trainPassive('hurt', ev);
-      if (!me.alive) { this.result = 'lost'; ev.push({ kind: 'death', actor: e, target: me }); }
+      this.wound(e, dmg, ev);
+      if (tr.steal && me.alive && !e.loot) {
+        const gold = this.purse();
+        const take = Math.min(gold, Math.min(tr.steal.max, Math.max(tr.steal.min, Math.round(gold * tr.steal.share))));
+        if (take > 0) { e.loot = take; ev.push({ kind: 'steal', actor: e, target: me, amount: take }); }
+      }
     } else {
       ev.push({ kind: 'miss', actor: e, target: me });
     }
+    if (!this.alive.length && !this.result) this.result = 'won';
     this.advance();
     return ev;
+  }
+
+  // Damage from an enemy (or a blast) to the crawler.
+  wound(actor, dmg, ev, extra = {}) {
+    const me = this.crawler;
+    me.hurt(dmg);
+    ev.push({ kind: dmg ? 'hit' : 'blocked', actor, target: me, amount: dmg, ...extra });
+    if (dmg) this.trainPassive('hurt', ev);
+    if (!me.alive && !this.result) { this.result = 'lost'; ev.push({ kind: 'death', actor, target: me }); }
   }
 
   // The chosen target if it still lives, otherwise the first living enemy.
@@ -185,10 +271,31 @@ export class Combat {
     return target && target.alive ? target : this.alive[0];
   }
 
-  damage(t, dmg, kind, ev) {
+  damage(t, dmg, kind, ev, extra = {}) {
     t.hurt(dmg);
-    ev.push({ kind, actor: this.crawler, target: t, amount: dmg });
-    if (!t.alive) { this.crawler.kills++; ev.push({ kind: 'kill', actor: this.crawler, target: t }); }
+    ev.push({ kind, actor: this.crawler, target: t, amount: dmg, ...extra });
+    if (t.alive) return;
+    this.crawler.kills++;
+    ev.push({ kind: 'kill', actor: this.crawler, target: t, ...extra });
+    const tr = t.stats.traits;
+    // A leader falls: the rest of the family loses its nerve.
+    if (tr.morale) {
+      for (const o of this.alive) {
+        if (o.stats.family !== t.stats.family) continue;
+        this.out.add(o);
+        ev.push({ kind: 'rout', actor: o, leader: t });
+      }
+    }
+    // A sapper goes up with everything it carried. Everybody gets some.
+    if (tr.bomb) {
+      ev.push({ kind: 'blast', actor: t });
+      for (const o of this.alive) this.damage(o, roll(tr.bomb.blast, this.rnd), 'hit', ev, { blast: true });
+      if (this.crawler.alive && !this.result) {
+        let dmg = roll(tr.bomb.blast, this.rnd);
+        if (this.defending) dmg = Math.floor(dmg / 2);
+        this.wound(t, dmg, ev, { blast: true });
+      }
+    }
   }
 
   // What a skill or spell does (p from act(), see skills.js). Returns true
@@ -200,7 +307,7 @@ export class Combat {
     let landed = false;
     for (const t of targets) {
       if (!t) continue;
-      if (!p.sure && rnd() >= hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex) + (p.hit || 0))) {
+      if (!p.sure && rnd() >= hitChance(RULES.hitBase, me.atk, t.stats.def, dexBonus(me.dex) + (p.hit || 0) + this.selfAim)) {
         ev.push({ kind: 'miss', actor: me, target: t });
         continue;
       }
@@ -244,7 +351,7 @@ export class Combat {
         for (const id of Object.keys(this.cooldowns)) if (this.cooldowns[id] > 0 && this.cooldowns[id] < Infinity) this.cooldowns[id]--;
         return;
       }
-      if (who.alive) return;
+      if (who.alive && !this.out.has(who)) return;
     }
   }
 }

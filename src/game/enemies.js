@@ -9,20 +9,55 @@
 //   for hunters that follow you anywhere). Leave it and it gives up.
 // track: turns it keeps hunting without seeing you before it gives up.
 // drops: [item id, chance]; gold: [min, max]; xp: experience for the kill.
+// loot: a loot table (loot.js) rolled on top of the drops (minibosses).
 // Rare drops of tomes fit the creature (rats know all about running away).
+//
+// family: enemies of one family share a society (GDD 4.6): foot soldiers,
+//   specialists and leaders. rank: 'grunt' | 'leader' | 'miniboss'.
+// verb: what its attack is called in the log.
+// slow: moves only every other turn.
+// traits (combat.js, enemyTurns below):
+//   aura: { atk, dmg } - its family in the same fight hits harder
+//   morale: when it falls, the rest of its family in the fight runs away
+//   heal: { amount, below, cooldown } - patches up a wounded ally
+//   hex: { turns, cooldown } - curses the crawler (worse aim)
+//   bomb: { dmg, cooldown, blast } - throws bombs, blows up when it dies
+//   spit: { dmg, blind, cooldown } - acid in the face: ignores armour, blinds
+//   steal: { share, min, max } - a hit lifts gold, then it makes a run for it
+//   brittle: extra damage from blunt weapons
+//   disguise: stands still looking like furniture until you come close
+//   grudge: if you run from it, it hunts you for the rest of the floor
 export const ENEMY_TYPES = {
   rat: {
-    name: 'Giant Rat', sprite: 'rat',
+    name: 'Giant Rat', sprite: 'rat', family: 'rat', rank: 'grunt', verb: 'bites',
     hp: 4, atk: 2, def: 0, dex: 6, dmg: [1, 2],
     sight: 5, roam: 3, leash: 6, track: 4,   // territorial: guards its nest
     drops: [['ratTail', 0.6], ['ratPamphlet', 0.03]], gold: [0, 2], xp: 5,
   },
 };
 
+// Every type gets defaults for the optional fields.
+for (const t of Object.values(ENEMY_TYPES)) normalizeType(t);
+export function normalizeType(t) {
+  t.family ??= t.sprite;
+  t.rank ??= 'grunt';
+  t.verb ??= 'hits';
+  t.traits ??= {};
+  t.drops ??= [];
+  t.gold ??= [0, 0];
+  t.xp ??= 0;
+  return t;
+}
+
+// Countdown turns a fight with this enemy is worth (floorgen.js).
+export const fightWeight = (t) => Math.max(1, Math.round(t.hp / 5));
+
 export const MOVE_MS = 170; // same pace as the crawler's steps
 
 export class Enemy {
-  constructor(type, x, y) {
+  // group: enemies placed together (a pack, a squad) share an id and are
+  // alerted together.
+  constructor(type, x, y, group = null) {
     const t = ENEMY_TYPES[type];
     if (!t) throw new Error(`Unknown enemy '${type}'`);
     this.type = type;
@@ -30,10 +65,16 @@ export class Enemy {
     this.x = x; this.y = y;
     this.home = { x, y };
     this.hp = t.hp;
+    this.group = group;
     this.alerted = false;
     this.lost = 0;    // turns without seeing the crawler while alerted
     this.returning = false; // gave up, walking back home
     this.stun = 0;    // turns to skip (after the crawler fled)
+    this.fear = 0;    // turns running away (routed, or off with stolen gold)
+    this.loot = 0;    // gold it stole from the crawler
+    this.tick = 0;    // turns taken (slow enemies move every other one)
+    this.hunts = false; // holds a grudge: follows you anywhere now
+    this.disguised = !!t.traits.disguise;
     this.face = -1;   // -1 faces left on screen, +1 right (set by the renderer)
     this.move = null; // { fx, fy, t } while walking between cells
     this.dx = -1; this.dy = 0; // last step direction
@@ -41,11 +82,19 @@ export class Enemy {
 
   get name() { return this.stats.name; }
   get alive() { return this.hp > 0; }
+  get leash() { return this.hunts ? Infinity : this.stats.leash; }
+  get hunter() { return this.leash === Infinity; }
 
   hurt(n) {
     const before = this.hp;
     this.hp = Math.max(0, this.hp - n);
     return before - this.hp;
+  }
+
+  heal(n) {
+    const before = this.hp;
+    this.hp = Math.min(this.stats.hp, this.hp + n);
+    return this.hp - before;
   }
 
   // Smooth position for drawing (cell centers in world units).
@@ -102,55 +151,99 @@ export function stepToward(free, sx, sy, tx, ty, maxDepth = 16, onto = false) {
 }
 
 const homeDist = (e, x, y) => Math.abs(x - e.home.x) + Math.abs(y - e.home.y);
-export const inTerritory = (e, x, y) => homeDist(e, x, y) <= e.stats.leash;
+export const inTerritory = (e, x, y) => homeDist(e, x, y) <= e.leash;
 
 // One turn for every living enemy. world: { isWall, blocked(x, y) } where
 // blocked covers solid objects. target: the crawler's cell. rnd: () -> [0, 1).
-// Returns events: { enemy, kind: 'notice' | 'engage' | 'giveUp', reason? }
-// (reason of giveUp: 'territory' or 'trail').
+// Returns events: { enemy, kind: 'notice' | 'engage' | 'giveUp' | 'ambush'
+// | 'calm', reason? } (reason of giveUp: 'territory' or 'trail'; calm: a
+// routed or thieving enemy stopped running).
+//
+// Packs and squads (same group) notice the crawler together. Hunters have no
+// territory: when they lose the trail they don't go home, they settle where
+// they are and keep prowling from there.
 export function enemyTurns(enemies, world, target, rnd) {
   const events = [];
   const occupied = (x, y) => enemies.some((e) => e.alive && e.x === x && e.y === y);
   const free = (x, y) => !world.isWall(x, y) && !world.blocked(x, y) && !occupied(x, y) && !(x === target.x && y === target.y);
   const giveUp = (e, reason) => {
     e.alerted = false;
-    e.returning = true;
+    if (e.hunter) e.home = { x: e.x, y: e.y };
+    else e.returning = true;
     events.push({ enemy: e, kind: 'giveUp', reason });
+  };
+  const alert = (e) => {
+    e.alerted = true;
+    e.returning = false;
+    e.lost = 0;
   };
   for (const e of enemies) {
     if (!e.alive) continue;
-    if (e.stun > 0) { e.stun--; continue; }
     const t = e.stats;
+    // A disguised mimic waits until the crawler stands right next to it.
+    if (e.disguised) {
+      if (adjacent(e, target)) {
+        e.disguised = false;
+        alert(e);
+        events.push({ enemy: e, kind: 'ambush' });
+      }
+      continue;
+    }
+    if (e.stun > 0) { e.stun--; continue; }
+    e.tick++;
     const dist = Math.abs(e.x - target.x) + Math.abs(e.y - target.y);
+    // Running away: from the crawler, as far as it can.
+    if (e.fear > 0) {
+      e.fear--;
+      const away = DIRS4.filter(([dx, dy]) => free(e.x + dx, e.y + dy))
+        .map((d) => ({ d, far: Math.abs(e.x + d[0] - target.x) + Math.abs(e.y + d[1] - target.y) }))
+        .filter((o) => o.far >= dist)
+        .sort((a, b) => b.far - a.far);
+      if (away.length && !(t.slow && e.tick % 2)) walk(e, away[0].d);
+      if (!e.fear) {
+        e.home = { x: e.x, y: e.y };
+        events.push({ enemy: e, kind: 'calm' });
+      }
+      continue;
+    }
     const sees = dist <= t.sight && lineOfSight(world.isWall, e.x, e.y, target.x, target.y);
     const intruder = inTerritory(e, target.x, target.y);
     if (!e.alerted && sees && intruder) {
-      e.alerted = true;
-      e.returning = false;
-      e.lost = 0;
+      alert(e);
       events.push({ enemy: e, kind: 'notice' });
+      // The rest of the pack comes along.
+      if (e.group !== null) {
+        for (const m of enemies) {
+          if (m !== e && m.alive && m.group === e.group && !m.alerted && !m.disguised && !m.fear) alert(m);
+        }
+      }
     }
+    const slowNow = t.slow && e.tick % 2 === 1; // slow ones skip every other step
     if (e.alerted) {
       if (!intruder) { giveUp(e, 'territory'); continue; }          // you left its territory
       e.lost = sees ? 0 : e.lost + 1;
       if (e.lost > t.track) { giveUp(e, 'trail'); continue; }   // lost your trail
       if (adjacent(e, target)) { events.push({ enemy: e, kind: 'engage' }); continue; }
-      const step = stepToward((x, y) => free(x, y) && inTerritory(e, x, y), e.x, e.y, target.x, target.y);
+      if (slowNow) continue;
+      const step = stepToward((x, y) => free(x, y) && inTerritory(e, x, y), e.x, e.y, target.x, target.y, e.hunter ? 24 : 16);
       if (!step) continue;
       walk(e, step);
       if (adjacent(e, target)) events.push({ enemy: e, kind: 'engage' });
       continue;
     }
+    if (slowNow) continue;
     if (e.returning) {
       if (e.x === e.home.x && e.y === e.home.y) { e.returning = false; continue; }
       const step = stepToward(free, e.x, e.y, e.home.x, e.home.y, 24, true);
       if (step) walk(e, step); else e.returning = false; // home is blocked; stay here
       continue;
     }
-    // Wander near home now and then.
-    if (rnd() < 0.35) {
+    // Wander near home now and then. Hunters prowl: busier, and their home
+    // drifts with them.
+    if (rnd() < (e.hunter ? 0.7 : 0.35)) {
       const options = DIRS4.filter(([dx, dy]) => free(e.x + dx, e.y + dy) && homeDist(e, e.x + dx, e.y + dy) <= t.roam);
       if (options.length) walk(e, options[Math.floor(rnd() * options.length)]);
+      if (e.hunter && rnd() < 0.15) e.home = { x: e.x, y: e.y };
     }
   }
   return events;

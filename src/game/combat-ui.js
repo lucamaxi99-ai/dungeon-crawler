@@ -5,7 +5,9 @@
 // The stage is built from the textures of the place where the fight happens
 // and lit through the lit shade tables, so it keeps the floor's mood. The
 // enemies are drawn at 2 HUD pixels per sprite pixel, about as fine as they
-// look up close in the 3D view.
+// look up close in the 3D view. Tall enemies, or three wide ones, don't fit
+// that way: then the camera zooms out to 1.5 (or 1) for the whole fight,
+// like the 3D view does at a distance, so names and hit points still fit.
 
 import { C, PALETTE_SIZE } from '../engine/palette.js';
 import { TRANSPARENT } from '../engine/framebuffer.js';
@@ -25,7 +27,9 @@ const FOE_DIST = 1.25;          // where the enemies stand: 2 px per sprite px
 const WALL_TOP = HORIZON - (FOCAL * CAM_H) / WALL_DIST;    // 24
 const WALL_BOTTOM = HORIZON + (FOCAL * CAM_H) / WALL_DIST; // 104
 const FEET = HORIZON + (FOCAL * CAM_H) / FOE_DIST;         // 128
-const SCALE = FOCAL / FOE_DIST / 64;                        // 2
+const SCALE = FOCAL / FOE_DIST / 64;                        // 2: closest zoom
+const ZOOMS = [SCALE, 1.5, 1];
+const NAME_ROOM = 18;            // name, HP bar and status tags above the head
 
 const OPEN_MS = 220;
 const POSE_MS = 260;
@@ -43,6 +47,7 @@ export const MAIN_MENU = [
 const ROW = 7, ROWS = 6;          // menu rows in the panel box
 const SUB_TITLE = { items: 'USE ITEM', skills: 'SKILLS', spells: 'SPELLS' };
 const STATUS_TAG = { daze: ['Z', C.YELLOW], blind: ['B', C.FOG], hex: ['H', C.LILAC] };
+const SELF_TAG = { blind: ['BLIND', C.SILVER], hex: ['HEXED', C.LILAC] };
 const STATUS_TEXT = { daze: ['DAZED', C.YELLOW], blind: ['BLINDED', C.SILVER], hex: ['HEXED', C.LILAC] };
 
 export class CombatScreen {
@@ -63,6 +68,16 @@ export class CombatScreen {
     this.hurtAt = -1e9;     // crawler took damage (red frame, shake)
     this.banner = null;     // { text, color, t0 } big text in the middle
     this.fx = [];           // spell effects: { kind, x, y, t0 }
+    this.scale = stageZoom(fight.enemies, this.slots(fight.enemies.length));
+  }
+
+  // Height on the stage of an enemy's front view, and a point at share k of
+  // that height above its feet (for numbers and effects).
+  heightOf(e) {
+    return CREATURES[e.stats.sprite].F.idle.frames[0].h * this.scale;
+  }
+  yAt(e, k) {
+    return Math.max(TOP + 10, Math.round(FEET - this.heightOf(e) * k));
   }
 
   // ------------------------------------------------------------ menu
@@ -177,7 +192,7 @@ export class CombatScreen {
     const xs = this.slots(this.fight.enemies.length);
     let best = -1, bestD = 40;
     this.fight.enemies.forEach((e, i) => {
-      if (!e.alive || py < TOP) return;
+      if (!alive.includes(e) || py < TOP) return;
       const d = Math.abs(px - xs[i]);
       if (d < bestD) { bestD = d; best = alive.indexOf(e); }
     });
@@ -197,6 +212,7 @@ export class CombatScreen {
     const xs = this.slots(this.fight.enemies.length);
     const at = (e) => xs[this.fight.enemies.indexOf(e)];
     const me = this.fight.crawler;
+    const y = (e, k) => this.yAt(e, k);
     let delay = 0; // a missile has to fly before its numbers pop up
     for (const ev of events) {
       const foe = ev.actor !== me ? ev.actor : ev.target;
@@ -217,33 +233,62 @@ export class CombatScreen {
           break;
         case 'status': {
           const [text, color] = STATUS_TEXT[ev.status];
-          this.float(text, color, at(ev.target), FEET - 64, t);
-          if (ev.status === 'hex') this.fx.push({ kind: 'hex', x: at(ev.target), y: FEET - 40, t0: t });
-          if (ev.status === 'blind') this.fx.push({ kind: 'sand', x: at(ev.target), y: FEET - 50, t0: t });
+          this.float(text, color, at(ev.target), y(ev.target, 0.85), t);
+          if (ev.status === 'hex') this.fx.push({ kind: 'hex', x: at(ev.target), y: y(ev.target, 0.5), t0: t });
+          if (ev.status === 'blind') this.fx.push({ kind: 'sand', x: at(ev.target), y: y(ev.target, 0.65), t0: t });
+          break;
+        }
+        case 'curse': {
+          const [text, color] = STATUS_TEXT[ev.status];
+          this.float(text, color, ME.x, ME.y - 8, now + 200);
+          this.fx.push({ kind: ev.status === 'hex' ? 'hex' : 'sand', x: ME.x + 6, y: H - 16, t0: now + 100 });
           break;
         }
         case 'dazed':
-          this.float('DAZED', C.YELLOW, at(ev.actor), FEET - 54, now);
-          this.fx.push({ kind: 'stars', x: at(ev.actor), y: FEET - 60, t0: now });
+          this.float('DAZED', C.YELLOW, at(ev.actor), y(ev.actor, 0.7), now);
+          this.fx.push({ kind: 'stars', x: at(ev.actor), y: y(ev.actor, 0.8), t0: now });
+          break;
+        case 'throw':
+          this.fx.push({ kind: ev.what, x: at(ev.actor), y: y(ev.actor, 0.7), t0: now });
+          delay = 300;
+          break;
+        case 'blast':
+          this.fx.push({ kind: 'boom', x: at(ev.actor), y: y(ev.actor, 0.4), t0: now + 150 });
+          this.hurtAt = now + 150;
+          delay = 250;
+          break;
+        case 'mend':
+          this.float(`+${ev.amount} HP`, C.LIME, at(ev.target), y(ev.target, 0.85), now + 150);
+          this.fx.push({ kind: 'sparkle', x: at(ev.target) - 6, y: FEET, t0: now });
+          break;
+        case 'steal':
+          this.float(`-${ev.amount} GOLD`, C.GOLD, ME.x, ME.y - 8, now + 150);
+          break;
+        case 'escape': case 'rout':
+          this.float(ev.kind === 'escape' ? 'ESCAPES' : 'FLEES', C.SILVER, at(ev.actor), y(ev.actor, 0.85), t);
+          this.poses.set(ev.actor, { pose: 'gone', until: Infinity, at: t, dir: at(ev.actor) < W / 2 ? -1 : 1 });
           break;
         case 'skillUp':
           this.float(`${ev.name.toUpperCase()} LV ${ev.level}`, C.YELLOW, W / 2, TOP + 26, now + 300);
           break;
         case 'hit': case 'crit':
           if (ev.target === this.fight.crawler) {
-            this.hurtAt = now;
-            this.float(`-${ev.amount}`, C.RED, ME.x, ME.y, now);
+            this.hurtAt = Math.max(this.hurtAt, t);
+            this.float(`-${ev.amount}`, C.RED, ME.x, ME.y, t);
+            if (ev.special === 'bomb') this.fx.push({ kind: 'boom', x: ME.x + 10, y: H - 22, t0: t });
+            if (ev.special === 'spit') this.fx.push({ kind: 'splat', x: ME.x + 10, y: H - 22, t0: t });
           } else {
             if (this.castFx && this.castFx.id === 'magicMissile' && this.castFx.t0 === now) {
-              this.fx.push({ kind: 'missile', x: at(ev.target), y: FEET - 40, t0: now });
+              this.fx.push({ kind: 'missile', x: at(ev.target), y: y(ev.target, 0.5), t0: now });
             }
             this.poses.set(ev.target, { pose: 'flinch', from: t, until: t + POSE_MS, flash: t + 90 });
-            this.float(ev.kind === 'crit' ? `CRIT ${ev.amount}!` : `${ev.amount}`, ev.kind === 'crit' ? C.YELLOW : C.WHITE, at(ev.target), FEET - 54, t);
+            this.float(ev.kind === 'crit' ? `CRIT ${ev.amount}!` : `${ev.amount}`, ev.kind === 'crit' ? C.YELLOW : C.WHITE, at(ev.target), y(ev.target, 0.7), t);
+            if (ev.crack) this.float('CRACK!', C.BONE, at(ev.target), y(ev.target, 0.95), t + 120);
           }
           break;
         case 'miss':
-          if (ev.target === this.fight.crawler) this.float('MISS', C.SILVER, ME.x, ME.y, now);
-          else this.float('MISS', C.SILVER, at(ev.target), FEET - 54, now);
+          if (ev.target === this.fight.crawler) this.float('MISS', C.SILVER, ME.x, ME.y, t);
+          else this.float('MISS', C.SILVER, at(ev.target), y(ev.target, 0.7), now);
           break;
         case 'blocked':
           this.float('BLOCKED', C.SKY, ME.x, ME.y, now);
@@ -356,11 +401,13 @@ export class CombatScreen {
     }
     // Soft shadow ellipse under each enemy.
     const xs = this.slots(this.fight.enemies.length);
+    const rx = Math.round(22 * this.scale);
     this.fight.enemies.forEach((e, i) => {
+      if (this.fight.out.has(e) && e.alive) return;
       const cx = xs[i] + shake;
       for (let y = FEET - 4; y <= FEET + 3; y++) {
-        for (let x = cx - 44; x <= cx + 44; x++) {
-          const d = ((x - cx) / 44) ** 2 + ((y - FEET) / 4) ** 2;
+        for (let x = cx - rx; x <= cx + rx; x++) {
+          const d = ((x - cx) / rx) ** 2 + ((y - FEET) / 4) ** 2;
           if (d > 1 || x < 1 || x >= W - 1) continue;
           if (BAYER4[((y & 3) << 2) | (x & 3)] < (1 - d) * 0.8) px[y * fw + x] = C.BLACK;
         }
@@ -378,33 +425,38 @@ export class CombatScreen {
       const set = CREATURES[e.stats.sprite];
       let p = this.poses.get(e);
       if (p && (p.from > now || (p.pose === 'dead' && p.at > now))) p = null; // not yet: the missile is still flying
-      const pose = p && (p.until > now || p.pose === 'dead') ? p.pose : 'idle';
-      const img = pose === 'dead' ? set.corpse : pose === 'idle' ? frameAt(set.F.idle, now, i * 2) : set.F[pose];
+      const pose = p && (p.until > now || p.pose === 'dead' || p.pose === 'gone') ? p.pose : 'idle';
+      const img = pose === 'dead' ? set.corpse : pose === 'idle' || pose === 'gone' ? frameAt(set.F.idle, now, i * 2) : set.F[pose];
       const flash = p && p.flash > now;
-      const w = img.w * SCALE, h = img.h * SCALE;
-      const x0 = xs[i] - (w >> 1) + shake;
+      const S = this.scale;
+      const w = Math.round(img.w * S), h = Math.round(img.h * S);
+      // Running off: slides out to the side and fades.
+      const off = pose === 'gone' ? Math.round(Math.min(1, (now - p.at) / 700) * 90 * p.dir) : 0;
+      const x0 = xs[i] - (w >> 1) + shake + off;
       const y0 = FEET - h + (pose === 'dead' ? 2 : 0);
       // A dying enemy sinks into the floor and fades out in a dither.
-      const fade = pose === 'dead' ? Math.min(1, (now - p.at) / 900) : 0;
-      for (let sy = 0; sy < img.h; sy++) {
-        for (let sx = 0; sx < img.w; sx++) {
-          const c = img.data[sy * img.w + sx];
+      const fade = pose === 'dead' ? Math.min(1, (now - p.at) / 900) : pose === 'gone' ? Math.min(1, (now - p.at) / 800) : 0;
+      if (fade >= 1 && pose === 'gone') return;
+      for (let dy = 0; dy < h; dy++) {
+        const y = y0 + dy;
+        if (y < TOP || y >= H - 1) continue;
+        const sy = Math.min(img.h - 1, Math.floor(dy / S));
+        for (let dx = 0; dx < w; dx++) {
+          const x = x0 + dx;
+          if (x < 1 || x >= W - 1) continue;
+          const c = img.data[sy * img.w + Math.min(img.w - 1, Math.floor(dx / S))];
           if (c === TRANSPARENT) continue;
-          for (let k = 0; k < SCALE * SCALE; k++) {
-            const x = x0 + sx * SCALE + (k % SCALE), y = y0 + sy * SCALE + ((k / SCALE) | 0);
-            if (x < 1 || y < TOP || x >= W - 1 || y >= H - 1) continue;
-            if (fade && BAYER4[((y & 3) << 2) | (x & 3)] < fade) continue;
-            let out;
-            if (flash) out = C.WHITE;
-            else if (img.glow && img.glow[c]) out = c;
-            else out = table[(base + this.shadeIndex(this.bright(x, y), x, y)) * PALETTE_SIZE + c];
-            fb.pixels[y * fb.width + x] = out;
-          }
+          if (fade && BAYER4[((y & 3) << 2) | (x & 3)] < fade) continue;
+          let out;
+          if (flash) out = C.WHITE;
+          else if (img.glow && img.glow[c]) out = c;
+          else out = table[(base + this.shadeIndex(this.bright(x, y), x, y)) * PALETTE_SIZE + c];
+          fb.pixels[y * fb.width + x] = out;
         }
       }
-      if (!e.alive) return;
+      if (!e.alive || this.fight.out.has(e)) return;
       // Name and hit points above the enemy.
-      const top = FEET - set.F.idle.frames[0].h * SCALE - 4;
+      const top = Math.round(FEET - set.F.idle.frames[0].h * S - 4);
       const name = e.name.toUpperCase();
       const nx = xs[i] - (textWidth(name) >> 1);
       drawText(fb, name, nx, top - 13, e === target && showTarget ? C.YELLOW : C.BONE, C.BLACK);
@@ -422,7 +474,8 @@ export class CombatScreen {
         tx += 6;
       }
       if (e === target && showTarget) {
-        for (let k = 0; k < 3; k++) fb.rect(xs[i] - k, top - 20 + k, 1 + k * 2, 1, C.YELLOW);
+        if (top - 20 >= TOP) for (let k = 0; k < 3; k++) fb.rect(xs[i] - k, top - 20 + k, 1 + k * 2, 1, C.YELLOW);
+        else { drawText(fb, '>', nx - 6, top - 13, C.YELLOW, C.BLACK); drawText(fb, '<', nx + textWidth(name) + 2, top - 13, C.YELLOW, C.BLACK); }
       }
     });
   }
@@ -435,7 +488,7 @@ export class CombatScreen {
     drawText(fb, 'TURN', x, 3, C.FOG); x += 20;
     f.order.forEach((who) => {
       const me = who === f.crawler;
-      if (!me && !who.alive) return;
+      if (!me && (!who.alive || f.out.has(who))) return;
       const label = me ? 'YOU' : who.name.split(' ').pop().toUpperCase();
       const w = textWidth(label) + 4;
       const now = who === f.current && !f.result;
@@ -457,7 +510,14 @@ export class CombatScreen {
     drawText(fb, hp, 22, H - 9, low ? C.FIRE : C.BONE, C.BLACK);
     const mp = `MP ${me.mp}/${me.mpMax}`;
     drawText(fb, mp, 30 + textWidth(hp), H - 9, C.SKY, C.BLACK);
-    if (this.fight.defending) drawText(fb, 'GUARD', 38 + textWidth(hp) + textWidth(mp), H - 9, C.SKY, C.BLACK);
+    let tx = 38 + textWidth(hp) + textWidth(mp);
+    if (this.fight.defending) { drawText(fb, 'GUARD', tx, H - 9, C.SKY, C.BLACK); tx += textWidth('GUARD') + 4; }
+    for (const k of ['blind', 'hex']) {
+      if (!this.fight.self[k]) continue;
+      const [tag, color] = SELF_TAG[k];
+      drawText(fb, tag, tx, H - 9, color, C.BLACK);
+      tx += textWidth(tag) + 4;
+    }
     if (this.menu === 'skills' || this.menu === 'spells') {
       const e = this.entries()[this.itemCursor];
       if (e && e.info) drawText(fb, e.info, W - 6 - textWidth(e.info), H - 9, C.BONE, C.BLACK);
@@ -517,6 +577,37 @@ export class CombatScreen {
           const ang = (a * 2.4) % (Math.PI * 2);
           const d = (t / 30) * (0.4 + ((a * 13) % 10) / 10);
           put(f.x + Math.cos(ang) * d, f.y + Math.sin(ang) * d * 0.6 + t / 60, a % 2 ? C.TAN : C.PARCHMENT);
+        }
+      } else if (f.kind === 'bomb' || f.kind === 'spit') {
+        // Lobbed from the enemy to the crawler's corner in an arc.
+        const fly = 300, k = t / fly;
+        if (k < 1) {
+          const tx = ME.x + 10, ty = H - 22;
+          const x = f.x + (tx - f.x) * k, y = f.y + (ty - f.y) * k - Math.sin(k * Math.PI) * 30;
+          const bomb = f.kind === 'bomb';
+          for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+            if (dx * dx + dy * dy > 5) continue;
+            put(x + dx, y + dy, bomb ? (dx < 0 && dy < 0 ? C.STEEL_L : C.SOOT) : dx * dx + dy * dy > 2 ? C.MOSS : C.LIME);
+          }
+          if (bomb) { put(x + 2, y - 3, t % 80 < 40 ? C.YELLOW : C.FIRE); put(x + 3, y - 4, C.HOT); }
+          else for (let j = 1; j < 4; j++) put(x - (tx - f.x) * 0.02 * j, y + j * 2, C.MOSS);
+        }
+      } else if (f.kind === 'boom') {
+        // Fireball: a white core, rings of fire, sooty sparks flying out.
+        const k = t / 500;
+        if (k < 1) for (let a = 0; a < 28; a++) {
+          const ang = (a / 28) * Math.PI * 2 + a;
+          const d = (4 + k * 26) * (0.6 + ((a * 7) % 5) / 10);
+          const c = k < 0.25 ? C.WHITE : k < 0.5 ? C.YELLOW : k < 0.75 ? C.FIRE : C.SOOT;
+          put(f.x + Math.cos(ang) * d, f.y + Math.sin(ang) * d * 0.7, c);
+          put(f.x + Math.cos(ang) * d * 0.5, f.y + Math.sin(ang) * d * 0.35, k < 0.5 ? C.HOT : C.AMBER);
+        }
+      } else if (f.kind === 'splat') {
+        // Green acid dripping down.
+        for (let a = 0; a < 18; a++) {
+          const x = f.x + ((a * 29) % 30) - 15, y = f.y + ((a * 17) % 12) - 6 + (t / 40) * ((a % 3) + 1) * 0.5;
+          put(x, y, a % 3 ? C.LIME : C.MOSS);
+          if (a % 2) put(x, y + 1, C.MOSS_D);
         }
       } else if (f.kind === 'stars') {
         // Little stars circling the head of a dazed enemy.
@@ -582,4 +673,31 @@ function big(fb, text, x, y, color) {
   };
   drawText(scaled, text, 1, 1, C.BLACK);
   drawText(scaled, text, 0, 0, color);
+}
+
+// The zoom for a whole fight: as close as possible while every enemy's front
+// view (plus its name and hit points) fits on the stage and neighbours
+// don't swallow each other.
+export function stageZoom(enemies, xs) {
+  const imgs = enemies.map((e) => CREATURES[e.stats.sprite].F.idle.frames[0]);
+  const tall = Math.max(...imgs.map((i) => i.h));
+  const wide = Math.max(...imgs.map(opaqueWidth));
+  const gap = xs.length > 1 ? xs[1] - xs[0] : Infinity;
+  for (const z of ZOOMS) {
+    if (FEET - tall * z - 4 - 13 >= TOP + 1 && wide * z <= gap + 16) return z;
+  }
+  return ZOOMS[ZOOMS.length - 1];
+}
+
+// Width of the painted part of a sprite.
+function opaqueWidth(img) {
+  let lo = img.w, hi = -1;
+  for (let y = 0; y < img.h; y++) {
+    for (let x = 0; x < img.w; x++) {
+      if (img.data[y * img.w + x] === TRANSPARENT) continue;
+      if (x < lo) lo = x;
+      if (x > hi) hi = x;
+    }
+  }
+  return hi < lo ? 0 : hi - lo + 1;
 }

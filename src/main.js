@@ -134,6 +134,7 @@ function beginRun() {
   log.push(`Crawler ${name} has entered the dungeon. ${job.intro}`, 'info');
   if (!hinted) log.push(LINES.welcome[1], 'info');
   hinted = true;
+  announceGuests();
 }
 
 // Builds floor `depth` of the current run and puts the crawler at its start.
@@ -247,7 +248,7 @@ function interact() {
   if (o && SPRITES[o.type].chest) return openChest(o);
   if (o) {
     if (o.type === 'barrel') note('barrel');
-    return log.push(line(o.type));
+    return log.push(LINES[o.type] ? line(o.type) : o.type.endsWith('Corpse') ? line('corpse') : line('bumpObject'));
   }
   const ownBag = level.bagAt(player.x, player.y);
   if (ownBag) return pickUp(ownBag);
@@ -286,6 +287,13 @@ function descend() {
   card = { at: performance.now(), title: level.name.toUpperCase(), sub: depth >= FINAL_DEPTH ? 'SEASON FINALE' : '', comment };
   log.push(comment);
   if (level.objects.some((o) => o.type === 'sponsoredChest')) log.push(line('sponsorChest'), 'warn');
+  announceGuests();
+}
+
+// The System plugs the floor's miniboss like a game-show guest.
+function announceGuests() {
+  const boss = level.enemies.find((e) => e.alive && e.stats.rank === 'miniboss');
+  if (boss) log.push(line('minibossFloor').replace('{name}', boss.name), 'warn');
 }
 
 // The run is over: died in combat (killer), or survived the last floor (won).
@@ -897,10 +905,11 @@ function afterTurn() {
   const blocked = (x, y) => { const o = level.objectAt(x, y); return !!(o && SPRITES[o.type].solid); };
   const events = enemyTurns(level.enemies, { isWall, blocked }, player, enemyRnd);
   for (const ev of events) {
-    if (ev.kind === 'notice') log.push(line('enemyNotice').replace('{name}', ev.enemy.name), 'warn');
+    if (ev.kind === 'notice') log.push(line(ev.enemy.hunter ? 'hunterNotice' : 'enemyNotice').replace('{name}', ev.enemy.name), 'warn');
     if (ev.kind === 'giveUp') log.push(line(ev.reason === 'territory' ? 'enemyGiveUp' : 'enemyLostTrail').replace('{name}', ev.enemy.name), 'info');
+    if (ev.kind === 'ambush') log.push(line('ambush').replace('{name}', ev.enemy.name), 'warn');
   }
-  const foe = events.find((ev) => ev.kind === 'engage');
+  const foe = events.find((ev) => ev.kind === 'ambush') || events.find((ev) => ev.kind === 'engage');
   if (foe) engage(foe.enemy, 'enemy');
 }
 
@@ -919,12 +928,13 @@ function engage(foe, initiator) {
   state.showMap = false;
   if (invScreen.open) invScreen.toggle();
   if (charScreen.open) charScreen.toggle();
-  const foes = [foe, ...level.enemies.filter((e) => e !== foe && e.alive && e.alerted && adjacent(e, player))].slice(0, 3);
-  for (const e of foes) { e.alerted = true; e.move = null; }
-  const fight = new Combat(crawler, foes, { initiator });
+  const foes = [foe, ...level.enemies.filter((e) => e !== foe && e.alive && e.alerted && !e.fear && adjacent(e, player))].slice(0, 3);
+  for (const e of foes) { e.alerted = true; e.disguised = false; e.move = null; }
+  const fight = new Combat(crawler, foes, { initiator, purse: () => inventory.gold });
   const now = performance.now();
   combat = { fight, ui: new CombatScreen({ fight, scene: stageFor(foe), tables, inventory, now }), nextAt: now + PACE.start, endAt: 0 };
-  const name = foes.length > 1 ? `pack of ${foes.length} ${foe.name}s` : foe.name;
+  const same = foes.every((e) => e.type === foe.type);
+  const name = foes.length === 1 ? foe.name : same ? `pack of ${foes.length} ${foe.name}s` : `${foe.name} and ${foes.length - 1 === 1 ? 'a friend' : 'friends'}`;
   log.push(line(initiator === 'crawler' ? 'combatStartCrawler' : 'combatStartEnemy').replace('{name}', name), 'warn');
   log.push(fight.crawlersTurn ? 'You are faster. Your move.' : `The ${foe.name} is faster.`, 'info');
 }
@@ -1011,15 +1021,47 @@ function report(events) {
             log.push(line('lowHp'), 'warn');
           }
         }
-        log.push(mine ? `You hit the ${foe.name} for ${ev.amount}.` : `The ${foe.name} bites you for ${ev.amount}.`, mine ? 'info' : 'warn');
+        if (ev.blast) log.push(mine ? `The blast hits the ${foe.name} for ${ev.amount}.` : `The blast hits you for ${ev.amount}.`, mine ? 'info' : 'warn');
+        else if (ev.special === 'bomb') log.push(`The bomb goes off in your face. ${ev.amount} damage.`, 'warn');
+        else if (ev.special === 'spit') log.push(`Acid! It burns for ${ev.amount}.`, 'warn');
+        else log.push(mine ? `You hit the ${foe.name} for ${ev.amount}.` : `The ${foe.name} ${foe.stats.verb} you for ${ev.amount}.`, mine ? 'info' : 'warn');
+        if (ev.crack) log.push(line('crack'));
         break;
       case 'crit':
         log.push(`You hit the ${foe.name} for ${ev.amount}.`, 'info');
+        if (ev.crack) log.push(line('crack'));
         log.push(line('crit'));
         note('crit');
         break;
       case 'miss':
-        log.push(mine ? `You miss the ${foe.name}.` : `The ${foe.name} misses.`, 'info');
+        log.push(mine ? `You miss the ${foe.name}.` : ev.special === 'spit' ? `The ${foe.name} spits and misses.` : ev.special === 'bomb' ? 'The bomb lands behind you. Lucky.' : `The ${foe.name} misses.`, 'info');
+        break;
+      case 'throw':
+        log.push(ev.what === 'bomb' ? `The ${foe.name} lights a fuse and throws.` : `The ${foe.name} hawks up something green.`, 'warn');
+        break;
+      case 'blast':
+        log.push(`The ${ev.actor.name} explodes!`, 'warn');
+        log.push(line('blast'));
+        break;
+      case 'mend':
+        log.push(`The ${ev.actor.name} patches up the ${ev.target.name}. +${ev.amount} HP.`, 'warn');
+        break;
+      case 'curse':
+        log.push(ev.status === 'hex' ? `The ${ev.actor.name} hexes you. Your aim goes wobbly.` : 'You can barely see.', 'warn');
+        break;
+      case 'steal':
+        inventory.gold -= ev.amount;
+        log.push(`The ${ev.actor.name} lifts ${ev.amount} gold from your pockets.`, 'warn');
+        log.push(line('steal'));
+        break;
+      case 'escape':
+        log.push(`The ${ev.actor.name} makes a run for it with your gold.`, 'warn');
+        break;
+      case 'rout':
+        if (!ev.leader.routSaid) {
+          ev.leader.routSaid = true;
+          log.push(line('rout').replace('{name}', ev.leader.name), 'warn');
+        }
         break;
       case 'blocked':
         log.push(`You block the ${foe.name}.`, 'info');
@@ -1032,8 +1074,13 @@ function report(events) {
         break;
       case 'kill':
         log.push(`The ${foe.name} dies.`, 'info');
-        log.push(line('kill'));
-        note('kill', { type: foe.type, unarmed: crawler.weapon === 'unarmed' });
+        log.push(line(foe.stats.rank === 'miniboss' ? 'minibossDown' : 'kill').replace('{name}', foe.name));
+        if (foe.loot) {
+          inventory.gold += foe.loot;
+          log.push(`You get your ${foe.loot} gold back.`, 'info');
+          foe.loot = 0;
+        }
+        note('kill', { type: foe.type, rank: foe.stats.rank, family: foe.stats.family, unarmed: crawler.weapon === 'unarmed', blast: !!ev.blast });
         gainXp(foe.stats.xp || 0);
         break;
       case 'flee':
@@ -1076,14 +1123,27 @@ function endCombat() {
   combat = null;
   if (state.levelUpAfterFight && fight.result !== 'lost') showLevelBanner();
   state.levelUpAfterFight = false;
+  // Whoever ran away (lost its leader, or off with your gold) keeps running
+  // on the map for a while. The rest of a routed squad joins them.
+  const ranOff = fight.enemies.filter((e) => e.alive && fight.out.has(e));
+  for (const e of ranOff) scatter(e, e.loot ? 40 : 25);
+  for (const e of ranOff.filter((r) => !r.loot && r.group !== null)) {
+    for (const m of level.enemies) if (m.alive && m.group === e.group && !fight.enemies.includes(m)) scatter(m, 25);
+  }
   if (fight.result === 'won') {
     const got = {};
     let gold = 0;
     for (const e of fight.enemies) {
-      level.objects.push({ type: `${e.type}Corpse`, x: e.x, y: e.y, flags: {} });
+      if (e.alive) continue;
+      level.objects.push({ type: `${e.stats.sprite}Corpse`, x: e.x, y: e.y, flags: {} });
       for (const [id, chance] of e.stats.drops) if (Math.random() < chance) { inventory.add(id); got[id] = (got[id] || 0) + 1; }
       const [g0, g1] = e.stats.gold;
       gold += g0 + Math.floor(Math.random() * (g1 - g0 + 1));
+      if (e.stats.loot) {
+        const extra = rollLoot(e.stats.loot, Math.floor(Math.random() * 1e9));
+        gold += extra.gold;
+        for (const { id, n } of extra.items) { inventory.add(id, n); got[id] = (got[id] || 0) + n; }
+      }
     }
     inventory.gold += gold;
     const loot = Object.entries(got).map(([id, n]) => itemLabel({ id, n }));
@@ -1099,8 +1159,12 @@ function endCombat() {
     endRun({ killer: killer.name });
   } else if (fight.result === 'fled') {
     // Stumble one cell away; the enemies need two turns to react. Whether
-    // they follow depends on their territory (leash) and tracking.
-    for (const e of fight.alive) e.stun = 2;
+    // they follow depends on their territory (leash) and tracking. Some
+    // hold a grudge and follow anywhere from now on.
+    for (const e of fight.alive) {
+      e.stun = 2;
+      if (e.stats.traits.grudge && !e.hunts) { e.hunts = true; log.push(line('grudge').replace('{name}', e.name), 'warn'); }
+    }
     const options = [[1, 0], [-1, 0], [0, 1], [0, -1]]
       .map(([dx, dy]) => ({ x: player.x + dx, y: player.y + dy }))
       .filter((c) => world.canEnter(c.x, c.y))
@@ -1108,6 +1172,14 @@ function endCombat() {
       .sort((a, b) => b.d - a.d);
     if (options.length) player.shove(options[0].x, options[0].y);
   }
+}
+
+// An enemy runs off (fear: turns it keeps running away from the crawler).
+function scatter(e, fear) {
+  e.fear = fear;
+  e.alerted = false;
+  e.returning = false;
+  e.move = null;
 }
 
 bindInput(onAction);
@@ -1291,8 +1363,10 @@ function spriteList(time, dt) {
     const side = dx * rx + dy * ry;
     if (Math.abs(side) > 0.2) e.face = side > 0 ? 1 : -1;
     const views = CREATURES[e.stats.sprite];
-    const set = dx * fx + dy * fy < -0.5 ? views.F : views[e.face > 0 ? 'R' : 'L'];
     const p = e.pos(dt);
+    // A mimic in disguise is just furniture.
+    if (e.disguised && views.disguise) return list.push({ x: p.x, y: p.y, img: views.disguise });
+    const set = dx * fx + dy * fy < -0.5 ? views.F : views[e.face > 0 ? 'R' : 'L'];
     list.push({ x: p.x, y: p.y, img: frameAt(set.idle, time, i * 2) });
   });
   return list;
@@ -1301,7 +1375,7 @@ function spriteList(time, dt) {
 // Enemies the crawler can see show up on the map as red dots.
 function enemyMarks() {
   return level.enemies
-    .filter((e) => e.alive && Math.abs(e.x - player.x) + Math.abs(e.y - player.y) <= 8
+    .filter((e) => e.alive && !e.disguised && Math.abs(e.x - player.x) + Math.abs(e.y - player.y) <= 8
       && lineOfSight(isWall, player.x, player.y, e.x, e.y))
     .map((e) => ({ x: e.x, y: e.y, color: C.RED }));
 }

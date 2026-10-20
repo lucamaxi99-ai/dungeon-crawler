@@ -35,17 +35,18 @@ function trimBottom(s) {
   while (h > 1 && s.data.subarray((h - 1) * s.w, h * s.w).every((c) => c === TRANSPARENT)) h--;
   return { ...s, h, data: s.data.slice(0, h * s.w) };
 }
-function creature(paint, paintFront, frameMs) {
+// opts.dead: recolor map for the corpse (glowing eyes go out).
+// opts.disguise: a still image it shows while pretending to be furniture.
+function creature(paint, paintFront, frameMs, opts = {}) {
   const idle = [paint('idle0'), paint('idle1')];
   const L = { idle: animation(idle, { frameMs }), lunge: paint('lunge'), flinch: paint('flinch') };
   const R = { idle: mirror(L.idle), lunge: mirror(L.lunge), flinch: mirror(L.flinch) };
   const F = { idle: animation([paintFront('idle0'), paintFront('idle1')], { frameMs }), lunge: paintFront('lunge'), flinch: paintFront('flinch') };
-  // The corpse's eye stops glowing.
-  const corpse = recolor(trimBottom(flip(idle[0])), { [C.RED]: C.SOOT, [C.FIRE]: C.GORE }, 'dead');
-  return { L, R, F, corpse };
+  const corpse = recolor(trimBottom(flip(idle[0])), opts.dead || {}, 'dead');
+  return { L, R, F, corpse, disguise: opts.disguise || null };
 }
 export const CREATURES = {
-  rat: creature(paintRat, paintRatFront, 260),
+  rat: creature(paintRat, paintRatFront, 260, { dead: { [C.RED]: C.SOOT, [C.FIRE]: C.GORE } }),
 };
 
 // Every object type has an animation (single-frame ones just never change).
@@ -63,7 +64,8 @@ export const SPRITES = {
   coldBrazier: { anim: recolor(brazier, coldMap, 'cold'), solid: true, light: LIGHT_PRESETS.coldBrazier },
   bones: { anim: animation(paintBones()), solid: false },
   bag: { anim: animation(paintBag()), solid: false },
-  ratCorpse: { anim: animation(CREATURES.rat.corpse), solid: false },
   torch: { anim: torch, wall: true, light: LIGHT_PRESETS.torch },
   coldTorch: { anim: recolor(torch, coldMap, 'cold'), wall: true, light: LIGHT_PRESETS.coldTorch },
 };
+// Every creature leaves a corpse: '<sprite>Corpse'.
+for (const [k, c] of Object.entries(CREATURES)) SPRITES[`${k}Corpse`] = { anim: animation(c.corpse), solid: false };

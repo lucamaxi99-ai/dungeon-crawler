@@ -5,7 +5,7 @@
 
 import { Level, TEST_FLOOR } from '../src/game/map.js';
 import { SPRITES, WALL } from '../src/game/assets.js';
-import { generateFloor, FINAL_DEPTH, FLOORS, STAIRS_OPEN_AT } from '../src/game/floorgen.js';
+import { generateFloor, FINAL_DEPTH, FLOORS, STAIRS_OPEN_AT, foeCount } from '../src/game/floorgen.js';
 
 const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -72,7 +72,14 @@ for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
     try { level = new Level(def); } catch (err) { fail(`floor ${depth} seed ${seed}`, [err.message]); continue; }
     const r = checkLevel(level);
     if (r.problems.length) fail(`floor ${depth} seed ${seed}`, r.problems);
-    if (level.enemies.length !== FLOORS[depth - 1].rats) fail(`floor ${depth} seed ${seed}`, [`${level.enemies.length} rats`]);
+    if (level.enemies.length !== foeCount(FLOORS[depth - 1])) fail(`floor ${depth} seed ${seed}`, [`${level.enemies.length} enemies`]);
+    // Nobody stands on a wall, an object or another enemy.
+    const spots = new Set();
+    for (const e of level.enemies) {
+      const k = `${e.x},${e.y}`;
+      if (level.wall(e.x, e.y) || level.objects.some((o) => o.x === e.x && o.y === e.y) || spots.has(k)) fail(`floor ${depth} seed ${seed}`, [`${e.type} stuck at ${k}`]);
+      spots.add(k);
+    }
     // Rats keep away from the start.
     for (const e of level.enemies) {
       const gap = Math.abs(e.x - level.start.x) + Math.abs(e.y - level.start.y);
@@ -85,7 +92,7 @@ for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
     sum.turns += def.turns; sum.stairs += r.stairsDist; sum.rats += level.enemies.length; sum.cells += r.open;
   }
   const avg = (v) => (v / SEEDS).toFixed(0);
-  console.log(`floor ${depth}: ${SEEDS} seeds, avg ${avg(sum.cells)} open cells, stairs ${avg(sum.stairs)} steps away, countdown ${avg(sum.turns)} turns, rats >= ${sum.minRatGap} cells from start`);
+  console.log(`floor ${depth}: ${SEEDS} seeds, avg ${avg(sum.cells)} open cells, stairs ${avg(sum.stairs)} steps away, countdown ${avg(sum.turns)} turns, enemies >= ${sum.minRatGap} cells from start`);
 }
 
 // Sponsored floors: one extra (pink) chest, everything still reachable.

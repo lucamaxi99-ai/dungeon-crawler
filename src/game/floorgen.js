@@ -12,22 +12,40 @@
 //      away from it.
 //   4. Furniture, chests, bones, posters and torches go in; solid things
 //      are only kept if every open cell stays reachable.
-//   5. Giant rats nest in rooms away from the start (territorial, see
-//      enemies.js).
+//   5. Enemies move in: squads (a pack, a goblin patrol) in rooms away
+//      from the start, the floor's miniboss in the farthest room before the
+//      stairs, hunters anywhere, mimics against the walls (enemies.js).
 //   6. The turn budget of the floor's countdown follows from its size: a
 //      tour through all rooms and to the stairs, times a margin.
 
 import { seededRandom } from './loot.js';
+import { ENEMY_TYPES, fightWeight } from './enemies.js';
 
 // Per depth (index 0 = Floor 1). size: map cells. rooms: [min, max].
-// rats: how many. chests / rich: plain and rich chests.
+// chests / rich: plain and rich chests.
+// foes: who lives here. squad: enemy types placed together (one room, one
+//   group: they notice you together); n: how many such squads. where:
+//   'room' (default: a room of its own away from the start), 'boss' (the
+//   farthest room that isn't the stairwell), 'anywhere' (hunters), 'wall'
+//   (mimics, against a room's wall).
 // margin: countdown turns per step of the exploration tour (turning,
-// dead ends, backtracking); every rat adds FIGHT_TURNS on top.
+// dead ends, backtracking); every enemy adds FIGHT_TURNS per fightWeight.
 export const FLOORS = [
-  { size: [30, 30], rooms: [7, 8], rats: 4, chests: 2, rich: 0, margin: 3.2 },
-  { size: [36, 36], rooms: [9, 10], rats: 6, chests: 3, rich: 1, margin: 3.0 },
-  { size: [42, 42], rooms: [11, 12], rats: 8, chests: 3, rich: 1, margin: 2.8 },
+  {
+    size: [30, 30], rooms: [7, 8], chests: 2, rich: 0, margin: 3.2,
+    foes: [{ squad: ['rat'], n: 4 }],
+  },
+  {
+    size: [36, 36], rooms: [9, 10], chests: 3, rich: 1, margin: 3.0,
+    foes: [{ squad: ['rat'], n: 6 }],
+  },
+  {
+    size: [42, 42], rooms: [11, 12], chests: 3, rich: 1, margin: 2.8,
+    foes: [{ squad: ['rat'], n: 8 }],
+  },
 ];
+// How many enemies a floor holds.
+export const foeCount = (cfg) => cfg.foes.reduce((s, f) => s + f.squad.length * f.n, 0);
 const FIGHT_TURNS = 10;
 export const FINAL_DEPTH = FLOORS.length;
 
@@ -380,17 +398,51 @@ export function generateFloor(depth, seed, opts = {}) {
   }
 
   // ------------------------------------------------------------ enemies
-  // Rats nest in rooms at least 8 steps from the start, at most two per room.
+  // Never closer than 8 steps to the start. Each squad gets a room of its
+  // own while there are rooms left; members stand close together.
   const reach = bfs(start.x, start.y, (x, y) => open(x, y) && !blockedCell(x, y));
-  const nests = shuffle(rooms.map((_, i) => i).filter((i) => i !== startRoom));
-  let rats = 0;
-  for (let pass = 0; pass < 2 && rats < cfg.rats; pass++) {
-    for (const i of nests) {
-      if (rats >= cfg.rats) break;
-      const c = pick(cellsOf(rooms[i], (x, y) => free(x, y) && reach[at(x, y)] >= 8));
-      if (c) { objects.set(at(c.x, c.y), 'R'); rats++; }
+  const enemies = [];
+  const crowded = new Set(); // rooms with enemies in them
+  const awayFrom = (x, y, d = 8) => reach[at(x, y)] >= d;
+  const enemyFree = (x, y) => free(x, y) && !enemies.some((e) => e.x === x && e.y === y);
+  let group = 0, missing = 0;
+  const putSquad = (squad, roomOrder, cellFilter = () => true) => {
+    for (const i of roomOrder) {
+      const r = rooms[i];
+      const cells = shuffle(cellsOf(r, (x, y) => enemyFree(x, y) && awayFrom(x, y) && cellFilter(r, x, y)));
+      if (cells.length < squad.length) continue;
+      // The first one (the leader) anywhere, the rest as close as possible.
+      const lead = cells[0];
+      cells.sort((a, b) => Math.abs(a.x - lead.x) + Math.abs(a.y - lead.y) - Math.abs(b.x - lead.x) - Math.abs(b.y - lead.y));
+      squad.forEach((type, k) => enemies.push({ type, x: cells[k].x, y: cells[k].y, group }));
+      group++;
+      crowded.add(i);
+      return true;
+    }
+    return false;
+  };
+  const roomsBy = (score) => rooms.map((_, i) => i).filter((i) => i !== startRoom).sort((a, b) => score(a) - score(b));
+  const farthest = byDistance.filter((e) => e.i !== stairsRoom).map((e) => e.i);
+  for (const f of cfg.foes) {
+    for (let k = 0; k < f.n; k++) {
+      let ok;
+      if (f.where === 'boss') {
+        ok = putSquad(f.squad, [...farthest, stairsRoom]);
+      } else if (f.where === 'wall') {
+        const order = shuffle(roomsBy(() => 0)).sort((a, b) => crowded.has(a) - crowded.has(b));
+        ok = putSquad(f.squad, order, (r, x, y) => edgeCell(r)(x, y) && awayFrom(x, y, 6));
+      } else if (f.where === 'anywhere') {
+        ok = putSquad(f.squad, shuffle(roomsBy(() => 0)), (r, x, y) => awayFrom(x, y, 15));
+      } else {
+        // Rooms without enemies first, in random order.
+        const order = shuffle(roomsBy(() => 0)).sort((a, b) => crowded.has(a) - crowded.has(b));
+        ok = putSquad(f.squad, order);
+      }
+      if (!ok) missing++;
     }
   }
+  if (missing) return generateFloor(depth, seed + 1000003, opts); // rare: too cramped
+  for (const e of enemies) objects.set(at(e.x, e.y), 'E'); // keeps the Safe Room door's doorstep clear
 
   // ---------------------------------------------------------- countdown
   // A greedy tour from the start through every room and on to the stairs.
@@ -405,10 +457,11 @@ export function generateFloor(depth, seed, opts = {}) {
     pos = next;
   }
   tour += Math.max(0, walk(pos.x, pos.y)[at(stairs.in.x, stairs.in.y)]);
-  const turns = Math.round((tour * cfg.margin + rats * FIGHT_TURNS) / 50) * 50;
+  const fights = enemies.reduce((sum, e) => sum + fightWeight(ENEMY_TYPES[e.type]), 0);
+  const turns = Math.round((tour * cfg.margin + fights * FIGHT_TURNS) / 50) * 50;
 
   // ------------------------------------------------------------ output
-  for (const [cell, ch] of objects) chars[cell] = ch;
+  for (const [cell, ch] of objects) if (ch !== 'E') chars[cell] = ch;
   // The Safe Room door: one per floor, never in the start or stairs room,
   // preferably in a room halfway along the way to the stairs.
   const mid = fromStart[at(center(rooms[stairsRoom]).x, center(rooms[stairsRoom]).y)] / 2;
@@ -436,6 +489,7 @@ export function generateFloor(depth, seed, opts = {}) {
     }),
     loot,
     torches,
+    enemies,
   };
 }
 

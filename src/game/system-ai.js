@@ -94,6 +94,44 @@ export const LINES = {
     'A dead rat. It has stopped being a problem and started being a smell.',
     'The rat is deceased. The System has already taken everything worth taking.',
   ],
+  corpse: [
+    'Dead. The System has already been through its pockets. It did not have pockets, and the System still found something.',
+    'This one is out of the show. Contractually and otherwise.',
+  ],
+  minibossFloor: [
+    'Tonight\'s featured guest on this floor: {name}! Miniboss, crowd favourite, has never once lost a fight it was paid to win.',
+    'Crawler, this floor comes with a miniboss: {name}. Optional. Dangerous. Lucrative. Our favourite combination.',
+  ],
+  minibossDown: [
+    'The {name} is DOWN! Miniboss defeated! Somebody cue the confetti cannon. Somebody fix the confetti cannon.',
+    'You beat the {name}. The audience is on its feet. Mostly to get snacks, but still.',
+  ],
+  crack: [
+    'CRACK. Ceramic does not appreciate blunt instruments. Noted.',
+    'Something chipped. It was not you, for once.',
+  ],
+  blast: [
+    'Kaboom! Our pyrotechnics department did not authorize that, and they are thrilled.',
+    'Note to goblins: do not carry live explosives into a fist fight. Note to Crawler: you are welcome.',
+  ],
+  steal: [
+    'Pickpocketed mid-fight. The audience is genuinely impressed. Not with you.',
+    'Your gold has a new owner. The new owner has a tail.',
+  ],
+  rout: [
+    'The {name} is down and the rest of its crew has remembered urgent business elsewhere.',
+    'No {name}, no courage. The survivors are leaving. Quickly. In several directions.',
+  ],
+  grudge: [
+    'The {name} will remember that. It will remember it all the way across this floor.',
+  ],
+  ambush: [
+    'That {name} was NOT furniture. Borant reminds you that all decor in the dungeon may bite.',
+    'Surprise! The {name} was a mimic. The viewers knew. The viewers always know.',
+  ],
+  hunterNotice: [
+    'Crawler, a {name} has your scent. Unlike the rest, this one does not care about territory.',
+  ],
   death: [
     'Crawler down! The viewers would like a moment of silence. The moment is over.',
     'And that is how you die. Ratings spiked. Borant thanks you for your sacrifice.',

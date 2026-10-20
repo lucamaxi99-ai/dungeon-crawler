@@ -6,7 +6,8 @@
 //   n Borant neon screen   u glowing runes
 //   . floor        @ player start
 //   C chest        b barrel         f brazier        F cold brazier   x bones
-//   R giant rat (enemy)
+//   R giant rat (enemy). Generated floors list their enemies in
+//   def.enemies instead: [{ type, x, y, group }].
 //
 // Materials and light are set per rectangle ("areas", later ones win):
 //   floor/ceil: FLAT names, ambient: base brightness, tint: light color name.
@@ -116,6 +117,8 @@ export class Level {
         else if (ch !== '.') throw new Error(`Unknown map char '${ch}' at ${x},${y}`);
       });
     });
+
+    for (const e of def.enemies || []) this.enemies.push(new Enemy(e.type, e.x, e.y, e.group ?? null));
 
     // Materials and ambient light per area.
     const base = def.defaults || { floor: 'COBBLE', ceil: 'VAULT', ambient: 0.08, tint: 'neutral' };

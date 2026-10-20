@@ -7,7 +7,6 @@ import { TRANSPARENT } from '../src/engine/framebuffer.js';
 import { BESTIARY, paintPoses } from '../src/game/bestiary.js';
 
 const ids = new Set();
-let tall = [];
 for (const e of BESTIARY) {
   assert.ok(!ids.has(e.id), `duplicate bestiary id ${e.id}`);
   ids.add(e.id);
@@ -24,8 +23,7 @@ for (const e of BESTIARY) {
     assert.ok(img.data.subarray(0, w).every((c) => c === TRANSPARENT), `${e.id} ${pose}: nothing cut off at the top`);
   }
   assert.ok(h <= 64, `${e.id}: at most one wall high (${h} px)`);
-  // The combat stage shows enemies at 2x; above 49 px the name bar runs out
-  // of room. Not an error yet, these are not in the game.
-  if (h > 49 && !e.inGame) tall.push(`${e.id} ${h}px`);
 }
-console.log(`bestiary OK (${BESTIARY.length} entries, ${BESTIARY.length * 4} poses)` + (tall.length ? `; too tall for the combat stage at 2x: ${tall.join(', ')}` : ''));
+// (Tall enemies are fine: the combat stage zooms out for them, see
+// tools/test-enemies.mjs.)
+console.log(`bestiary OK (${BESTIARY.length} entries, ${BESTIARY.length * 4} poses)`);

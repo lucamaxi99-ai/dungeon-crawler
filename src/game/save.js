@@ -57,7 +57,7 @@ export function unpackSeen(s, seen) {
 }
 
 // Plain copies of the parts of a run, and back onto fresh objects.
-const ENEMY_FIELDS = ['type', 'x', 'y', 'home', 'hp', 'alerted', 'lost', 'returning', 'stun', 'face', 'dx', 'dy'];
+const ENEMY_FIELDS = ['type', 'x', 'y', 'home', 'hp', 'group', 'alerted', 'lost', 'returning', 'stun', 'fear', 'loot', 'tick', 'hunts', 'disguised', 'face', 'dx', 'dy'];
 export const enemyState = (e) => Object.fromEntries(ENEMY_FIELDS.map((k) => [k, e[k]]));
 
 const CRAWLER_FIELDS = ['attrs', 'hp', 'mp', 'kills', 'regen', 'level', 'xp', 'points', 'name', 'job'];
