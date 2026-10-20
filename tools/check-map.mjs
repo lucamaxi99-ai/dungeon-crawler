@@ -73,6 +73,11 @@ for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
     const r = checkLevel(level);
     if (r.problems.length) fail(`floor ${depth} seed ${seed}`, r.problems);
     if (level.enemies.length !== foeCount(FLOORS[depth - 1])) fail(`floor ${depth} seed ${seed}`, [`${level.enemies.length} enemies`]);
+    // Story floors: the boss waits in its arena (the parking lot in the city).
+    for (const e of level.enemies.filter((x) => x.stats.rank === 'boss')) {
+      const arena = def.areas.find((r) => e.x >= r.x && e.y >= r.y && e.x < r.x + r.w && e.y < r.y + r.h);
+      if (!arena || arena.theme !== 'lot') fail(`floor ${depth} seed ${seed}`, [`boss outside its arena (${arena ? arena.theme : 'corridor'})`]);
+    }
     // Nobody stands on a wall, an object or another enemy.
     const spots = new Set();
     for (const e of level.enemies) {

@@ -29,7 +29,11 @@
 //         | 'mend' (enemy healed an ally) | 'curse' (enemy put status on
 //           the crawler) | 'steal' (gold taken) | 'escape' (a thief ran)
 //         | 'rout' (lost its leader and ran)
+//         | boss specials: 'ticket' (a fine, amount = gold), 'windup' (the
+//           tow hook goes up; the hit that follows has special: 'tow'),
+//           'summon' (target = the new helper), 'phase' (second phase)
 //   hit events from a blast carry blast: true, on brittle enemies crack: true.
+//   The crawler can be booted (curse status 'boot'): no running, worse aim.
 
 import { SKILLS, trainedBy } from './skills.js';
 import { SPELLS } from './spells.js';
@@ -48,6 +52,7 @@ export const RULES = {
   hexHit: -0.25,        // enemy hit chance while hexed
   selfBlind: -0.3,      // crawler's hit chance while blinded (llama spit)
   selfHex: -0.2,        // crawler's hit chance while hexed (shaman)
+  selfBoot: -0.15,      // crawler's hit chance with a wheel clamp on its foot
 };
 
 const roll = ([lo, hi], rnd) => lo + Math.floor(rnd() * (hi - lo + 1));
@@ -76,14 +81,17 @@ const dexBonus = (dex) => RULES.dexHit * (dex - 5);
 
 export class Combat {
   // crawler: Crawler; enemies: Enemy[]; initiator: 'crawler' | 'enemy'.
-  // purse: () -> the crawler's gold (for thieves).
-  constructor(crawler, enemies, { initiator = 'enemy', rnd = Math.random, purse = () => 0 } = {}) {
+  // purse: () -> the crawler's gold (for thieves and fines).
+  // summon: (type, caller) -> a new Enemy that joins the fight, or null
+  // (bosses calling for backup; the caller puts it on the map).
+  constructor(crawler, enemies, { initiator = 'enemy', rnd = Math.random, purse = () => 0, summon = null } = {}) {
     this.crawler = crawler;
     this.enemies = enemies;
     this.rnd = rnd;
     this.purse = purse;
+    this.summon = summon;
     this.out = new Set();   // enemies that ran away (routed, thieves)
-    this.self = { blind: 0, hex: 0 }; // the crawler's own afflictions
+    this.self = { blind: 0, hex: 0, boot: 0 }; // the crawler's own afflictions
     this.round = 1;
     this.defending = false;
     this.result = null;   // null while fighting, then 'won' | 'lost' | 'fled'
@@ -103,12 +111,17 @@ export class Combat {
 
   // Aim penalty from the crawler's own afflictions.
   get selfAim() {
-    return (this.self.blind ? RULES.selfBlind : 0) + (this.self.hex ? RULES.selfHex : 0);
+    return (this.self.blind ? RULES.selfBlind : 0) + (this.self.hex ? RULES.selfHex : 0) + (this.self.boot ? RULES.selfBoot : 0);
   }
 
-  // Bonus an enemy gets from leaders of its family in this fight.
+  // Booted crawlers can't run.
+  get canFlee() { return !this.self.boot; }
+
+  // Bonus an enemy gets from leaders of its family in this fight (and from
+  // its own second phase).
   aura(e) {
-    const b = { atk: 0, dmg: 0 };
+    const ph = e.enraged && e.stats.traits.phase;
+    const b = { atk: ph ? ph.atk : 0, dmg: ph ? ph.dmg : 0 };
     for (const o of this.alive) {
       const a = o.stats.traits.aura;
       if (o === e || !a || o.stats.family !== e.stats.family) continue;
@@ -171,6 +184,8 @@ export class Combat {
       ev.push({ kind: 'defend', actor: me });
     } else if (action.kind === 'item') {
       ev.push({ kind: 'item', actor: me, name: action.name, amount: action.healed });
+    } else if (action.kind === 'flee' && !this.canFlee) {
+      ev.push({ kind: 'fleeFail', actor: me, booted: true });
     } else if (action.kind === 'flee') {
       const chance = clamp(fleeChance(me.dex, this.alive) + bonus.flee, RULES.fleeMin, RULES.fleeMax);
       this.trainPassive('flee', ev);
@@ -183,10 +198,63 @@ export class Combat {
     } else {
       throw new Error(`unknown action ${action.kind}`);
     }
-    for (const k of ['blind', 'hex']) if (this.self[k] > 0) this.self[k]--;
+    for (const k of ['blind', 'hex', 'boot']) if (this.self[k] > 0) this.self[k]--;
     if (!this.alive.length && !this.result) this.result = 'won';
     this.advance();
     return ev;
+  }
+
+  // A story boss's turn (GDD 2.3): the tow hook comes down if it was wound
+  // up, otherwise one special that is ready (helpers, the hook, the clamp, a
+  // ticket), then a plain attack before the next one. Returns false if it
+  // just attacks this turn.
+  bossAct(e, st, ev) {
+    const tr = e.stats.traits, me = this.crawler, rnd = this.rnd;
+    if (st.charged) {
+      st.charged = false;
+      let dmg = roll(tr.tow.dmg, rnd) + this.aura(e).dmg;
+      if (this.defending) dmg = Math.floor(dmg / 2);
+      this.wound(e, dmg, ev, { special: 'tow' });
+      st.rest = e.enraged ? 0 : 1;
+      return true;
+    }
+    st.cds ??= { ticket: 0, backup: 2, tow: 3, boot: 4 }; // ticket first, then backup, hook, clamp
+    for (const k of Object.keys(st.cds)) if (st.cds[k] > 0) st.cds[k]--;
+    if (st.rest > 0) { st.rest--; return false; }
+    const cd = (k) => tr[k].cooldown - (e.enraged ? 1 : 0);
+    const helpers = this.alive.filter((o) => o !== e && o.type === tr.backup?.type).length;
+    let did = null;
+    if (tr.backup && !st.cds.backup && helpers < tr.backup.max && this.summon) {
+      const d = this.summon(tr.backup.type, e);
+      if (d) {
+        this.enemies.push(d);
+        this.status.set(d, { daze: 0, blind: 0, hex: 0, cd: 0 });
+        this.order.splice(this.turn + 1, 0, d);
+        ev.push({ kind: 'summon', actor: e, target: d });
+        did = 'backup';
+      }
+    }
+    if (!did && tr.tow && !st.cds.tow) {
+      st.charged = true;
+      ev.push({ kind: 'windup', actor: e });
+      did = 'tow';
+    }
+    if (!did && tr.boot && !st.cds.boot && !this.self.boot) {
+      this.self.boot = tr.boot.turns;
+      ev.push({ kind: 'curse', actor: e, target: me, status: 'boot', turns: tr.boot.turns });
+      did = 'boot';
+    }
+    if (!did && tr.ticket && !st.cds.ticket && this.purse() > 0) {
+      const gold = this.purse();
+      const fine = Math.min(gold, Math.min(tr.ticket.max, Math.max(tr.ticket.min, Math.round(gold * tr.ticket.share))));
+      e.loot = (e.loot || 0) + fine;
+      ev.push({ kind: 'ticket', actor: e, target: me, amount: fine });
+      did = 'ticket';
+    }
+    if (!did) return false;
+    st.cds[did] = cd(did);
+    if (did !== 'tow') st.rest = e.enraged ? 0 : 1;
+    return true;
   }
 
   // The current enemy acts: a special move if it has one ready, otherwise
@@ -204,6 +272,11 @@ export class Combat {
       return ev;
     }
     const tr = e.stats.traits;
+    if (e.stats.rank === 'boss' && this.bossAct(e, st, ev)) {
+      if (!this.alive.length && !this.result) this.result = 'won';
+      this.advance();
+      return ev;
+    }
     let bonus = (this.defending ? RULES.defendHit : 0) - dexBonus(me.dex);
     if (st.blind > 0) { bonus += RULES.blindHit; st.blind--; }
     if (st.hex > 0) { bonus += RULES.hexHit; st.hex--; }
@@ -274,6 +347,11 @@ export class Combat {
   damage(t, dmg, kind, ev, extra = {}) {
     t.hurt(dmg);
     ev.push({ kind, actor: this.crawler, target: t, amount: dmg, ...extra });
+    const ph = t.stats.traits.phase;
+    if (ph && t.alive && !t.enraged && t.hp <= t.stats.hp * ph.at) {
+      t.enraged = true;
+      ev.push({ kind: 'phase', actor: t });
+    }
     if (t.alive) return;
     this.crawler.kills++;
     ev.push({ kind: 'kill', actor: this.crawler, target: t, ...extra });

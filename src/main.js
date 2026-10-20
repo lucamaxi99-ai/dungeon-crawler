@@ -161,14 +161,18 @@ function enterFloor(depth, opts = {}) {
   enemyRnd = rng(level.seed * 31 + 7);
   countdown = new Countdown(level.turns);
   level.safeRoom = { visits: 0, rested: false };
-  level.stairsOpen = countdown.stairsOpen;
+  level.stairsOpen = stairsOpen();
 }
+
+// A story floor's boss still standing keeps the stairs shut (GDD 2.2).
+const storyBoss = () => level.enemies.find((e) => e.alive && e.stats.rank === 'boss') || null;
+const stairsOpen = () => countdown.stairsOpen && !storyBoss();
 
 // One turn off the floor's countdown, with the System's warnings. Returns
 // false if the floor collapsed (the run is over).
 function spendTurn() {
   for (const ev of countdown.tick()) {
-    if (ev.kind === 'stairsOpen') log.push(line('stairsOpen'), 'warn');
+    if (ev.kind === 'stairsOpen') log.push(line(storyBoss() ? 'stairsBossWait' : 'stairsOpen'), 'warn');
     if (ev.kind === 'warn') log.push(line(ev.share <= 0.1 ? 'collapseSoon' : 'countdownWarn').replace('{n}', ev.left), 'warn');
     if (ev.kind === 'collapse') {
       combat = null;
@@ -176,7 +180,7 @@ function spendTurn() {
       return false;
     }
   }
-  level.stairsOpen = countdown.stairsOpen;
+  level.stairsOpen = stairsOpen();
   return true;
 }
 // A run saved in a Safe Room comes back there (and the save is used up).
@@ -264,8 +268,9 @@ function interact() {
 // The first SPACE at the stairwell asks, the second one descends (so a
 // stray key never skips a floor). After the last floor the run is won.
 function useStairs(cell) {
-  if (!countdown.stairsOpen) {
+  if (!stairsOpen()) {
     note('lockedStairs');
+    if (countdown.stairsOpen) return log.push(line('stairsBoss').replace('{name}', storyBoss().name), 'warn');
     return log.push(line('stairsLocked').replace('{n}', countdown.stairsIn), 'warn');
   }
   const key = `${cell.x},${cell.y},${player.x},${player.y}`;
@@ -296,6 +301,8 @@ function descend() {
 
 // The System plugs the floor's miniboss like a game-show guest.
 function announceGuests() {
+  const star = storyBoss();
+  if (star) return log.push(line('bossFloor').replace('{name}', star.name), 'warn');
   const boss = level.enemies.find((e) => e.alive && e.stats.rank === 'miniboss');
   if (boss) log.push(line('minibossFloor').replace('{name}', boss.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
 }
@@ -610,7 +617,7 @@ function resumeRun(snap) {
   unpackSeen(snap.level.seen, level.seen);
   level.safeRoom = snap.level.safeRoom;
   Object.assign(countdown, snap.countdown);
-  level.stairsOpen = countdown.stairsOpen;
+  level.stairsOpen = stairsOpen();
   Object.assign(player, snap.player);
   hinted = true;
   safe.enter(mentorLine('resume'), performance.now());
@@ -935,7 +942,7 @@ function engage(foe, initiator) {
   const foes = [foe, ...level.enemies.filter((e) => e !== foe && e.alive && e.alerted && !e.fear && adjacent(e, player))].slice(0, 3);
   if (foe.disguised) log.push(line('ambush').replace('{name}', foe.name), 'warn');
   for (const e of foes) { e.alerted = true; e.disguised = false; e.move = null; }
-  const fight = new Combat(crawler, foes, { initiator, purse: () => inventory.gold });
+  const fight = new Combat(crawler, foes, { initiator, purse: () => inventory.gold, summon: callBackup });
   const now = performance.now();
   combat = { fight, ui: new CombatScreen({ fight, scene: stageFor(foe), tables, inventory, now }), nextAt: now + PACE.start, endAt: 0 };
   const same = foes.every((e) => e.type === foe.type);
@@ -943,6 +950,22 @@ function engage(foe, initiator) {
   const name = foes.length === 1 ? foe.name : same ? `pack of ${foes.length} ${foe.name}s` : kin ? `squad of ${foes.length} ${foe.stats.family}s` : `mob of ${foes.length}`;
   log.push(line(initiator === 'crawler' ? 'combatStartCrawler' : 'combatStartEnemy').replace('{name}', name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
   log.push(fight.crawlersTurn ? 'You are faster. Your move.' : `The ${foe.name} is faster.`, 'info');
+}
+
+// A boss calls in a helper: it appears on a free cell next to the boss
+// (or the crawler), already angry. null if there is no room.
+function callBackup(type, boss) {
+  for (const c of [boss, player]) {
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const x = c.x + dx, y = c.y + dy;
+      if (!world.canEnter(x, y) || (x === player.x && y === player.y)) continue;
+      const e = new Enemy(type, x, y, boss.group);
+      e.alerted = true;
+      level.enemies.push(e);
+      return e;
+    }
+  }
+  return null;
 }
 
 // What the combat stage looks like: the wall behind the enemy (seen from
@@ -1030,6 +1053,7 @@ function report(events) {
         if (ev.blast) log.push(mine ? `The blast hits the ${foe.name} for ${ev.amount}.` : `The blast hits you for ${ev.amount}.`, mine ? 'info' : 'warn');
         else if (ev.special === 'bomb') log.push(`The bomb goes off in your face. ${ev.amount} damage.`, 'warn');
         else if (ev.special === 'spit') log.push(`Acid! It burns for ${ev.amount}.`, 'warn');
+        else if (ev.special === 'tow') log.push(`The tow hook comes down. ${ev.amount} damage.`, 'warn');
         else log.push(mine ? `You hit the ${foe.name} for ${ev.amount}.` : `The ${foe.name} ${foe.stats.verb} you for ${ev.amount}.`, mine ? 'info' : 'warn');
         if (ev.crack) log.push(line('crack'));
         break;
@@ -1053,8 +1077,26 @@ function report(events) {
         log.push(`The ${ev.actor.name} patches up the ${ev.target.name}. +${ev.amount} HP.`, 'warn');
         break;
       case 'curse':
-        log.push(ev.status === 'hex' ? `The ${ev.actor.name} hexes you. Your aim goes wobbly.` : 'You can barely see.', 'warn');
+        log.push(ev.status === 'hex' ? `The ${ev.actor.name} hexes you. Your aim goes wobbly.`
+          : ev.status === 'boot' ? `The ${ev.actor.name} clamps a wheel boot on your foot. No running for ${ev.turns} turns.` : 'You can barely see.', 'warn');
         if (ev.status === 'blind') note('spat');
+        if (ev.status === 'boot') note('booted');
+        break;
+      case 'ticket':
+        inventory.gold -= ev.amount;
+        log.push(`The ${ev.actor.name} prints you a ticket: ${ev.amount} gold, payable immediately. It helps itself.`, 'warn');
+        log.push(line('ticket'));
+        note('ticketed');
+        break;
+      case 'windup':
+        log.push(`The ${ev.actor.name} raises its tow hook. DEFEND might be a good idea.`, 'warn');
+        break;
+      case 'summon':
+        log.push(`The ${ev.actor.name} calls for backup. A ${ev.target.name} swoops in.`, 'warn');
+        break;
+      case 'phase':
+        log.push(line('bossPhase').replace('{name}', ev.actor.name), 'warn');
+        note('bossPhase');
         break;
       case 'steal':
         inventory.gold -= ev.amount;
@@ -1083,7 +1125,8 @@ function report(events) {
         break;
       case 'kill':
         log.push(`The ${foe.name} dies.`, 'info');
-        log.push(line(foe.stats.rank === 'miniboss' ? 'minibossDown' : 'kill').replace('{name}', foe.name).replace(/\ba ([AEIOU])/g, 'an $1'));
+        log.push(line(foe.stats.rank === 'boss' ? 'bossDown' : foe.stats.rank === 'miniboss' ? 'minibossDown' : 'kill').replace('{name}', foe.name).replace(/\ba ([AEIOU])/g, 'an $1'));
+        if (foe.stats.rank === 'boss' && countdown.stairsOpen) log.push(line('stairsOpen'), 'warn');
         if (foe.loot) {
           inventory.gold += foe.loot;
           log.push(`You get your ${foe.loot} gold back.`, 'info');
@@ -1098,6 +1141,7 @@ function report(events) {
         note('flee');
         break;
       case 'fleeFail':
+        if (ev.booted) { log.push('You cannot run with a wheel clamp on your foot.', 'warn'); break; }
         log.push(line('fleeFail').replace('{name}', combat.fight.alive[0].name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
         break;
       case 'death':
@@ -1344,7 +1388,7 @@ function updateStatus(now) {
   status.viewersDir = now - (state.viewersAt || -1e9) < 1800 ? 1 : viewers.quiet > VIEWERS.quietActions ? -1 : 0;
   status.turnsLeft = countdown.total ? countdown.left : null;
   status.turnsShare = countdown.total ? countdown.left / countdown.total : 1;
-  status.stairsOpen = countdown.stairsOpen;
+  status.stairsOpen = stairsOpen();
   status.hp = crawler.hp;
   status.hpMax = crawler.hpMax;
   status.mp = crawler.mp;
@@ -1375,7 +1419,7 @@ function spriteList(time, dt) {
     const dx = near ? player.x - e.x : e.dx, dy = near ? player.y - e.y : e.dy;
     const side = dx * rx + dy * ry;
     if (Math.abs(side) > 0.2) e.face = side > 0 ? 1 : -1;
-    const views = CREATURES[e.stats.sprite];
+    const views = CREATURES[e.sprite];
     const p = e.pos(dt);
     // A mimic in disguise is just furniture.
     if (e.disguised && views.disguise) return list.push({ x: p.x, y: p.y, img: views.disguise });

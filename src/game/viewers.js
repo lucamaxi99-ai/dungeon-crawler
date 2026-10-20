@@ -21,8 +21,10 @@ export const VIEWERS = {
 const HYPE = {
   // A miniboss going down is a season highlight; a leader is worth more
   // than its foot soldiers.
-  kill: (d) => (d.rank === 'miniboss' ? [0.3, 25] : d.rank === 'leader' ? [0.12, 6] : [0.08, 4]),
+  kill: (d) => (d.rank === 'boss' ? [0.5, 60] : d.rank === 'miniboss' ? [0.3, 25] : d.rank === 'leader' ? [0.12, 6] : [0.08, 4]),
   stolen: [0.06, 3],  // the audience loves a good robbery
+  ticketed: [0.04, 2], // and bureaucracy, apparently
+  bossPhase: [0.1, 8],
   rout: [0.05, 3],
   crit: [0.04, 2],
   fightWon: (d) => (d.closeCall ? [0.18, 8] : [0.03, 1]),

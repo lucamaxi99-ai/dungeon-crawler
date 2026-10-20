@@ -65,7 +65,7 @@ export const FLOORS = [
       { squad: ['gnomeCaptain', 'gnome', 'gnome'], n: 1 },
       { squad: ['goblinGrunt', 'goblinShaman'], n: 1 },
       { squad: ['cartMimic'], n: 2, where: 'wall' },
-      { squad: ['badLlama'], n: 1, where: 'boss' },
+      { squad: ['towBot'], n: 1, where: 'boss' }, // the story boss (GDD 2.3)
     ],
   },
 ];

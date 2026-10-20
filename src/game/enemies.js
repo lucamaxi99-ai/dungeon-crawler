@@ -13,7 +13,9 @@
 // Rare drops of tomes fit the creature (rats know all about running away).
 //
 // family: enemies of one family share a society (GDD 4.6): foot soldiers,
-//   specialists and leaders. rank: 'grunt' | 'leader' | 'miniboss'.
+//   specialists and leaders. rank: 'grunt' | 'leader' | 'miniboss' | 'boss'
+//   (story bosses: mandatory, the stairs stay shut while they live).
+// phaseSprite: what it looks like once its second phase starts.
 // verb: what its attack is called in the log.
 // slow: moves only every other turn.
 // traits (combat.js, enemyTurns below):
@@ -27,6 +29,16 @@
 //   brittle: extra damage from blunt weapons
 //   disguise: stands still looking like furniture until you come close
 //   grudge: if you run from it, it hunts you for the rest of the floor
+// Story boss traits (a boss uses one special per turn, each on its own
+// cooldown, then attacks normally once before the next):
+//   ticket: { share, min, max, cooldown } - fines the crawler gold (paid back
+//     when it falls)
+//   boot: { turns, cooldown } - wheel clamp: no running, worse aim
+//   tow: { dmg, cooldown } - winds up one turn, hits the next (ignores
+//     armour; defending halves it)
+//   backup: { type, max, cooldown } - calls in helpers (Combat's summon)
+//   phase: { at, atk, dmg } - below this share of its HP it gets angrier:
+//     hits harder, no rest between specials, cooldowns one shorter
 export const ENEMY_TYPES = {
   rat: {
     name: 'Giant Rat', sprite: 'rat', family: 'rat', rank: 'grunt', verb: 'bites',
@@ -119,8 +131,30 @@ export const ENEMY_TYPES = {
     traits: { disguise: true },
     gold: [5, 15], loot: 'chest', xp: 20,
   },
-  // Floor 3 miniboss until the real boss arrives with the story floor.
-  // TODO(M9): Floor 3 becomes the first story floor with its own boss.
+  // Story boss of floor 3 (GDD 2.3): a parking enforcement unit with a tow
+  // crane. Ozzle's contract page is stuck under its wiper.
+  towBot: {
+    name: 'Officer Tow-Matic', sprite: 'towBot', phaseSprite: 'towBotTowing', family: 'parking', rank: 'boss', verb: 'rams',
+    hp: 48, atk: 6, def: 3, dex: 4, dmg: [3, 5],
+    sight: 6, roam: 1, leash: 5, track: 8,
+    traits: {
+      ticket: { share: 0.2, min: 5, max: 30, cooldown: 5 },
+      boot: { turns: 3, cooldown: 6 },
+      tow: { dmg: [7, 10], cooldown: 4 },
+      backup: { type: 'coneDrone', max: 2, cooldown: 6 },
+      phase: { at: 0.5, atk: 1, dmg: 1 },
+      morale: true,
+    },
+    gold: [20, 40], loot: 'richChest', xp: 80,
+  },
+  // Its backup: traffic cones that learned to fly.
+  coneDrone: {
+    name: 'Cone Drone', sprite: 'coneDrone', family: 'parking', verb: 'bonks',
+    hp: 5, atk: 3, def: 1, dex: 7, dmg: [1, 2],
+    sight: 6, roam: 2, leash: 6, track: 5,
+    gold: [0, 2], xp: 6,
+  },
+  // Used to be floor 3's miniboss; waits for a floor of its own (M10).
   badLlama: {
     name: 'Bad Llama', sprite: 'badLlama', family: 'llama', rank: 'miniboss', verb: 'kicks',
     hp: 40, atk: 6, def: 4, dex: 6, dmg: [3, 6],
@@ -176,12 +210,15 @@ export class Enemy {
     this.tick = 0;    // turns taken (slow enemies move every other one)
     this.hunts = false; // holds a grudge: follows you anywhere now
     this.disguised = !!t.traits.disguise;
+    this.enraged = false; // a boss in its second phase
     this.face = -1;   // -1 faces left on screen, +1 right (set by the renderer)
     this.move = null; // { fx, fy, t } while walking between cells
     this.dx = -1; this.dy = 0; // last step direction
   }
 
   get name() { return this.stats.name; }
+  // Which creature sprites to draw (bosses change in their second phase).
+  get sprite() { return (this.enraged && this.stats.phaseSprite) || this.stats.sprite; }
   get alive() { return this.hp > 0; }
   get leash() { return this.hunts ? Infinity : this.stats.leash; }
   get hunter() { return this.leash === Infinity; }

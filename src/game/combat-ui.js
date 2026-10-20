@@ -8,6 +8,10 @@
 // look up close in the 3D view. Tall enemies, or three wide ones, don't fit
 // that way: then the camera zooms out to 1.5 (or 1) for the whole fight,
 // like the 3D view does at a distance, so names and hit points still fit.
+//
+// Story bosses (rank 'boss') get the stage to themselves: big in the middle,
+// their name and a segmented health bar up in a second row of the top bar,
+// helpers they call in small at the sides.
 
 import { C, PALETTE_SIZE } from '../engine/palette.js';
 import { TRANSPARENT } from '../engine/framebuffer.js';
@@ -30,6 +34,9 @@ const FEET = HORIZON + (FOCAL * CAM_H) / FOE_DIST;         // 128
 const SCALE = FOCAL / FOE_DIST / 64;                        // 2: closest zoom
 const ZOOMS = [SCALE, 1.5, 1];
 const NAME_ROOM = 18;            // name, HP bar and status tags above the head
+const BOSS_TOP = 21;            // boss fights: two rows of top bar
+const HELPER_X = [62, 258, 100, 220]; // where a boss's helpers stand
+const BOSS_SEG = 4;             // HP per segment of a boss's health bar
 
 const OPEN_MS = 220;
 const POSE_MS = 260;
@@ -47,8 +54,8 @@ export const MAIN_MENU = [
 const ROW = 7, ROWS = 6;          // menu rows in the panel box
 const SUB_TITLE = { items: 'USE ITEM', skills: 'SKILLS', spells: 'SPELLS' };
 const STATUS_TAG = { daze: ['Z', C.YELLOW], blind: ['B', C.FOG], hex: ['H', C.LILAC] };
-const SELF_TAG = { blind: ['BLIND', C.SILVER], hex: ['HEXED', C.LILAC] };
-const STATUS_TEXT = { daze: ['DAZED', C.YELLOW], blind: ['BLINDED', C.SILVER], hex: ['HEXED', C.LILAC] };
+const SELF_TAG = { blind: ['BLIND', C.SILVER], hex: ['HEXED', C.LILAC], boot: ['BOOTED', C.YELLOW] };
+const STATUS_TEXT = { daze: ['DAZED', C.YELLOW], blind: ['BLINDED', C.SILVER], hex: ['HEXED', C.LILAC], boot: ['BOOTED', C.YELLOW] };
 
 export class CombatScreen {
   // fight: Combat. scene: { wall, floor, ceil } textures, tint, light.
@@ -68,16 +75,26 @@ export class CombatScreen {
     this.hurtAt = -1e9;     // crawler took damage (red frame, shake)
     this.banner = null;     // { text, color, t0 } big text in the middle
     this.fx = [];           // spell effects: { kind, x, y, t0 }
-    this.scale = stageZoom(fight.enemies, this.slots(fight.enemies.length));
+    this.boss = fight.enemies.find((e) => e.stats.rank === 'boss') || null;
+    this.top = this.boss ? BOSS_TOP : TOP;
+    this.scale = this.boss ? bossZoom(this.boss) : stageZoom(fight.enemies, this.slots(fight.enemies.length));
+  }
+
+  // Screen x of an enemy on the stage.
+  slotX(e) {
+    const list = this.fight.enemies;
+    if (!this.boss) return this.slots(list.length)[list.indexOf(e)];
+    if (e === this.boss) return W / 2;
+    return HELPER_X[list.filter((o) => o !== this.boss).indexOf(e) % HELPER_X.length];
   }
 
   // Height on the stage of an enemy's front view, and a point at share k of
   // that height above its feet (for numbers and effects).
   heightOf(e) {
-    return CREATURES[e.stats.sprite].F.idle.frames[0].h * this.scale;
+    return CREATURES[e.sprite].F.idle.frames[0].h * this.scale;
   }
   yAt(e, k) {
-    return Math.max(TOP + 10, Math.round(FEET - this.heightOf(e) * k));
+    return Math.max(this.top + 10, Math.round(FEET - this.heightOf(e) * k));
   }
 
   // ------------------------------------------------------------ menu
@@ -129,6 +146,7 @@ export class CombatScreen {
       item: !this.items().length,
       skill: !me.skills.list().some((id) => SKILLS[id].active),
       spell: !me.spells.list().length,
+      flee: !this.fight.canFlee,
     };
     return MAIN_MENU.map((m) => ({ ...m, disabled: !!off[m.id] }));
   }
@@ -189,11 +207,10 @@ export class CombatScreen {
   // Mouse/touch on the stage: picks an enemy as the target.
   hitStage(px, py) {
     const alive = this.fight.alive;
-    const xs = this.slots(this.fight.enemies.length);
     let best = -1, bestD = 40;
-    this.fight.enemies.forEach((e, i) => {
+    this.fight.enemies.forEach((e) => {
       if (!alive.includes(e) || py < TOP) return;
-      const d = Math.abs(px - xs[i]);
+      const d = Math.abs(px - this.slotX(e));
       if (d < bestD) { bestD = d; best = alive.indexOf(e); }
     });
     if (best < 0) return false;
@@ -209,8 +226,7 @@ export class CombatScreen {
 
   // Turns combat events into poses, flashes and floating numbers.
   onEvents(events, now) {
-    const xs = this.slots(this.fight.enemies.length);
-    const at = (e) => xs[this.fight.enemies.indexOf(e)];
+    const at = (e) => this.slotX(e);
     const me = this.fight.crawler;
     const y = (e, k) => this.yAt(e, k);
     let delay = 0; // a missile has to fly before its numbers pop up
@@ -241,9 +257,25 @@ export class CombatScreen {
         case 'curse': {
           const [text, color] = STATUS_TEXT[ev.status];
           this.float(text, color, ME.x, ME.y - 8, now + 200);
-          this.fx.push({ kind: ev.status === 'hex' ? 'hex' : 'sand', x: ME.x + 6, y: H - 16, t0: now + 100 });
+          if (ev.status !== 'boot') this.fx.push({ kind: ev.status === 'hex' ? 'hex' : 'sand', x: ME.x + 6, y: H - 16, t0: now + 100 });
+          else this.hurtAt = now + 100;
           break;
         }
+        case 'ticket':
+          this.float('TICKET!', C.YELLOW, at(ev.actor), y(ev.actor, 0.75), now);
+          this.float(`-${ev.amount} GOLD`, C.GOLD, ME.x, ME.y - 8, now + 250);
+          break;
+        case 'windup':
+          this.float('WINDS UP THE HOOK!', C.AMBER, at(ev.actor), y(ev.actor, 0.9), now);
+          break;
+        case 'summon':
+          this.float('BACKUP!', C.SKY, at(ev.target), y(ev.target, 1.1), now + 100);
+          this.poses.set(ev.target, { pose: 'arrive', until: now + 600, at: now, dir: at(ev.target) < W / 2 ? -1 : 1 });
+          break;
+        case 'phase':
+          this.banner = { text: 'TOWING MODE', color: C.RED, t0: now + 200 };
+          this.hurtAt = now + 200;
+          break;
         case 'dazed':
           this.float('DAZED', C.YELLOW, at(ev.actor), y(ev.actor, 0.7), now);
           this.fx.push({ kind: 'stars', x: at(ev.actor), y: y(ev.actor, 0.8), t0: now });
@@ -277,6 +309,7 @@ export class CombatScreen {
             this.float(`-${ev.amount}`, C.RED, ME.x, ME.y, t);
             if (ev.special === 'bomb') this.fx.push({ kind: 'boom', x: ME.x + 10, y: H - 22, t0: t });
             if (ev.special === 'spit') this.fx.push({ kind: 'splat', x: ME.x + 10, y: H - 22, t0: t });
+            if (ev.special === 'tow') this.fx.push({ kind: 'boom', x: ME.x + 10, y: H - 22, t0: t });
           } else {
             if (this.castFx && this.castFx.id === 'magicMissile' && this.castFx.t0 === now) {
               this.fx.push({ kind: 'missile', x: at(ev.target), y: y(ev.target, 0.5), t0: now });
@@ -306,7 +339,7 @@ export class CombatScreen {
           this.banner = { text: 'GOT AWAY', color: C.SKY, t0: now };
           break;
         case 'fleeFail':
-          this.float('CANNOT ESCAPE', C.FIRE, ME.x, ME.y, now);
+          this.float(ev.booted ? 'CLAMPED!' : 'CANNOT ESCAPE', C.FIRE, ME.x, ME.y, now);
           break;
         default:
       }
@@ -376,7 +409,7 @@ export class CombatScreen {
     const { table, levels } = this.tables;
     const base = tint * levels;
     const px = fb.pixels, fw = fb.width;
-    for (let y = TOP; y < H - 1; y++) {
+    for (let y = this.top; y < H - 1; y++) {
       let tex, v, uScale, uOff;
       if (y < WALL_TOP) {
         const dist = (FOCAL * CAM_H) / (HORIZON - y);
@@ -403,11 +436,10 @@ export class CombatScreen {
       }
     }
     // Soft shadow ellipse under each enemy.
-    const xs = this.slots(this.fight.enemies.length);
-    const rx = Math.round(22 * this.scale);
-    this.fight.enemies.forEach((e, i) => {
+    this.fight.enemies.forEach((e) => {
       if (this.fight.out.has(e) && e.alive) return;
-      const cx = xs[i] + shake;
+      const rx = Math.round((e === this.boss ? 34 : 22) * this.scale);
+      const cx = this.slotX(e) + shake;
       for (let y = FEET - 4; y <= FEET + 3; y++) {
         for (let x = cx - rx; x <= cx + rx; x++) {
           const d = ((x - cx) / rx) ** 2 + ((y - FEET) / 4) ** 2;
@@ -419,30 +451,34 @@ export class CombatScreen {
   }
 
   drawEnemies(fb, now, shake) {
-    const xs = this.slots(this.fight.enemies.length);
     const { table, levels } = this.tables;
     const base = this.scene.tint * levels;
     const showTarget = this.fight.crawlersTurn && this.fight.alive.length > 1;
     const target = this.currentTarget();
-    this.fight.enemies.forEach((e, i) => {
-      const set = CREATURES[e.stats.sprite];
+    // The boss first, so its helpers stand in front of it.
+    const list = this.fight.enemies.slice().sort((a, b) => (b === this.boss) - (a === this.boss));
+    list.forEach((e) => {
+      const i = this.fight.enemies.indexOf(e);
+      const sx = this.slotX(e);
+      const set = CREATURES[e.sprite];
       let p = this.poses.get(e);
       if (p && (p.from > now || (p.pose === 'dead' && p.at > now))) p = null; // not yet: the missile is still flying
       const pose = p && (p.until > now || p.pose === 'dead' || p.pose === 'gone') ? p.pose : 'idle';
-      const img = pose === 'dead' ? set.corpse : pose === 'idle' || pose === 'gone' ? frameAt(set.F.idle, now, i * 2) : set.F[pose];
+      const img = pose === 'dead' ? set.corpse : pose === 'idle' || pose === 'gone' || pose === 'arrive' ? frameAt(set.F.idle, now, i * 2) : set.F[pose];
       const flash = p && p.flash > now;
       const S = this.scale;
       const w = Math.round(img.w * S), h = Math.round(img.h * S);
-      // Running off: slides out to the side and fades.
-      const off = pose === 'gone' ? Math.round(Math.min(1, (now - p.at) / 700) * 90 * p.dir) : 0;
-      const x0 = xs[i] - (w >> 1) + shake + off;
+      // Running off: slides out to the side and fades. Arriving: slides in.
+      const off = pose === 'gone' ? Math.round(Math.min(1, (now - p.at) / 700) * 90 * p.dir)
+        : pose === 'arrive' ? Math.round((1 - Math.min(1, (now - p.at) / 600)) * 90 * p.dir) : 0;
+      const x0 = sx - (w >> 1) + shake + off;
       const y0 = FEET - h + (pose === 'dead' ? 2 : 0);
       // A dying enemy sinks into the floor and fades out in a dither.
       const fade = pose === 'dead' ? Math.min(1, (now - p.at) / 900) : pose === 'gone' ? Math.min(1, (now - p.at) / 800) : 0;
       if (fade >= 1 && pose === 'gone') return;
       for (let dy = 0; dy < h; dy++) {
         const y = y0 + dy;
-        if (y < TOP || y >= H - 1) continue;
+        if (y < this.top || y >= H - 1) continue;
         const sy = Math.min(img.h - 1, Math.floor(dy / S));
         for (let dx = 0; dx < w; dx++) {
           const x = x0 + dx;
@@ -457,13 +493,13 @@ export class CombatScreen {
           fb.pixels[y * fb.width + x] = out;
         }
       }
-      if (!e.alive || this.fight.out.has(e)) return;
+      if (!e.alive || this.fight.out.has(e) || e === this.boss) return;
       // Name and hit points above the enemy.
       const top = Math.round(FEET - set.F.idle.frames[0].h * S - 4);
       const name = e.name.toUpperCase();
-      const nx = xs[i] - (textWidth(name) >> 1);
+      const nx = sx - (textWidth(name) >> 1);
       drawText(fb, name, nx, top - 13, e === target && showTarget ? C.YELLOW : C.BONE, C.BLACK);
-      const bw = 40, bx = xs[i] - bw / 2;
+      const bw = 40, bx = sx - bw / 2;
       fb.bevel(bx, top - 6, bw, 4, C.BLACK, C.BLACK, C.STONE);
       fb.rect(bx + 1, top - 5, Math.max(0, Math.round(((bw - 2) * e.hp) / e.stats.hp)), 2, C.RED);
       // Status effects as little tags right of the bar.
@@ -477,30 +513,59 @@ export class CombatScreen {
         tx += 6;
       }
       if (e === target && showTarget) {
-        if (top - 20 >= TOP) for (let k = 0; k < 3; k++) fb.rect(xs[i] - k, top - 20 + k, 1 + k * 2, 1, C.YELLOW);
+        if (top - 20 >= this.top) for (let k = 0; k < 3; k++) fb.rect(sx - k, top - 20 + k, 1 + k * 2, 1, C.YELLOW);
         else { drawText(fb, '>', nx - 6, top - 13, C.YELLOW, C.BLACK); drawText(fb, '<', nx + textWidth(name) + 2, top - 13, C.YELLOW, C.BLACK); }
       }
     });
   }
 
   drawTopBar(fb) {
-    fb.rect(1, 1, W - 2, TOP - 1, C.NIGHT);
-    fb.rect(1, TOP - 1, W - 2, 1, C.STONE_D);
+    fb.rect(1, 1, W - 2, this.top - 1, C.NIGHT);
+    fb.rect(1, this.top - 1, W - 2, 1, C.STONE_D);
     const f = this.fight;
+    if (this.boss) this.drawBossBar(fb);
+    const row = this.boss ? 10 : 0; // boss fights: turn order in the second row
     let x = 4;
-    drawText(fb, 'TURN', x, 3, C.FOG); x += 20;
+    drawText(fb, 'TURN', x, 3 + row, C.FOG); x += 20;
     f.order.forEach((who) => {
       const me = who === f.crawler;
       if (!me && (!who.alive || f.out.has(who))) return;
       const label = me ? 'YOU' : who.name.split(' ').pop().toUpperCase();
       const w = textWidth(label) + 4;
       const now = who === f.current && !f.result;
-      fb.rect(x, 2, w, 7, now ? (me ? C.GOLD : C.BLOOD) : C.SHADOW);
-      drawText(fb, label, x + 2, 3, now ? C.BLACK : me ? C.BONE : C.SILVER);
+      fb.rect(x, 2 + row, w, 7, now ? (me ? C.GOLD : C.BLOOD) : C.SHADOW);
+      drawText(fb, label, x + 2, 3 + row, now ? C.BLACK : me ? C.BONE : C.SILVER);
       x += w + 3;
     });
     const r = `ROUND ${f.round}`;
-    drawText(fb, r, W - 4 - textWidth(r), 3, C.FOG);
+    drawText(fb, r, W - 4 - textWidth(r), 3 + row, C.FOG);
+  }
+
+  // Boss fights: the boss's name, a health bar in segments and its status
+  // tags along the top.
+  drawBossBar(fb) {
+    const e = this.boss, f = this.fight;
+    const targeted = f.crawlersTurn && f.alive.length > 1 && this.currentTarget() === e;
+    const name = e.name.toUpperCase();
+    if (targeted) drawText(fb, '>', 2, 3, C.YELLOW);
+    drawText(fb, name, 7, 3, targeted ? C.YELLOW : e.enraged ? C.RED : C.GOLD);
+    const segs = Math.ceil(e.stats.hp / BOSS_SEG);
+    const x0 = 12 + textWidth(name), seg = Math.max(3, Math.floor((W - 60 - x0) / segs));
+    for (let k = 0; k < segs; k++) {
+      const hp = Math.max(0, Math.min(BOSS_SEG, e.hp - k * BOSS_SEG));
+      const x = x0 + k * seg;
+      fb.rect(x, 2, seg - 1, 7, C.BLACK);
+      const fill = Math.round(((seg - 3) * hp) / BOSS_SEG);
+      if (fill) fb.rect(x + 1, 3, fill, 5, e.enraged ? C.FIRE : C.RED);
+    }
+    const st = f.status.get(e);
+    let tx = x0 + segs * seg + 2;
+    for (const s of ['daze', 'blind', 'hex']) {
+      if (!st || !st[s]) continue;
+      const [tag, color] = STATUS_TAG[s];
+      drawText(fb, tag, tx, 3, color);
+      tx += 6;
+    }
   }
 
   // The crawler's own corner: hit points, mana and guard. In the skill and
@@ -515,7 +580,7 @@ export class CombatScreen {
     drawText(fb, mp, 30 + textWidth(hp), H - 9, C.SKY, C.BLACK);
     let tx = 38 + textWidth(hp) + textWidth(mp);
     if (this.fight.defending) { drawText(fb, 'GUARD', tx, H - 9, C.SKY, C.BLACK); tx += textWidth('GUARD') + 4; }
-    for (const k of ['blind', 'hex']) {
+    for (const k of ['blind', 'hex', 'boot']) {
       if (!this.fight.self[k]) continue;
       const [tag, color] = SELF_TAG[k];
       drawText(fb, tag, tx, H - 9, color, C.BLACK);
@@ -678,11 +743,18 @@ function big(fb, text, x, y, color) {
   drawText(scaled, text, 0, 0, color);
 }
 
+// A boss fight's zoom: as big as the boss fits under the two-row top bar
+// (in eighths, never closer than the usual 2).
+export function bossZoom(boss) {
+  const h = CREATURES[boss.sprite].F.idle.frames[0].h;
+  return Math.min(SCALE, Math.floor(((FEET - BOSS_TOP) / h) * 8) / 8);
+}
+
 // The zoom for a whole fight: as close as possible while every enemy's front
 // view (plus its name and hit points) fits on the stage and neighbours
 // don't swallow each other.
 export function stageZoom(enemies, xs) {
-  const imgs = enemies.map((e) => CREATURES[e.stats.sprite].F.idle.frames[0]);
+  const imgs = enemies.map((e) => CREATURES[e.sprite].F.idle.frames[0]);
   const tall = Math.max(...imgs.map((i) => i.h));
   const wide = Math.max(...imgs.map(opaqueWidth));
   const gap = xs.length > 1 ? xs[1] - xs[0] : Infinity;

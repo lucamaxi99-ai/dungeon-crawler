@@ -102,6 +102,25 @@ export const LINES = {
     'Tonight\'s featured guest on this floor: {name}! Miniboss, crowd favourite, has never once lost a fight it was paid to win.',
     'Crawler, this floor comes with a miniboss: {name}. Optional. Dangerous. Lucrative. Our favourite combination.',
   ],
+  bossFloor: [
+    'Tonight\'s special guest star: {name}! Our story floors come with a boss, Crawler, and this one is not optional. The subway stays closed until it is scrap.',
+  ],
+  bossDown: [
+    'The {name} is DOWN! The ratings needle just did something it has never done before. A producer somewhere is crying with joy.',
+  ],
+  bossPhase: [
+    'Uh oh. The {name} has switched to TOWING MODE. Red and blue lights mean it is serious now. Or festive.',
+  ],
+  stairsBoss: [
+    'The subway is closed by order of {name}. Remove {name} to reopen the line.',
+  ],
+  stairsBossWait: [
+    'The stairwell is ready, Crawler, but tonight\'s guest star is not finished with you. No boss, no exit.',
+  ],
+  ticket: [
+    'A parking ticket. In a dungeon. You were not even parked. The System upholds the fine.',
+    'Fined again. Borant reminds you that all fines go to a good cause: Borant.',
+  ],
   minibossDown: [
     'The {name} is DOWN! Miniboss defeated! Somebody cue the confetti cannon. Somebody fix the confetti cannon.',
     'You beat the {name}. The audience is on its feet. Mostly to get snacks, but still.',

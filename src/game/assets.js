@@ -18,6 +18,7 @@ import {
   paintRoboVacFront, paintRoboVacSide, paintLlamaFront, paintLlamaSide, paintCartFront, paintCartSide,
   paintRaccoonFront, paintRaccoonSide, paintGnomeFront, paintGnomeSide,
 } from './bestiary/modern.js';
+import { paintTowBotFront, paintTowBotSide, paintConeDroneFront, paintConeDroneSide } from './bestiary/bosses.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
 export { buildSkins, skinFor } from './textures-city.js';
@@ -86,6 +87,7 @@ const GOBLIN_DEAD = { [C.YELLOW]: C.SOOT, [C.AMBER]: C.MOSS_D, [C.LILAC]: C.SOOT
 const goblin = (kit, ms) => creature((pose) => paintGoblinSide(kit, pose), (pose) => paintGoblinFront(kit, pose), ms, { dead: GOBLIN_DEAD, corpse: 'lie' });
 const EYES_OUT = { [C.YELLOW]: C.SOOT, [C.AMBER]: C.SOOT };
 const RAT_DEAD = { [C.RED]: C.SOOT, [C.FIRE]: C.GORE };
+const TOW_DEAD = { [C.LIME]: C.SOOT, [C.AMBER]: C.SOOT, [C.HOT]: C.SOOT, [C.RED]: C.BLOOD_D, [C.SKY]: C.NAVY, [C.ICE]: C.NAVY, [C.NEON]: C.SOOT };
 const SLIME_DEAD = { [C.SKY]: C.NIGHT, [C.ICE]: C.STEEL_D }; // the phone finally dies too
 export const CREATURES = {
   rat: creature(paintRat, paintRatFront, 260, { dead: RAT_DEAD }),
@@ -101,6 +103,11 @@ export const CREATURES = {
   gnomeCaptain: creature(big(paintGnomeSide, 1.2, 'captain'), big(paintGnomeFront, 1.2, 'captain'), 520, { corpse: 'lie' }),
   cartMimic: creature(paintCartSide, paintCartFront, 400, { dead: EYES_OUT, disguise: paintCartSide('disguise') }),
   badLlama: creature(paintLlamaSide, paintLlamaFront, 520, { corpse: 'lie' }),
+  // Story boss of floor 3 and its second phase (red and blue lights), plus
+  // its backup. Lights go out when it falls.
+  towBot: creature((pose) => paintTowBotSide(pose), (pose) => paintTowBotFront(pose), 600, { dead: TOW_DEAD, corpse: 'lie' }),
+  towBotTowing: creature((pose) => paintTowBotSide(pose, 1, 'towing'), (pose) => paintTowBotFront(pose, 1, 'towing'), 300, { dead: TOW_DEAD, corpse: 'lie' }),
+  coneDrone: creature(paintConeDroneSide, paintConeDroneFront, 140, { dead: { [C.LIME]: C.SOOT, [C.MINT]: C.SOOT } }),
   slimeXL: creature(big(paintSlimeSide, 1.35, 'xl'), big(paintSlimeFront, 1.35, 'xl'), 220, { dead: SLIME_DEAD, corpse: 'squash' }),
 };
 

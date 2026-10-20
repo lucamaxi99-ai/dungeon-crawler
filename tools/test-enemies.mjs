@@ -21,7 +21,7 @@ const slots = (n) => (n <= 1 ? [160] : Array.from({ length: n }, (_, i) => Math.
 
 // ------------------------------------------------------------ sprites
 for (const [id, t] of Object.entries(ENEMY_TYPES)) {
-  assert.ok(t.name && t.verb && t.family && ['grunt', 'leader', 'miniboss'].includes(t.rank), `${id}: name, verb, family, rank`);
+  assert.ok(t.name && t.verb && t.family && ['grunt', 'leader', 'miniboss', 'boss'].includes(t.rank), `${id}: name, verb, family, rank`);
   const c = CREATURES[t.sprite];
   assert.ok(c, `${id}: creature '${t.sprite}' is registered`);
   assert.ok(SPRITES[`${t.sprite}Corpse`], `${id}: has a corpse`);
@@ -208,6 +208,48 @@ if (ENEMY_TYPES.roboVac) {
   assert.ok(evs.some((e) => e.kind === 'calm') && r.fear === 0, 'calms down');
 }
 
+// Story boss (Officer Tow-Matic): tickets, the boot, the telegraphed tow
+// hook, backup drones and a second phase.
+if (ENEMY_TYPES.towBot) {
+  let gold = 100;
+  const me = fresh();
+  const boss = new Enemy('towBot', 1, 0);
+  const called = [];
+  const fight = new Combat(me, [boss], { rnd: always, purse: () => gold, summon: (type) => { const d = new Enemy(type, 0, 1); called.push(d); return d; } });
+  const st = fight.status.get(boss);
+  const t1 = enemyTurn(fight, boss);
+  const fine = t1.find((e) => e.kind === 'ticket');
+  assert.ok(fine && fine.amount > 0 && boss.loot === fine.amount, 'first it writes a ticket (and keeps the gold until it falls)');
+  gold -= fine.amount;
+  assert.ok(enemyTurn(fight, boss).some((e) => e.kind === 'hit' && !e.special), 'then a plain attack');
+  const t3 = enemyTurn(fight, boss);
+  assert.ok(t3.some((e) => e.kind === 'summon') && called.length === 1 && fight.enemies.includes(called[0]) && fight.order.includes(called[0]), 'calls in a drone that joins the fight');
+  enemyTurn(fight, boss);
+  const t5 = enemyTurn(fight, boss);
+  assert.ok(t5.some((e) => e.kind === 'windup') && st.charged, 'winds up the tow hook');
+  fight.turn = fight.order.indexOf(me);
+  fight.crawlerAct({ kind: 'defend' });
+  const hp = me.hp;
+  const t6 = enemyTurn(fight, boss);
+  const hook = t6.find((e) => e.special === 'tow');
+  assert.ok(hook && hp - me.hp === Math.floor(boss.stats.traits.tow.dmg[0] / 2), 'the hook comes down, halved by defending');
+  enemyTurn(fight, boss);
+  const t8 = enemyTurn(fight, boss);
+  assert.ok(t8.some((e) => e.kind === 'curse' && e.status === 'boot') && !fight.canFlee, 'clamps the crawler');
+  fight.turn = fight.order.indexOf(me);
+  const run = fight.crawlerAct({ kind: 'flee' });
+  assert.ok(run.some((e) => e.kind === 'fleeFail' && e.booted) && !fight.result, 'no running with a boot on');
+  boss.hp = Math.ceil(boss.stats.hp / 2) + 1;
+  fight.turn = fight.order.indexOf(me);
+  const hit = fight.crawlerAct({ kind: 'attack', target: boss });
+  assert.ok(hit.some((e) => e.kind === 'phase') && boss.enraged && boss.sprite === 'towBotTowing', 'towing mode below half health');
+  assert.ok(fight.aura(boss).atk > 0, 'and hits harder');
+  boss.hp = 1;
+  fight.turn = fight.order.indexOf(me);
+  const end = fight.crawlerAct({ kind: 'attack', target: boss });
+  assert.ok(end.some((e) => e.kind === 'rout' && e.actor === called[0]) && fight.result === 'won', 'its drones give up when it falls');
+}
+
 // ------------------------------------------------------------ balancing
 // A typical crawler at each depth (level, points and gear it usually has
 // by then) fights every squad of that floor from full health. It goes for
@@ -232,12 +274,15 @@ function battle(depth, squad, seed, boss) {
   for (const g of t.gear) { me.inv.add(g); me.inv.equipFromBag(0); }
   let gold = 50;
   const foes = squad.slice(0, 3).map((k, i) => new Enemy(k, i, 1));
-  const fight = new Combat(me, foes, { rnd: rng(seed), purse: () => gold });
+  const summon = (type) => new Enemy(type, 0, 2);
+  const fight = new Combat(me, foes, { rnd: rng(seed), purse: () => gold, summon });
   for (let n = 0; !fight.result && n < 200; n++) {
     if (!fight.crawlersTurn) { fight.enemyAct(); continue; }
     const prio = (e) => (e.stats.traits.morale ? 0 : e.stats.traits.heal ? 1 : 2);
     const target = fight.alive.slice().sort((a, b) => prio(a) - prio(b) || a.hp - b.hp)[0];
-    if (fight.canSkill('dirtyKick')) fight.crawlerAct({ kind: 'skill', id: 'dirtyKick', target });
+    // A boss winding up its hook: brace for it.
+    if (fight.alive.some((e) => fight.status.get(e).charged)) fight.crawlerAct({ kind: 'defend' });
+    else if (fight.canSkill('dirtyKick')) fight.crawlerAct({ kind: 'skill', id: 'dirtyKick', target });
     else fight.crawlerAct({ kind: 'attack', target });
   }
   return { result: fight.result, lost: me.hpMax - me.hp, hpMax: me.hpMax };
