@@ -129,6 +129,10 @@ export const LINES = {
     'That {name} was NOT furniture. Borant reminds you that all decor in the dungeon may bite.',
     'Surprise! The {name} was a mimic. The viewers knew. The viewers always know.',
   ],
+  fightFizzled: [
+    'And it is gone. The fight is over, nobody died, and the audience is demanding a refund.',
+    'Combat ends on a technicality: the other side left. Borant does not award points for that.',
+  ],
   hunterNotice: [
     'Crawler, a {name} has your scent. Unlike the rest, this one does not care about territory.',
   ],

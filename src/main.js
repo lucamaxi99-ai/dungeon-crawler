@@ -1050,11 +1050,13 @@ function report(events) {
         break;
       case 'curse':
         log.push(ev.status === 'hex' ? `The ${ev.actor.name} hexes you. Your aim goes wobbly.` : 'You can barely see.', 'warn');
+        if (ev.status === 'blind') note('spat');
         break;
       case 'steal':
         inventory.gold -= ev.amount;
         log.push(`The ${ev.actor.name} lifts ${ev.amount} gold from your pockets.`, 'warn');
         log.push(line('steal'));
+        note('stolen');
         break;
       case 'escape':
         log.push(`The ${ev.actor.name} makes a run for it with your gold.`, 'warn');
@@ -1063,6 +1065,7 @@ function report(events) {
         if (!ev.leader.routSaid) {
           ev.leader.routSaid = true;
           log.push(line('rout').replace('{name}', ev.leader.name).replace(/\ba ([AEIOU])/g, 'an $1'), 'warn');
+          note('rout');
         }
         break;
       case 'blocked':
@@ -1081,6 +1084,7 @@ function report(events) {
           inventory.gold += foe.loot;
           log.push(`You get your ${foe.loot} gold back.`, 'info');
           foe.loot = 0;
+          note('goldBack');
         }
         note('kill', { type: foe.type, rank: foe.stats.rank, family: foe.stats.family, unarmed: crawler.weapon === 'unarmed', blast: !!ev.blast });
         gainXp(foe.stats.xp || 0);
@@ -1132,7 +1136,10 @@ function endCombat() {
   for (const e of ranOff.filter((r) => !r.loot && r.group !== null)) {
     for (const m of level.enemies) if (m.alive && m.group === e.group && !fight.enemies.includes(m)) scatter(m, 25);
   }
-  if (fight.result === 'won') {
+  if (fight.result === 'won' && fight.enemies.every((e) => e.alive)) {
+    // Nobody died: they all ran (a thief with your gold, a leaderless crew).
+    log.push(line('fightFizzled'));
+  } else if (fight.result === 'won') {
     const got = {};
     let gold = 0;
     for (const e of fight.enemies) {

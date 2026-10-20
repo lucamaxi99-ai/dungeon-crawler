@@ -55,6 +55,73 @@ export const ACHIEVEMENTS = [
     text: 'Five crits. The editors are cutting them to music. Something with a saxophone.',
     test: (s) => s.crits >= 5,
   },
+  // ---------------------------------------------------------- the M8 crowd
+  {
+    id: 'featuredGuest', name: 'Featured Guest Removed', reward: { box: 'silver' },
+    hint: 'Defeat a miniboss.',
+    text: 'You beat a miniboss. Its agent is furious. Its replacement is already in makeup.',
+    test: (s) => s.minibosses >= 1,
+  },
+  {
+    id: 'hostileTakeover', name: 'Hostile Takeover', reward: { box: 'gold' },
+    hint: 'Defeat three minibosses in one season.',
+    text: 'Three minibosses in one season. The guest booking department has unionized against you.',
+    test: (s) => s.minibosses >= 3,
+  },
+  {
+    id: 'regimeChange', name: 'Regime Change', reward: { box: 'bronze' },
+    hint: 'Take out a leader and watch the rest run.',
+    text: 'You removed the boss and the whole crew quit on the spot. Borant\'s HR department would like to study you.',
+    test: (s) => s.routs >= 1,
+  },
+  {
+    id: 'friendlyFire', name: 'Friendly Fire', reward: { box: 'bronze' }, secret: true,
+    hint: 'Let an explosion do your job.',
+    text: 'The goblins brought the bomb, the goblins lit the bomb, the goblins caught the bomb. You get the credit. That is showbusiness.',
+    test: (s) => s.blastKills >= 1,
+  },
+  {
+    id: 'chinaShop', name: 'Bull in a China Shop', reward: { box: 'bronze' },
+    hint: 'Smash 5 lawn gnomes.',
+    text: 'Five lawn gnomes shattered. Property values in the dungeon have never been higher.',
+    test: (s) => (s.fam_gnome || 0) >= 5,
+  },
+  {
+    id: 'goblinTax', name: 'Goblin Tax Audit', reward: { box: 'silver' },
+    hint: 'Kill 8 goblins.',
+    text: 'Eight goblins. Their kingdom was one room. Now it is one room with fewer goblins in it.',
+    test: (s) => (s.fam_goblin || 0) >= 8,
+  },
+  {
+    id: 'unplugged', name: 'Unplugged', reward: { box: 'bronze' },
+    hint: 'Destroy a Feral Robo-Vac.',
+    text: 'The robo-vac is down. It mapped the whole floor and never once found the stairs. Relatable.',
+    test: (s) => (s.kill_roboVac || 0) >= 1,
+  },
+  {
+    id: 'aisleThree', name: 'Clean-Up on Aisle Three', reward: { box: 'bronze' },
+    hint: 'Kill a mimic.',
+    text: 'You killed a shopping cart. It had teeth, so it counts. The other carts are watching you now.',
+    test: (s) => (s.fam_mimic || 0) >= 1,
+  },
+  {
+    id: 'shoplifted', name: 'Shoplifted', reward: null, secret: true,
+    hint: 'Get robbed.',
+    text: 'A raccoon took your money. In front of an audience of millions. Several of them sent it tips.',
+    test: (s) => s.stolen >= 1,
+  },
+  {
+    id: 'returnToSender', name: 'Return to Sender', reward: { box: 'bronze' }, secret: true,
+    hint: 'Get your stolen gold back.',
+    text: 'You chased down a thief and took your gold back. With interest. The interest was its life.',
+    test: (s) => s.goldBack >= 1,
+  },
+  {
+    id: 'spitTake', name: 'Spit Take', reward: null, secret: true,
+    hint: 'Catch a llama\'s opinion with your face.',
+    text: 'The llama has shared its feelings with you, directly, via your eyes. Our viewers voted it Moment of the Week.',
+    test: (s) => s.spat >= 1,
+  },
   {
     id: 'fists', name: 'Fists of Mild Fury', reward: { box: 'bronze' },
     hint: 'Kill 5 enemies with your bare hands.',
@@ -272,6 +339,7 @@ export const ACHIEVEMENT = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])
 const COUNT = {
   crit: 'crits', flee: 'flees', chest: 'chests', learn: 'learned', won: 'won',
   bump: 'bumps', wastedHeal: 'wastedHeals', lockedStairs: 'lockedStairs',
+  rout: 'routs', stolen: 'stolen', goldBack: 'goldBack', spat: 'spat',
   drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests', boxOpened: 'boxesOpened', sponsor: 'sponsors',
 };
 
@@ -283,6 +351,9 @@ const RULES = {
     s.kills++;
     s.floorKills++;
     s[`kill_${d.type}`] = (s[`kill_${d.type}`] || 0) + 1;
+    if (d.family) s[`fam_${d.family}`] = (s[`fam_${d.family}`] || 0) + 1;
+    if (d.rank === 'miniboss') s.minibosses++;
+    if (d.blast) s.blastKills++;
     if (d.unarmed) s.unarmedKills++;
   },
   skill: (s, d) => { s[`skill_${d.id}`] = (s[`skill_${d.id}`] || 0) + 1; },
@@ -315,6 +386,7 @@ export class Achievements {
       steps: 0, kills: 0, floorKills: 0, unarmedKills: 0, crits: 0, flees: 0,
       byAThread: 0, flawless: 0, level: 1, maxSkill: 1, learned: 0, slotsFilled: 0,
       fashion: 0, tails: 0, floors: 0, lateStairs: 0, peacefulFloors: 0, cleanFloors: 0,
+      minibosses: 0, routs: 0, blastKills: 0, stolen: 0, goldBack: 0, spat: 0,
       won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, boxesOpened: 0, sponsors: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
     };
     this.unlocked = [];  // ids in the order they were earned

@@ -23,7 +23,7 @@ export const BESTIARY = [
     blurb: 'The dungeon\'s welcoming committee. It has rabies, fleas and a better health plan than you.',
   },
   {
-    id: 'slime', name: 'Lost & Found Slime', family: 'Ooze', origin: 'classic',
+    id: 'slime', name: 'Lost & Found Slime', family: 'Ooze', origin: 'classic', inGame: true,
     paint: paintSlimeFront, frameMs: 180,
     blurb: 'It has eaten three phones, a sneaker and somebody\'s car keys. One of the phones is still getting notifications.',
   },
@@ -38,27 +38,27 @@ export const BESTIARY = [
     blurb: 'Still on shift. Still holding the same piece of rebar. Has not taken a break since before your species learned to stand.',
   },
   {
-    id: 'goblinGrunt', name: 'Goblin Pot-Head', family: 'Goblin', origin: 'book',
+    id: 'goblinGrunt', name: 'Goblin Pot-Head', family: 'Goblin', origin: 'book', inGame: true,
     paint: goblin('grunt'), frameMs: 380,
     blurb: 'Standard goblin infantry. The saucepan is both helmet and dinner plans. You are the dinner plans.',
   },
   {
-    id: 'goblinSapper', name: 'Goblin Sapper', family: 'Goblin', origin: 'book',
+    id: 'goblinSapper', name: 'Goblin Sapper', family: 'Goblin', origin: 'book', inGame: true,
     paint: goblin('sapper'), frameMs: 300,
     blurb: 'Carries enough explosives to level a strip mall and has the impulse control of a toddler with a lighter. Keep your distance, Crawler.',
   },
   {
-    id: 'goblinShaman', name: 'Goblin Hedge-Shaman', family: 'Goblin', origin: 'own',
+    id: 'goblinShaman', name: 'Goblin Hedge-Shaman', family: 'Goblin', origin: 'own', inGame: true,
     paint: goblin('shaman'), frameMs: 420,
     blurb: 'Wears a colander to block mind-control rays. Nobody has ever wanted to control that mind.',
   },
   {
-    id: 'goblinBoss', name: 'Goblin Warboss', family: 'Goblin', origin: 'own',
+    id: 'goblinBoss', name: 'Goblin Warboss', family: 'Goblin', origin: 'own', inGame: true,
     paint: goblin('boss'), frameMs: 450,
     blurb: 'Crowned itself with a traffic cone and declared a kingdom. The kingdom is this room. The stop sign is not a suggestion.',
   },
   {
-    id: 'badLlama', name: 'Bad Llama', family: 'Beast', origin: 'book',
+    id: 'badLlama', name: 'Bad Llama', family: 'Beast', origin: 'book', inGame: true,
     paint: paintLlamaFront, frameMs: 520,
     blurb: 'Petting-zoo graduate. Spits acid, holds grudges. Do not make eye contact. You just made eye contact.',
   },
@@ -68,12 +68,12 @@ export const BESTIARY = [
     blurb: 'Exact change only. It has never once given anybody their change, and it is not going to start with you.',
   },
   {
-    id: 'roboVac', name: 'Feral Robo-Vac', family: 'Appliance', origin: 'own',
+    id: 'roboVac', name: 'Feral Robo-Vac', family: 'Appliance', origin: 'own', inGame: true,
     paint: paintRoboVacFront, frameMs: 120,
     blurb: 'It mapped this whole floor while you slept. Someone taped a steak knife to it. Nobody is asking who.',
   },
   {
-    id: 'cartMimic', name: 'Cart Mimic', family: 'Mimic', origin: 'own',
+    id: 'cartMimic', name: 'Cart Mimic', family: 'Mimic', origin: 'own', inGame: true,
     paint: paintCartFront, frameMs: 400,
     blurb: 'One wheel squeaks. One wheel wobbles. One wheel pulls left. The fourth wheel has never been found, and neither have its last three owners.',
   },
@@ -83,12 +83,12 @@ export const BESTIARY = [
     blurb: 'Formerly employed by a used car dealership. Kept inflated by pure spite and a blower nobody can find.',
   },
   {
-    id: 'raccoon', name: 'Trash Panda Bandit', family: 'Beast', origin: 'own',
+    id: 'raccoon', name: 'Trash Panda Bandit', family: 'Beast', origin: 'own', inGame: true,
     paint: paintRaccoonFront, frameMs: 360,
     blurb: 'Mask: natural. Crimes: numerous. It went through your inventory while you were reading this.',
   },
   {
-    id: 'gnome', name: 'Lawn Gnome Militia', family: 'Construct', origin: 'own',
+    id: 'gnome', name: 'Lawn Gnome Militia', family: 'Construct', origin: 'own', inGame: true,
     paint: paintGnomeFront, frameMs: 480,
     blurb: 'Ceramic, glazed and furious about property values. They never come alone, and they never come quietly.',
   },

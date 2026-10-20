@@ -19,7 +19,11 @@ export const VIEWERS = {
 // Gain per event: share of the current audience plus a flat number.
 // data.closeCall: the fight was won with a quarter of the HP or less.
 const HYPE = {
-  kill: [0.08, 4],
+  // A miniboss going down is a season highlight; a leader is worth more
+  // than its foot soldiers.
+  kill: (d) => (d.rank === 'miniboss' ? [0.3, 25] : d.rank === 'leader' ? [0.12, 6] : [0.08, 4]),
+  stolen: [0.06, 3],  // the audience loves a good robbery
+  rout: [0.05, 3],
   crit: [0.04, 2],
   fightWon: (d) => (d.closeCall ? [0.18, 8] : [0.03, 1]),
   flee: [0.02, 1],

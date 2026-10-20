@@ -311,7 +311,10 @@ export class CombatScreen {
         default:
       }
     }
-    if (this.fight.result === 'won') this.banner = { text: 'VICTORY', color: C.GOLD, t0: now };
+    if (this.fight.result === 'won') {
+      const ran = this.fight.enemies.every((e) => e.alive);
+      this.banner = { text: ran ? 'THEY RAN' : 'VICTORY', color: ran ? C.SILVER : C.GOLD, t0: now };
+    }
   }
 
   float(text, color, x, y, t0) {

@@ -102,6 +102,12 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   for (let i = 0; i < 5; i++) script.push(['boxOpened', { tier: 0 }]);
   for (let i = 0; i < 3; i++) script.push(['sponsor']);
   script.push(['safeRoom'], ['rest'], ['rest'], ['rest'], ['floorDone', { turnsShare: 0.5, allDead: false, safeVisited: false }]);
+  // M8: minibosses, leaders, bombs, gnomes, goblins, robo-vacs, mimics, thieves, llamas.
+  for (let i = 0; i < 3; i++) script.push(['kill', { type: 'slimeXL', family: 'slime', rank: 'miniboss' }]);
+  for (let i = 0; i < 5; i++) script.push(['kill', { type: 'gnome', family: 'gnome' }]);
+  for (let i = 0; i < 8; i++) script.push(['kill', { type: 'goblinGrunt', family: 'goblin', blast: i === 0 }]);
+  script.push(['kill', { type: 'roboVac', family: 'appliance' }], ['kill', { type: 'cartMimic', family: 'mimic' }]);
+  script.push(['rout'], ['stolen'], ['goldBack'], ['spat']);
   for (const [k, d] of script) t.note(k, d);
   // The pacifist season needs a run of its own.
   const p = new Achievements();
