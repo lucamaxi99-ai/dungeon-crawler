@@ -4,8 +4,12 @@
 // Legend:
 //   r rough rock   # stone blocks   m mossy blocks   S stairwell   P Borant poster
 //   n Borant neon screen   u glowing runes
+//   City (story floor 3): d diner   l laundromat   p pharmacy   z fence
+//   T subway tiles   w Borant store   e EAT sign   + pharmacy cross
 //   . floor        @ player start
 //   C chest        b barrel         f brazier        F cold brazier   x bones
+//   B burning barrel   V car wreck   Y hydrant   U trash can   L traffic light
+//   D diner table
 //   R giant rat (enemy). Generated floors list their enemies in
 //   def.enemies instead: [{ type, x, y, group }].
 //
@@ -19,8 +23,14 @@ import { TINT_BY_NAME } from './lights.js';
 import { SPRITES } from './assets.js';
 import { Enemy } from './enemies.js';
 
-const WALL_CHARS = { r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER, H: WALL.SAFE, n: WALL.NEON, u: WALL.RUNES };
-const OBJECT_CHARS = { C: 'chest', K: 'sponsoredChest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones' };
+const WALL_CHARS = {
+  r: WALL.ROCK, '#': WALL.STONE, m: WALL.MOSSY, S: WALL.STAIRS, P: WALL.POSTER, H: WALL.SAFE, n: WALL.NEON, u: WALL.RUNES,
+  d: WALL.DINER, l: WALL.LAUNDRY, p: WALL.PHARMACY, z: WALL.FENCE, T: WALL.SUBWAY, w: WALL.SHOP, e: WALL.EAT, '+': WALL.CROSS,
+};
+const OBJECT_CHARS = {
+  C: 'chest', K: 'sponsoredChest', b: 'barrel', f: 'brazier', F: 'coldBrazier', x: 'bones',
+  B: 'burnBarrel', V: 'carWreck', Y: 'hydrant', U: 'trashCan', L: 'trafficLight', D: 'dinerTable',
+};
 const ENEMY_CHARS = { R: 'rat' };
 const SIDES = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
 
@@ -88,6 +98,8 @@ export class Level {
     this.depth = def.depth ?? 1;
     this.turns = def.turns ?? 0; // countdown budget in turns (0 = none)
     this.seed = def.seed ?? 1;
+    this.setting = def.setting || 'dungeon'; // which texture skin (textures-city.js)
+    this.story = !!def.story;                // a story floor (GDD 2.2)
     this.h = def.rows.length;
     this.w = def.rows[0].length;
     const n = this.w * this.h;
@@ -145,7 +157,7 @@ export class Level {
       const [dx, dy] = SIDES[side] || [];
       if (dx === undefined) throw new Error(`Torch at ${x},${y}: unknown side '${side}'`);
       if (this.wall(x, y) || !this.wall(x + dx, y + dy)) throw new Error(`Torch at ${x},${y} needs an open cell with a wall to the ${side}`);
-      this.decor.push({ type, x: x + 0.5 + dx * 0.38, y: y + 0.5 + dy * 0.38, lift: 0.42 });
+      this.decor.push({ type, x: x + 0.5 + dx * 0.38, y: y + 0.5 + dy * 0.38, lift: SPRITES[type].lift ?? 0.42 });
       this.lights.push({ ...SPRITES[type].light, x: x + 0.5 + dx * 0.25, y: y + 0.5 + dy * 0.25 });
     }
   }

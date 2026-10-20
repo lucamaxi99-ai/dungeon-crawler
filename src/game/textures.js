@@ -11,11 +11,11 @@ import { drawText } from '../engine/font.js';
 export const S = 64;
 
 const idx = (x, y) => (((y % S) + S) % S) * S + (((x % S) + S) % S);
-const set = (t, x, y, c) => { t.data[idx(x, y)] = c; };
-const get = (t, x, y) => t.data[idx(x, y)];
+export const set = (t, x, y, c) => { t.data[idx(x, y)] = c; };
+export const get = (t, x, y) => t.data[idx(x, y)];
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
-function normalize(a) {
+export function normalize(a) {
   let mn = Infinity, mx = -Infinity;
   for (const v of a) { if (v < mn) mn = v; if (v > mx) mx = v; }
   const k = mx > mn ? 1 / (mx - mn) : 1;
@@ -32,17 +32,17 @@ export function pick(ramp, v, x, y, d = 0.7) {
 }
 
 // Light from the top left on a height field (wrapping).
-function emboss(h, x, y) {
+export function emboss(h, x, y) {
   return h[idx(x - 1, y - 1)] - h[idx(x + 1, y + 1)];
 }
 
 // Text at 2x scale with the 3x5 font.
-function bigText(t, str, x, y, color) {
+export function bigText(t, str, x, y, color) {
   const tmp = { set: (px, py, c) => { for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) set(t, x + px * 2 + a, y + py * 2 + b, c); } };
   drawText(tmp, str, 0, 0, color);
 }
 
-function smallText(t, str, x, y, color) {
+export function smallText(t, str, x, y, color) {
   drawText({ set: (px, py, c) => set(t, x + px, y + py, c) }, str, 0, 0, color);
 }
 
@@ -116,7 +116,7 @@ const MOSS_RAMP = [C.MOSS_D, C.MOSS, C.GREEN, C.LIME];
 const WOOD_RAMP = [C.SOOT, C.WOOD_D, C.WOOD, C.WOOD_L, C.LEATHER];
 const STEEL_RAMP = [C.BLACK, C.STEEL_D, C.STEEL, C.STEEL_M, C.STEEL_L];
 
-function stoneWall() {
+export function stoneWall() {
   return stoneBlocks(11, { ramp: STONE_RAMP, mortar: C.SOOT }).t;
 }
 
@@ -249,9 +249,10 @@ function neonScreen() {
   return t;
 }
 
-// Borant recruitment poster: parchment nailed onto the stone wall.
-function borantPoster() {
-  const t = stoneWall();
+// Borant recruitment poster: parchment nailed onto the stone wall (or onto
+// another wall texture, base).
+export function borantPoster(base = stoneWall()) {
+  const t = base;
   const grain = normalize(fbm(S, 61, { base: 8, octaves: 3 }));
   const r = rng(62);
   const x0 = 5, x1 = 59, y0 = 7, y1 = 55;
@@ -323,9 +324,10 @@ function door() {
 }
 
 // Safe Room door: a steel door in a stone frame under a glowing mint
-// "SAFE ROOM" sign, so it can be spotted from across a dark room.
-function safeDoor() {
-  const t = stoneWall();
+// "SAFE ROOM" sign, so it can be spotted from across a dark room. base: the
+// wall around it (stone in the dungeon, brick in the city).
+export function safeDoor(base = stoneWall()) {
+  const t = base;
   const grain = normalize(fbm(S, 141, { base: 8, octaves: 3 }));
   const x0 = 14, x1 = 50, top = 24;
   // Frame: a darker stone surround.
@@ -592,8 +594,17 @@ export function framedPortrait(img) {
 // ------------------------------------------------------------ registry
 
 // Wall ids (map cells, 0 = open) and flat ids (floor/ceiling per cell).
-export const WALL = { STONE: 1, ROCK: 2, MOSSY: 3, STAIRS: 4, NEON: 5, DOOR: 6, RUNES: 7, PORTRAIT: 8, POSTER: 9, SAFE: 10 };
-export const FLAT = { COBBLE: 0, WET: 1, PLANKS: 2, CARPET: 3, GRAVEL: 4, BEAMS: 5, VAULT: 6, CAVE: 7, STEEL: 8 };
+// Ids 11+ belong to the city of story floor 3 (textures-city.js); the city
+// skin also repaints ROCK, STONE, STAIRS, SAFE and POSTER (same ids, so the
+// rules never care which setting a floor has).
+export const WALL = {
+  STONE: 1, ROCK: 2, MOSSY: 3, STAIRS: 4, NEON: 5, DOOR: 6, RUNES: 7, PORTRAIT: 8, POSTER: 9, SAFE: 10,
+  DINER: 11, LAUNDRY: 12, PHARMACY: 13, FENCE: 14, SUBWAY: 15, SHOP: 16, EAT: 17, CROSS: 18,
+};
+export const FLAT = {
+  COBBLE: 0, WET: 1, PLANKS: 2, CARPET: 3, GRAVEL: 4, BEAMS: 5, VAULT: 6, CAVE: 7, STEEL: 8,
+  ASPHALT: 9, SIDEWALK: 10, PARKING: 11, CHECKER: 12, LINO: 13, CONCRETE: 14, SKY: 15, DROP: 16,
+};
 
 // Texture size in pixels (one wall = 64 x 64).
 export const TEX = S;

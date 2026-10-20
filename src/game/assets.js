@@ -8,6 +8,9 @@ import { C } from '../engine/palette.js';
 import { FIRE_COLORS, COLD_COLORS } from './materials.js';
 import { paintBrazier, paintWallTorch, paintChest, paintBarrel, paintBones, paintBag } from './objects.js';
 import { LIGHT_PRESETS } from './lights.js';
+import {
+  paintBurnBarrel, paintCarWreck, paintHydrant, paintTrashCan, paintTrafficLight, paintDinerTable, paintStreetLamp, paintFluoTube,
+} from './objects-city.js';
 import { paintRat, paintRatFront } from './creatures.js';
 import { paintSlimeFront, paintSlimeSide } from './bestiary/classics.js';
 import { paintGoblinFront, paintGoblinSide } from './bestiary/goblins.js';
@@ -17,6 +20,7 @@ import {
 } from './bestiary/modern.js';
 
 export { buildTextures, WALL, FLAT, TEX } from './textures.js';
+export { buildSkins, skinFor } from './textures-city.js';
 
 const brazier = animation(paintBrazier(), { frameMs: 110 });
 const torch = animation(paintWallTorch(), { frameMs: 100 });
@@ -102,7 +106,8 @@ export const CREATURES = {
 
 // Every object type has an animation (single-frame ones just never change).
 //   solid: blocks movement. light: preset from lights.js the object emits.
-//   wall: hangs on a wall (decoration, placed with a lift, not interactive).
+//   wall: hangs on a wall (decoration, placed with a lift, not interactive);
+//   lift: how high it hangs (default 0.42 of a wall).
 //   open: animation played once when the object is opened (flags.openedAt).
 export const SPRITES = {
   chest: { anim: animation(chest.closed), open: chestOpen, solid: true, chest: true },
@@ -117,6 +122,15 @@ export const SPRITES = {
   bag: { anim: animation(paintBag()), solid: false },
   torch: { anim: torch, wall: true, light: LIGHT_PRESETS.torch },
   coldTorch: { anim: recolor(torch, coldMap, 'cold'), wall: true, light: LIGHT_PRESETS.coldTorch },
+  // City (story floor 3, objects-city.js)
+  burnBarrel: { anim: animation(paintBurnBarrel(), { frameMs: 110 }), solid: true, light: LIGHT_PRESETS.burnBarrel },
+  carWreck: { anim: animation(paintCarWreck()), solid: true },
+  hydrant: { anim: animation(paintHydrant()), solid: true },
+  trashCan: { anim: animation(paintTrashCan()), solid: true },
+  trafficLight: { anim: animation(paintTrafficLight(), { frameMs: 700 }), solid: true, light: LIGHT_PRESETS.trafficLight },
+  dinerTable: { anim: animation(paintDinerTable()), solid: true },
+  streetLamp: { anim: animation(paintStreetLamp()), wall: true, lift: 0.66, light: LIGHT_PRESETS.streetLamp },
+  fluoTube: { anim: animation(paintFluoTube()), wall: true, lift: 0.8, light: LIGHT_PRESETS.fluoTube },
 };
 // Every creature leaves a corpse: '<sprite>Corpse'.
 for (const [k, c] of Object.entries(CREATURES)) SPRITES[`${k}Corpse`] = { anim: animation(c.corpse), solid: false };

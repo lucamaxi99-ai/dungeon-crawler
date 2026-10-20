@@ -17,6 +17,10 @@
 //      stairs, hunters anywhere, mimics against the walls (enemies.js).
 //   6. The turn budget of the floor's countdown follows from its size: a
 //      tour through all rooms and to the stairs, times a margin.
+//
+// A floor's setting decides its room themes and the look of everything
+// between the rooms: the dungeon (rock, torches) or the city of story
+// floor 3 (brick facades, asphalt alleys, street lamps; GDD 2.3).
 
 import { seededRandom } from './loot.js';
 import { ENEMY_TYPES, fightWeight } from './enemies.js';
@@ -52,7 +56,8 @@ export const FLOORS = [
     ],
   },
   {
-    size: [42, 42], rooms: [11, 12], chests: 3, rich: 1, margin: 2.8,
+    // Story floor 3: the city (GDD 2.3).
+    size: [42, 42], rooms: [11, 12], chests: 3, rich: 1, margin: 2.8, setting: 'city', story: true,
     foes: [
       { squad: ['rat', 'rat'], n: 1 },
       { squad: ['raccoon'], n: 2 },
@@ -74,7 +79,7 @@ export const STAIRS_OPEN_AT = 1 / 3;
 
 // Room themes. wall: map char of the room's walls. Furniture flags say what
 // may stand inside. weight: [floor 1, 2, 3] chance to be picked.
-const THEMES = {
+const DUNGEON_THEMES = {
   cave: { wall: 'r', floor: 'GRAVEL', ceil: 'CAVE', ambient: 0.08, tint: 'torch', torches: 1, bones: 1, weight: [3, 2, 1] },
   hall: { wall: '#', floor: 'COBBLE', ceil: 'BEAMS', ambient: 0.1, tint: 'torch', torches: 2, braziers: 'brazier', weight: [3, 3, 2] },
   sewer: { wall: 'm', floor: 'WET', ceil: 'VAULT', ambient: 0.1, tint: 'sewer', torches: 1, bones: 1, weight: [3, 3, 2] },
@@ -84,6 +89,47 @@ const THEMES = {
   shrine: { wall: '#', floor: 'COBBLE', ceil: 'VAULT', ambient: 0.15, tint: 'rune', runes: true, weight: [0, 1, 2] },
 };
 
+// City themes (story floor 3). lamp: what hangs on the walls instead of
+// torches. features: [wall char, min, max] on the room's walls. props:
+// [object char, min, max, where] with where 'edge', 'corner', 'inner' or
+// 'any'. posters: false keeps Borant's posters off the walls.
+const CITY_THEMES = {
+  plaza: {
+    wall: 'r', floor: 'SIDEWALK', ceil: 'SKY', ambient: 0.13, tint: 'smog', lamp: 'streetLamp', torches: 1, bones: 1, weight: 4,
+    props: [['B', 1, 2, 'corner'], ['V', 0, 1, 'edge'], ['Y', 0, 1, 'edge'], ['U', 0, 2, 'edge'], ['L', 0, 1, 'corner']],
+  },
+  diner: {
+    wall: 'd', floor: 'CHECKER', ceil: 'DROP', ambient: 0.12, tint: 'fluor', lamp: 'fluoTube', torches: 1, weight: 3, posters: false,
+    features: [['e', 1, 1]], props: [['D', 1, 3, 'inner'], ['U', 0, 1, 'corner']],
+  },
+  laundry: {
+    wall: 'l', floor: 'LINO', ceil: 'DROP', ambient: 0.12, tint: 'fluor', lamp: 'fluoTube', torches: 1, weight: 3, posters: false,
+    props: [['U', 0, 1, 'corner']],
+  },
+  pharmacy: {
+    wall: 'p', floor: 'LINO', ceil: 'DROP', ambient: 0.12, tint: 'fluor', lamp: 'fluoTube', torches: 1, weight: 2, posters: false,
+    features: [['+', 1, 1]], bones: 1,
+  },
+  store: { wall: 'w', floor: 'LINO', ceil: 'STEEL', ambient: 0.16, tint: 'neon', screens: true, weight: 2 },
+  // The boss arena: the largest of the far rooms.
+  lot: {
+    wall: 'z', floor: 'PARKING', ceil: 'SKY', ambient: 0.14, tint: 'smog', weight: 0, posters: false,
+    props: [['B', 2, 4, 'corner'], ['V', 1, 3, 'edge']],
+  },
+  // The stairs room: the way down is a subway entrance.
+  subway: { wall: 'T', floor: 'LINO', ceil: 'CONCRETE', ambient: 0.1, tint: 'cold', lamp: 'fluoTube', torches: 2, bones: 1, weight: 0, posters: false },
+};
+
+// start/stairs/boss: the themes of those rooms (boss: null = no arena).
+// defaults: floor, ceiling and light of everything outside the rooms.
+// streetLamps: lamps along the corridors (the city's alleys).
+const SETTINGS = {
+  dungeon: { themes: DUNGEON_THEMES, start: 'cave', stairs: 'crypt', boss: null, defaults: { floor: 'GRAVEL', ceil: 'CAVE', ambient: 0.05, tint: 'neutral' } },
+  city: { themes: CITY_THEMES, start: 'plaza', stairs: 'subway', boss: 'lot', streetLamps: true, defaults: { floor: 'ASPHALT', ceil: 'SKY', ambient: 0.08, tint: 'smog' } },
+};
+// Objects that block movement (map chars).
+const SOLID = new Set(['C', 'K', 'b', 'f', 'F', 'B', 'V', 'Y', 'U', 'L', 'D']);
+
 // Cell kinds while building.
 const ROCK = 0, ROOM = 1, RING = 2, CORRIDOR = 3, DOOR = 4;
 const DIRS4 = [[1, 0], [0, 1], [-1, 0], [0, -1]];
@@ -92,6 +138,8 @@ const SIDE_NAME = ['E', 'S', 'W', 'N'];
 export function generateFloor(depth, seed, opts = {}) {
   const cfg = FLOORS[Math.min(depth, FLOORS.length) - 1];
   if (!cfg) throw new Error(`No floor config for depth ${depth}`);
+  const setting = SETTINGS[cfg.setting || 'dungeon'];
+  const THEMES = setting.themes;
   const rand = seededRandom(seed * 2654435761 + depth * 97);
   const int = (a, b) => a + Math.floor(rand() * (b - a + 1));
   const pick = (list) => list[Math.floor(rand() * list.length)];
@@ -263,15 +311,26 @@ export function generateFloor(depth, seed, opts = {}) {
     if (stairsRoom < 0 || fromStart[at(c.x, c.y)] > fromStart[at(center(rooms[stairsRoom]).x, center(rooms[stairsRoom]).y)]) stairsRoom = i;
   });
 
+  // Story floors have a boss arena: the largest room in the farther half
+  // (never the start or the stairs room).
+  let bossRoom = -1;
+  if (setting.boss) {
+    const dist = (i) => fromStart[at(center(rooms[i]).x, center(rooms[i]).y)];
+    const far = rooms.map((_, i) => i).filter((i) => i !== startRoom && i !== stairsRoom).sort((a, b) => dist(b) - dist(a));
+    bossRoom = far.slice(0, Math.max(3, Math.ceil(far.length / 2))).sort((a, b) => area(b) - area(a) || dist(b) - dist(a))[0];
+  }
+
   // ------------------------------------------------------------ themes
   const themeNames = Object.keys(THEMES);
+  const weightOf = (t) => (Array.isArray(t.weight) ? t.weight[Math.min(depth, 3) - 1] : t.weight);
   rooms.forEach((r, i) => {
-    if (i === startRoom) r.theme = 'cave';
-    else if (i === stairsRoom) r.theme = 'crypt';
+    if (i === startRoom) r.theme = setting.start;
+    else if (i === stairsRoom) r.theme = setting.stairs;
+    else if (i === bossRoom) r.theme = setting.boss;
     else {
-      const weights = themeNames.map((n) => THEMES[n].weight[Math.min(depth, 3) - 1]);
+      const weights = themeNames.map((n) => weightOf(THEMES[n]));
       let x = rand() * weights.reduce((s, v) => s + v, 0);
-      r.theme = themeNames.find((n, k) => (x -= weights[k]) < 0) || 'hall';
+      r.theme = themeNames.find((n, k) => (x -= weights[k]) < 0) || themeNames[0];
     }
     const t = THEMES[r.theme];
     for (let y = r.y - 1; y <= r.y + r.h; y++) {
@@ -319,8 +378,9 @@ export function generateFloor(depth, seed, opts = {}) {
     const t = THEMES[r.theme];
     if (t.screens) for (let k = int(1, 2); k > 0; k--) { const s = takeSpot(i); if (s) chars[at(s.x, s.y)] = 'n'; }
     if (t.runes) for (let k = int(2, 4); k > 0; k--) { const s = takeSpot(i); if (s) chars[at(s.x, s.y)] = 'u'; }
+    for (const [ch, lo, hi] of t.features || []) for (let k = int(lo, hi); k > 0; k--) { const s = takeSpot(i); if (s) chars[at(s.x, s.y)] = ch; }
   });
-  for (const i of shuffle(rooms.map((_, k) => k).filter((k) => !THEMES[rooms[k].theme].runes)).slice(0, int(1, 2))) {
+  for (const i of shuffle(rooms.map((_, k) => k).filter((k) => !THEMES[rooms[k].theme].runes && THEMES[rooms[k].theme].posters !== false)).slice(0, int(1, 2))) {
     const s = takeSpot(i);
     if (s) chars[at(s.x, s.y)] = 'P';
   }
@@ -328,18 +388,31 @@ export function generateFloor(depth, seed, opts = {}) {
     const t = THEMES[r.theme];
     for (let k = t.torches || 0; k > 0; k--) {
       const s = takeSpot(i);
-      if (s) torches.push([s.in.x, s.in.y, s.side, r.theme === 'crypt' ? 'coldTorch' : 'torch']);
+      if (s) torches.push([s.in.x, s.in.y, s.side, t.lamp || (r.theme === 'crypt' ? 'coldTorch' : 'torch')]);
     }
     // The start room always gets a second torch, so the first look is lit.
     if (i === startRoom) {
       const s = takeSpot(i);
-      if (s) torches.push([s.in.x, s.in.y, s.side, 'torch']);
+      if (s) torches.push([s.in.x, s.in.y, s.side, t.lamp || 'torch']);
     }
   });
+  // Street lamps along the alleys, one every few steps, on a facade.
+  if (setting.streetLamps) {
+    const lamps = [];
+    const cells = [];
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) if (kind[at(x, y)] === CORRIDOR) cells.push({ x, y });
+    for (const c of shuffle(cells)) {
+      if (lamps.some((l) => Math.abs(l.x - c.x) + Math.abs(l.y - c.y) < 7)) continue;
+      const d = shuffle([0, 1, 2, 3]).find((k) => kind[at(c.x + DIRS4[k][0], c.y + DIRS4[k][1])] === ROCK);
+      if (d === undefined) continue;
+      lamps.push(c);
+      torches.push([c.x, c.y, SIDE_NAME[d], 'streetLamp']);
+    }
+  }
 
   // ---------------------------------------------------------- objects
   const objects = new Map(); // cell -> char
-  const solid = new Set(['C', 'K', 'b', 'f', 'F']);
+  const solid = SOLID;
   const start = sc;
   const blockedCell = (x, y) => solid.has(objects.get(at(x, y)));
   // Every open cell must stay reachable and every solid object must have a
@@ -382,6 +455,13 @@ export function generateFloor(depth, seed, opts = {}) {
       let placed = 0;
       const n = int(2, 4);
       for (const c of shuffle(cellsOf(r, edgeCell(r)))) if (placed < n && place('b', c.x, c.y)) placed++;
+    }
+    for (const [ch, lo, hi, where = 'any'] of t.props || []) {
+      const fit = where === 'edge' ? edgeCell(r) : where === 'corner' ? cornerCell(r)
+        : where === 'inner' ? (x, y) => !edgeCell(r)(x, y) : () => true;
+      let placed = 0;
+      const n = int(lo, hi);
+      for (const c of shuffle(cellsOf(r, fit))) if (placed < n && place(ch, c.x, c.y)) placed++;
     }
     for (let k = int(0, t.bones || 0); k > 0; k--) {
       const c = pick(cellsOf(r, free));
@@ -447,7 +527,7 @@ export function generateFloor(depth, seed, opts = {}) {
     for (let k = 0; k < f.n; k++) {
       let ok;
       if (f.where === 'boss') {
-        ok = putSquad(f.squad, [...farthest, stairsRoom]);
+        ok = putSquad(f.squad, bossRoom >= 0 ? [bossRoom, ...farthest.filter((i) => i !== bossRoom), stairsRoom] : [...farthest, stairsRoom]);
       } else if (f.where === 'wall') {
         const order = shuffle(roomsBy(() => 0)).sort((a, b) => crowded.has(a) - crowded.has(b));
         ok = putSquad(f.squad, order, (r, x, y) => edgeCell(r)(x, y) && awayFrom(x, y, 6));
@@ -486,7 +566,8 @@ export function generateFloor(depth, seed, opts = {}) {
   // preferably in a room halfway along the way to the stairs.
   const mid = fromStart[at(center(rooms[stairsRoom]).x, center(rooms[stairsRoom]).y)] / 2;
   const safeOrder = rooms.map((_, i) => i).filter((i) => i !== startRoom && i !== stairsRoom)
-    .sort((a, b) => Math.abs(fromStart[at(center(rooms[a]).x, center(rooms[a]).y)] - mid) - Math.abs(fromStart[at(center(rooms[b]).x, center(rooms[b]).y)] - mid));
+    .sort((a, b) => (a === bossRoom) - (b === bossRoom)
+      || Math.abs(fromStart[at(center(rooms[a]).x, center(rooms[a]).y)] - mid) - Math.abs(fromStart[at(center(rooms[b]).x, center(rooms[b]).y)] - mid));
   let safe = null;
   for (const i of safeOrder) if (!safe) safe = takeSpot(i, (q) => !objects.has(at(q.in.x, q.in.y)));
   if (!safe) return generateFloor(depth, seed + 1000003, opts); // rare: no clean wall left
@@ -498,11 +579,13 @@ export function generateFloor(depth, seed, opts = {}) {
     name: `Floor ${depth}`,
     depth,
     seed,
+    setting: cfg.setting || 'dungeon',
+    story: !!cfg.story,
     turns,
     tour,
     startDir,
     rows,
-    defaults: { floor: 'GRAVEL', ceil: 'CAVE', ambient: 0.05, tint: 'neutral' },
+    defaults: setting.defaults,
     areas: rooms.map((r) => {
       const t = THEMES[r.theme];
       return { x: r.x, y: r.y, w: r.w, h: r.h, floor: t.floor, ceil: t.ceil, ambient: t.ambient, tint: t.tint, theme: r.theme };

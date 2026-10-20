@@ -304,11 +304,34 @@ export const LINES = {
     'Welcome to Floor {n}, Crawler. Bigger, darker and statistically worse. The viewers are thrilled.',
     'Floor {n}. The rats down here have heard about you. They are not impressed.',
   ],
+  storyFloor: [
+    'Floor {n}: a STORY floor. Borant Encore has been granted an actual production budget for this episode. Do not get used to it.',
+    'Welcome to the city, Crawler. Or what the set department could rebuild of it. Mind the painted sky, it is still wet.',
+  ],
   finalFloor: [
     'Floor {n}, the season finale. Find the stairs and the Syndicate might even let you live. Might.',
   ],
   finalStairs: [
     'This is the last stairwell of the season. Press SPACE again to step through and end the broadcast.',
+  ],
+  burnBarrel: [
+    'A barrel fire. The traditional hearth of the end of the world. Do not roast anything you met down here.',
+  ],
+  carWreck: [
+    'A burned-out car. It still has a parking ticket on it. Some things survive everything.',
+    'The car is not going anywhere. Neither, statistically, are you.',
+  ],
+  hydrant: [
+    'A fire hydrant. The water was cut off on day one. The dogs have not been informed.',
+  ],
+  trashCan: [
+    'A trash can. Someone already went through it. Several someones. One of them had a tail.',
+  ],
+  trafficLight: [
+    'The traffic light blinks amber. It has been blinking amber since the world ended. Proceed with caution.',
+  ],
+  dinerTable: [
+    'Somebody left half a coffee here. It is now the most dangerous thing on this floor that is not trying to kill you.',
   ],
   poster: [
     'A notice from Borant Corporation: "Your suffering is our content. Smile, you are on screen."',

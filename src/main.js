@@ -12,7 +12,7 @@ import { LitRaycaster } from './engine/raycaster-lit.js';
 import { buildLitTables, LightMap } from './engine/lighting.js';
 import { AutoResolution } from './engine/resolution.js';
 import { frameAt } from './engine/sprite.js';
-import { buildTextures, SPRITES, CREATURES, WALL } from './game/assets.js';
+import { buildSkins, skinFor, SPRITES, CREATURES, WALL } from './game/assets.js';
 import { TINTS, LANTERN } from './game/lights.js';
 import { Level, TEST_FLOOR } from './game/map.js';
 import { generateFloor, FINAL_DEPTH } from './game/floorgen.js';
@@ -63,7 +63,9 @@ ctx.imageSmoothingEnabled = false;
 
 // ------------------------------------------------------------ world
 
-const textures = buildTextures();
+// Dungeon and city skins share wall ids; each floor picks one (its setting).
+const skins = buildSkins();
+let textures = skins.dungeon;
 const log = new MessageLog();
 const charScreen = new CharacterScreen();
 const isWall = (x, y) => level.wall(x, y) !== 0;
@@ -147,6 +149,7 @@ function enterFloor(depth, opts = {}) {
   run.floorSponsored = sponsored;
   const def = params.get('floor') === 'test' ? TEST_FLOOR : generateFloor(depth, run.seed + depth * 7919, { sponsored });
   level = new Level(def);
+  textures = skinFor(skins, level.setting);
   const steps = player ? player.steps : 0;
   player = new Player(level.start);
   player.steps = depth === 1 ? 0 : steps;
@@ -283,8 +286,9 @@ function useStairs(cell) {
 function descend() {
   const depth = run.depth + 1;
   enterFloor(depth);
-  const comment = line(depth >= FINAL_DEPTH ? 'finalFloor' : 'floorArrive').replace('{n}', depth);
-  card = { at: performance.now(), title: level.name.toUpperCase(), sub: depth >= FINAL_DEPTH ? 'SEASON FINALE' : '', comment };
+  // Story floors (GDD 2.2) get their own billing on the title card.
+  const comment = line(level.story ? 'storyFloor' : depth >= FINAL_DEPTH ? 'finalFloor' : 'floorArrive').replace('{n}', depth);
+  card = { at: performance.now(), title: level.name.toUpperCase(), sub: level.story ? 'STORY FLOOR' : depth >= FINAL_DEPTH ? 'SEASON FINALE' : '', comment };
   log.push(comment);
   if (level.objects.some((o) => o.type === 'sponsoredChest')) log.push(line('sponsorChest'), 'warn');
   announceGuests();
