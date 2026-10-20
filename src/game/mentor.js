@@ -235,6 +235,16 @@ export const MENTOR_LINES = {
   saveFailed: [
     'The System won\'t let you take a break. Your browser ate the save. Keep going, then.',
   ],
+  ringing: [
+    'Your terminal is ringing. Probably a producer. They always call at the worst time. Go on, answer it.',
+  ],
+  afterCall: [
+    'That was the kid who runs the channel. Nervous type. Twitches whenever the ratings drop. So, constantly.',
+    'Producers. They call, they promise, they hang up. Coffee?',
+  ],
+  afterWin: [
+    'Look at him. Happy. I give it a week. Still: nice work out there. Don\'t let it go to your head.',
+  ],
   afterShop: [
     'Is he gone? He sold me this mug. It belonged to a crawler. I try not to think about which one.',
     'Sal pays his rent in "previously owned" coffee. A human who chose to sell to crawlers instead of being one. Smartest one I ever met.',

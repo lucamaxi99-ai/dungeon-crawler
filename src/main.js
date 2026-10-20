@@ -96,7 +96,7 @@ let hinted = false;        // the controls hint, once per page
 
 function newRun() {
   const fixedSeed = Number(params.get('seed'));
-  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0, boxesOpened: 0, sponsors: [], sponsorsTold: 0 };
+  run = { seed: fixedSeed > 0 ? fixedSeed : 1 + Math.floor(Math.random() * 1e9), depth: 0, safeVisits: 0, boxesOpened: 0, sponsors: [], sponsorsTold: 0, calls: {}, bossDown: false };
   run.number = profile.startRun();
   run.rerun = profile.rerun;
   run.last = profile.last; // how the previous run ended (null for the premiere)
@@ -450,13 +450,45 @@ function enterSafeRoom() {
     timesKilled: run.last ? profile.timesKilledBy(run.last.killer) : 0,
   });
   if (!run.safeVisits && run.rerun > 0 && run.last && profile.hasSeen('ozzleMet')) profile.see('rerunExplained');
+  const met = profile.hasSeen('ozzleMet');
   profile.see('ozzleMet');
   run.sponsorsTold = run.sponsors.length;
   run.safeVisits++;
   level.safeRoom.visits++;
-  safe.enter(greeting, performance.now());
+  safe.call = pendingCall();
+  safe.enter(safe.call && met ? mentorLine('ringing') : greeting, performance.now());
   log.push(line('safeEnter'));
+  if (safe.call) log.push('The Borant terminal is ringing.', 'warn');
   note('safeRoom');
+}
+
+// The producer calls (GDD 2.3): on story floor 3 once per run (the first
+// call ever, or a shorter one in later reruns), and once after the boss.
+function pendingCall() {
+  run.calls ??= {};
+  if (run.bossDown && !run.calls.win) return 'win';
+  if (level.story && run.depth === 3 && !run.bossDown && !run.calls.floor) return profile.hasSeen('quill:q1') ? 'again' : 'intro';
+  return null;
+}
+
+function answerCall() {
+  const topic = CAST.quill.topics.find((t) => t.id === safe.call);
+  safe.convo = new Conversation('quill', topic, talkContext());
+  safe.replyCursor = 0;
+  safe.page = 'talk';
+  note('call', { topic: topic.id });
+  safe.talk(safe.convo.text, performance.now());
+}
+
+// The call is over (or hung up on): back to the menu, Ozzle has a word.
+function endCall() {
+  const id = safe.convo.topic.id;
+  run.calls[id === 'win' ? 'win' : 'floor'] = true;
+  safe.convo = null;
+  safe.page = 'menu';
+  safe.call = pendingCall();
+  safe.cursor = 0;
+  safe.talk(mentorLine(id === 'win' ? 'afterWin' : 'afterCall'), performance.now());
 }
 
 function leaveSafeRoom() {
@@ -468,7 +500,7 @@ function leaveSafeRoom() {
 
 // What conversations know about the crawler (dialogue.js).
 function talkContext() {
-  return { profile, rerun: run.rerun, deaths: profile.deaths, vars: { t: profile.deaths } };
+  return { profile, rerun: run.rerun, deaths: profile.deaths, page: false, vars: { t: profile.deaths, r: run.rerun } };
 }
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -497,7 +529,7 @@ function onTalkAction(action, dir) {
     note('talk', { topic: topic.id });
     return safe.talk(safe.convo.text, now);
   }
-  if (action === 'close') return showTopics(pick(CAST.ozzle.close));
+  if (action === 'close') return safe.onCall ? endCall() : showTopics(pick(CAST.ozzle.close));
   if (action === 'interact' && safe.typing(now)) return safe.skipTyping();
   if (safe.typing(now)) return;
   if (dir) return safe.move(dir);
@@ -506,6 +538,7 @@ function onTalkAction(action, dir) {
     safe.replyCursor = 0;
     return safe.talk(safe.convo.text, now);
   }
+  if (safe.onCall) return endCall();
   showTopics(pick(CAST.ozzle.close));
 }
 
@@ -630,6 +663,7 @@ function safeCommand(id) {
   if (id === 'leave') return leaveSafeRoom();
   if (id === 'save') return suspendRun();
   if (id === 'shop') return openShop();
+  if (id === 'call') return answerCall();
   if (id === 'talk') {
     safe.topicCursor = 0;
     return showTopics(pick(CAST.ozzle.open));
@@ -1126,7 +1160,10 @@ function report(events) {
       case 'kill':
         log.push(`The ${foe.name} dies.`, 'info');
         log.push(line(foe.stats.rank === 'boss' ? 'bossDown' : foe.stats.rank === 'miniboss' ? 'minibossDown' : 'kill').replace('{name}', foe.name).replace(/\ba ([AEIOU])/g, 'an $1'));
-        if (foe.stats.rank === 'boss' && countdown.stairsOpen) log.push(line('stairsOpen'), 'warn');
+        if (foe.stats.rank === 'boss') {
+          run.bossDown = true;
+          if (countdown.stairsOpen) log.push(line('stairsOpen'), 'warn');
+        }
         if (foe.loot) {
           inventory.gold += foe.loot;
           log.push(`You get your ${foe.loot} gold back.`, 'info');

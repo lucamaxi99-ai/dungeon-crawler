@@ -11,6 +11,8 @@
 //   REST          HP and MP back to full, once per Safe Room
 //   SAVE & QUIT   suspends the run (save.js); the page can be closed
 //   LEAVE         back to the dungeon, in front of the door
+// When the terminal rings (the producer, GDD 2.3), INCOMING CALL comes
+// first; the call shows Quill on the terminal as a video feed.
 // The achievements list is a page of its own; the loot boxes have theirs
 // in lootbox-ui.js.
 
@@ -24,6 +26,7 @@ import { drawBoxList, drawOpening, openingDone } from './lootbox-ui.js';
 import { paintMerchantPoses } from './merchant.js';
 import { ITEMS, RARITY, itemStats } from './items.js';
 import { buyPrice, sellPrice } from './shop.js';
+import { PRODUCER, paintProducerPoses } from './producer.js';
 
 const W = 320, H = 140;
 const COUNTER_Y = 100;                         // top of the bar counter
@@ -158,7 +161,17 @@ export class SafeRoomScreen {
     this.sayAt = 0;
     this.backdrop = null; // painted on first use
     this.ozzle = null;
+    this.call = null;     // a call waiting on the terminal (topic id), or null
+    this.producer = null; // painted on first use
   }
+
+  // The terminal's menu: an incoming call goes on top.
+  items() {
+    return this.call ? [{ id: 'call', label: 'INCOMING CALL' }, ...SAFE_MENU] : SAFE_MENU;
+  }
+
+  // On a call with the producer (instead of talking to Ozzle).
+  get onCall() { return this.page === 'talk' && !!this.convo && this.convo.who === 'quill'; }
 
   enter(line, now) {
     this.open = true;
@@ -196,7 +209,7 @@ export class SafeRoomScreen {
       const n = this.convo.replies.length;
       this.replyCursor = (this.replyCursor + d + n) % n;
     }
-    else if (this.page === 'menu') this.cursor = (this.cursor + d + SAFE_MENU.length) % SAFE_MENU.length;
+    else if (this.page === 'menu') this.cursor = (this.cursor + d + this.items().length) % this.items().length;
     else if (this.page === 'achievements') {
       this.listCursor = Math.max(0, Math.min(nAchievements - 1, this.listCursor + d));
       if (this.listCursor < this.listTop) this.listTop = this.listCursor;
@@ -205,7 +218,7 @@ export class SafeRoomScreen {
   }
 
   // The highlighted menu entry.
-  selected() { return SAFE_MENU[this.cursor].id; }
+  selected() { return (this.items()[this.cursor] || SAFE_MENU[0]).id; }
 
   // Still showing a box being opened (input waits until the card is full).
   openingBusy(now) { return !!this.opening && !openingDone(this.opening, now); }
@@ -258,9 +271,10 @@ export class SafeRoomScreen {
     }
     if (this.page !== 'menu') return null;
     const i = Math.floor((py - MENU_Y + 2) / MENU_H);
-    if (px >= TERM.x && i >= 0 && i < SAFE_MENU.length) {
+    const items = this.items();
+    if (px >= TERM.x && i >= 0 && i < items.length) {
       this.cursor = i;
-      return { kind: 'menu', id: SAFE_MENU[i].id };
+      return { kind: 'menu', id: items[i].id };
     }
     return null;
   }
@@ -304,7 +318,7 @@ export class SafeRoomScreen {
     const t = now - this.sayAt;
     // Talking for a moment after a new line (mouth flaps), otherwise
     // breathing with a slow blink.
-    const talking = ['menu', 'topics', 'talk', 'saved'].includes(this.page) && t < Math.min(2600, 400 + this.say.length * 18);
+    const talking = ['menu', 'topics', 'talk', 'saved'].includes(this.page) && !this.onCall && t < Math.min(2600, 400 + this.say.length * 18);
     let pose = 'idle0';
     if (talking) pose = Math.floor(t / 140) % 2 ? 'talk' : 'idle0';
     else if (now % 3400 < 260) pose = 'idle1';
@@ -325,9 +339,15 @@ export class SafeRoomScreen {
     fb.rect(x + 1, y, w - 2, h, C.BONE);
     fb.rect(x, y + 1, w, h - 2, C.BONE);
     fb.rect(x + 1, y + h, w - 2, 1, C.FOG);
-    // Tail down toward Ozzle.
-    const tx = OZ.x + 30;
-    for (let k = 0; k < 6; k++) fb.rect(tx + k, y + h + k, 6 - k, 1, k === 5 ? C.FOG : C.BONE);
+    if (this.onCall) {
+      // Tail to the right, toward the terminal the voice comes from.
+      const ty = y + 4;
+      for (let k = 0; k < 6; k++) fb.rect(x + w + k, ty + k, 1, 6 - k, k === 5 ? C.FOG : C.BONE);
+    } else {
+      // Tail down toward Ozzle.
+      const tx = OZ.x + 30;
+      for (let k = 0; k < 6; k++) fb.rect(tx + k, y + h + k, 6 - k, 1, k === 5 ? C.FOG : C.BONE);
+    }
     lines.forEach((l, i) => {
       const shown = l.slice(0, Math.max(0, left));
       left -= l.length + 1;
@@ -342,7 +362,8 @@ export class SafeRoomScreen {
     drawText(fb, 'SERVICES', x + w - 7 - textWidth('SERVICES'), y + 7, C.TEAL_M);
     fb.rect(x + 6, y + 14, w - 12, 1, C.TEAL_D);
     const blink = Math.floor(now / 450) % 2 === 0;
-    SAFE_MENU.forEach((m, i) => {
+    const items = this.items();
+    items.forEach((m, i) => {
       const my = MENU_Y + i * MENU_H;
       const sel = i === this.cursor;
       if (sel) fb.rect(x + 5, my - 3, w - 10, MENU_H - 1, C.TEAL_D);
@@ -352,12 +373,13 @@ export class SafeRoomScreen {
       if (m.id === 'boxes') { badge = info.boxes.length ? String(info.boxes.length) : ''; bc = C.YELLOW; dim = !info.boxes.length; }
       if (m.id === 'achievements') { badge = `${info.unlocked.length}/${info.total}`; bc = C.TEAL_M; }
       if (m.id === 'rest' && info.rested) { label = 'RESTED'; dim = true; }
+      if (m.id === 'call') { badge = blink ? 'RING' : ''; bc = C.NEON; }
       drawText(fb, sel ? '>' : ' ', x + 7, my, C.YELLOW);
       drawText(fb, label, x + 12, my, sel ? C.WHITE : dim ? C.ASH : C.BONE);
       if (badge) drawText(fb, badge, x + w - 8 - textWidth(badge), my, bc);
     });
     // The crawler's state, and a reminder that time is frozen.
-    const sy = MENU_Y + SAFE_MENU.length * MENU_H + 2;
+    const sy = MENU_Y + items.length * MENU_H + 2;
     fb.rect(x + 6, sy, w - 12, 1, C.TEAL_D);
     const row = (label, v, c, k) => {
       drawText(fb, label, x + 8, sy + 4 + k * 7, C.FOG);
@@ -369,7 +391,7 @@ export class SafeRoomScreen {
     const mp = `${info.mp}/${info.mpMax}`;
     drawText(fb, 'MP', x + w - 20 - textWidth(mp), ry, C.FOG);
     drawText(fb, mp, x + w - 8 - textWidth(mp), ry, C.SKY);
-    row('VIEWERS', info.viewers, C.NEON, 1);
+    if (items.length <= SAFE_MENU.length) row('VIEWERS', info.viewers, C.NEON, 1); // no room while it rings
     drawText(fb, 'COUNTDOWN PAUSED', x + 8, y + h - 12, blink ? C.TEAL_M : C.TEAL);
   }
 
@@ -469,10 +491,18 @@ export class SafeRoomScreen {
     drawText(fb, '* NEW', x + 8, y + TERM.h - 12, C.TEAL);
   }
 
-  // A conversation: replies in a box over the counter, the topic on the terminal.
+  // A conversation: replies in a box over the counter, the topic on the
+  // terminal (or, on a call, the caller's video feed).
   drawTalk(fb, now) {
     const { x, y, w } = TERM;
     this.drawFrame(fb);
+    if (this.onCall) this.drawCall(fb, now);
+    else this.drawTopicHeader(fb);
+    this.drawReplies(fb, now);
+  }
+
+  drawTopicHeader(fb) {
+    const { x, y, w } = TERM;
     drawText(fb, 'TALKING TO', x + 7, y + 7, C.TEAL_M);
     drawText(fb, 'OZZLE', x + 7, y + 15, C.MINT);
     fb.rect(x + 6, y + 22, w - 12, 1, C.TEAL_D);
@@ -481,7 +511,46 @@ export class SafeRoomScreen {
     drawText(fb, 'UP/DOWN PICK', x + 8, y + TERM.h - 34, C.TEAL);
     drawText(fb, 'SPACE SAY', x + 8, y + TERM.h - 26, C.TEAL);
     drawText(fb, 'ESC BACK', x + 8, y + TERM.h - 12, C.ASH);
-    // The reply box.
+  }
+
+  // Quill on the terminal: a little studio behind him, scanlines, LIVE.
+  drawCall(fb, now) {
+    if (!this.producer) this.producer = paintProducerPoses();
+    const { x, y, w } = TERM;
+    const v = { x: x + 6, y: y + 6, w: w - 12, h: 64 };
+    fb.bevel(v.x - 1, v.y - 1, v.w + 2, v.h + 2, C.STEEL_D, C.BLACK, C.STEEL_M);
+    for (let j = 0; j < v.h; j++) {
+      for (let i = 0; i < v.w; i++) {
+        const back = j < 40 ? ((i >> 3) + (j >> 3)) % 2 ? C.PLUM_D : C.NIGHT : C.WINE;
+        fb.set(v.x + i, v.y + j, back);
+      }
+    }
+    drawText(fb, 'ENCORE', v.x + v.w - 27, v.y + 3, C.PLUM);
+    const t = now - this.sayAt;
+    const talking = t < Math.min(3000, 400 + this.say.length * 16);
+    const pose = talking ? (Math.floor(t / 150) % 2 ? 'talk' : 'idle0') : now % 3100 < 220 ? 'idle1' : 'idle0';
+    const img = this.producer[pose];
+    // Bob a little on a shaky connection.
+    const jitter = Math.floor(now / 1700) % 5 === 0 ? 1 : 0;
+    const px0 = v.x + ((v.w - img.w) >> 1) + jitter, py0 = v.y + v.h - img.h;
+    for (let j = 0; j < img.h; j++) {
+      for (let i = 0; i < img.w; i++) {
+        const c = img.data[j * img.w + i];
+        if (c !== 255) fb.set(px0 + i, py0 + j, c);
+      }
+    }
+    // Scanlines (every fourth row, dithered) and the LIVE tag.
+    for (let j = 2; j < v.h; j += 4) for (let i = (j >> 2) & 1; i < v.w; i += 2) fb.set(v.x + i, v.y + j, C.BLACK);
+    if (Math.floor(now / 600) % 2) { fb.rect(v.x + 3, v.y + 3, 3, 3, C.RED); }
+    drawText(fb, 'LIVE', v.x + 8, v.y + 2, C.RED);
+    drawText(fb, PRODUCER.name.toUpperCase(), x + 7, v.y + v.h + 4, C.MINT);
+    drawText(fb, PRODUCER.title, x + 7, v.y + v.h + 11, C.TEAL_M);
+    drawText(fb, 'UP/DOWN PICK', x + 8, y + TERM.h - 26, C.TEAL);
+    drawText(fb, 'SPACE SAY', x + 8, y + TERM.h - 19, C.TEAL);
+  }
+
+  // The crawler's replies in a box over the counter.
+  drawReplies(fb, now) {
     const b = REPLY_BOX;
     fb.bevel(b.x, b.y, b.w, b.h, C.NIGHT, C.STEEL_M, C.BLACK);
     if (this.typing(now)) {

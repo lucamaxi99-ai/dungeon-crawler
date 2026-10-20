@@ -158,7 +158,7 @@ for (const [who, cast] of Object.entries(CAST)) {
       assert.ok(textWidth(r.text) + 13 <= REPLY_BOX.w - 4, `${who}/${id}: reply "${r.text}" too wide for the box`);
     }
   }
-  for (const l of [...cast.open, ...cast.close]) assert.ok(l.length < 190, `${who}: open/close line too long`);
+  for (const l of [...(cast.open || []), ...(cast.close || [])]) assert.ok(l.length < 190, `${who}: open/close line too long`);
 }
 
 {
@@ -192,6 +192,23 @@ for (const [who, cast] of Object.entries(CAST)) {
   assert.match(new Conversation('ozzle', { start: 'tally1' }, ctx(1, 7)).text, /^7\./, 'the tally names the count');
   const advice = CAST.ozzle.nodes.advice;
   assert.notEqual(sayText(advice, {}, 'x'), sayText(advice, {}, 'x'), 'advice rotates');
+}
+
+// The producer's first call: the cancellation, the guest star, and he hangs up.
+{
+  const p = new Profile(null);
+  const ctx = { profile: p, rerun: 0, deaths: 0, page: false, vars: { t: 0, r: 0 } };
+  const intro = CAST.quill.topics.find((t) => t.id === 'intro');
+  const c = new Conversation('quill', intro, ctx);
+  assert.match(c.text, /Quill Dobrane/);
+  let n = 0;
+  while (c.choose(0) && n++ < 10);
+  assert.ok(p.flag('heardCancel') && p.flag('quillMet'), 'the call tells of the cancellation and ends');
+  assert.ok(p.hasSeen('quill:q1'), 'the profile remembers the call (later reruns get a shorter one)');
+  const win = new Conversation('quill', CAST.quill.topics.find((t) => t.id === 'win'), ctx);
+  assert.equal(win.replies.length, 1, 'no yellow paper to mention without the contract page');
+  const win2 = new Conversation('quill', CAST.quill.topics.find((t) => t.id === 'win'), { ...ctx, page: true });
+  assert.equal(win2.replies.length, 2);
 }
 
 // ---------------------------------------------------------- jobs and intake

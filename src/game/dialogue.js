@@ -155,6 +155,97 @@ export const CAST = {
   },
 };
 
+// Quill Dobrane, junior producer of Borant Encore, calls the Safe Room
+// terminal (GDD 2.3). His topics are calls the game puts through, not
+// something the crawler picks: 'intro' (the first call ever, on story floor
+// 3), 'again' (story floor 3 in a later rerun), 'win' (after the boss).
+CAST.quill = {
+  name: 'Quill Dobrane',
+  topics: [
+    { id: 'intro', label: 'INCOMING CALL', start: 'q1' },
+    { id: 'again', label: 'INCOMING CALL', start: 'qa1' },
+    { id: 'win', label: 'INCOMING CALL', start: 'qw1' },
+  ],
+  nodes: {
+    q1: {
+      say: 'Is this thing on? Crawler! Hi! Quill Dobrane, junior producer, Borant Encore. Big fan. Well. Fan. I watch you for work.',
+      replies: [
+        { text: 'You produce my show?', to: 'q2' },
+        { text: 'How are you on this terminal?', to: 'q2b' },
+      ],
+    },
+    q2: {
+      say: 'Every rerun of it! Twelve viewers. One is a bot, one is the octopus behind you, and one is my mother.',
+      replies: [{ text: 'Impressive. What do you want?', to: 'q3' }],
+    },
+    q2b: {
+      say: 'Every Safe Room has a Borant terminal. Mostly for ads. Today it is for me. I have four minutes of satellite time, so listen.',
+      replies: [{ text: 'Make it quick.', to: 'q3' }],
+    },
+    q3: {
+      say: 'Upstairs wants to cancel Encore. Cancelled channel means deleted soul backups. Yours included. Also, frankly, my career.',
+      replies: [
+        { text: 'Deleted? For good?', to: 'q4', set: 'heardCancel' },
+        { text: 'Your career is not my problem.', to: 'q4b', set: 'heardCancel' },
+      ],
+    },
+    q4: {
+      say: 'Permadeath for real. Very off-brand. So we need ratings. Big ones. Luckily I booked a guest star for this floor.',
+      replies: [{ text: 'A guest star?', to: 'q5' }],
+    },
+    q4b: {
+      say: 'It is if I get fired before I can stop the cancellation. So we need ratings. I booked a guest star for this floor.',
+      replies: [{ text: 'Who?', to: 'q5' }],
+    },
+    q5: {
+      say: 'Officer Tow-Matic! Parking enforcement. Got it from the city for free, it was impounded. It is in the parking lot by the subway.',
+      replies: [
+        { text: 'A parking robot is your big star?', to: 'q6' },
+        { text: 'Fine. I will scrap it.', to: 'q7' },
+      ],
+    },
+    q6: {
+      say: 'It has a tow hook, a ticket printer and no off switch. The focus groups loved it. Production note: the subway stays shut until it is scrap.',
+      replies: [{ text: 'Of course it does.', to: 'q7' }],
+    },
+    q7: {
+      say: 'Take it apart on camera and we might get renewed. Make it loud! Make it ugly! Producer out.',
+      replies: [{ text: 'He hung up.', set: 'quillMet' }],
+    },
+
+    qa1: {
+      say: [
+        'Crawler! You are back! Well, a version of you. Tow-Matic is still booked. The fans love a rematch.',
+        'Rerun {r}, Crawler. Same guest star, same parking lot. The network calls it a franchise.',
+      ],
+      replies: [
+        { text: 'Any tips this time?', to: 'qa2' },
+        { text: 'On it.' },
+      ],
+    },
+    qa2: {
+      say: 'It raises that hook a turn before it swings. Brace for it. And it cannot fine you if you are broke. Shop at Sal\'s first. You did not hear that from me.',
+      replies: [{ text: 'Thanks, Quill.' }],
+    },
+
+    qw1: {
+      say: 'THAT WAS INCREDIBLE! The numbers moved, Crawler! Up! Do you know how rare up is? I have to call my mother. She saw it. She was one of the numbers.',
+      replies: [
+        { text: 'So the channel is safe?', to: 'qw2' },
+        { text: 'The robot dropped a yellow paper.', to: 'qw3', if: (c) => c.page },
+      ],
+    },
+    qw2: {
+      say: 'Safe is a strong word. Renewed for one more floor. Keep going, keep it loud. I will call when I have the next guest. Producer out.',
+      replies: [{ text: 'He hung up again.', set: 'quillWin' }],
+    },
+    qw3: {
+      say: 'Probably a parking ticket. Give it to the octopus, he collects paperwork. Anyway: renewed for one more floor! Producer out.',
+      replies: [{ text: 'He hung up again.', set: 'quillWin' }],
+    },
+  },
+};
+
 const picks = {};
 // The text of a node: one of several in turn, with {placeholders} filled.
 export function sayText(node, vars = {}, key = '') {
