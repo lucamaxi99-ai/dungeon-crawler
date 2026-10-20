@@ -237,7 +237,7 @@ export const MENTOR_LINES = {
   ],
   afterShop: [
     'Is he gone? He sold me this mug. It belonged to a crawler. I try not to think about which one.',
-    'Thrum pays his rent in "previously owned" coffee. I don\'t ask. I drink.',
+    'Sal pays his rent in "previously owned" coffee. A human who chose to sell to crawlers instead of being one. Smartest one I ever met.',
   ],
   leave: [
     'Off you go. Try not to die where I can see it. Paperwork.',

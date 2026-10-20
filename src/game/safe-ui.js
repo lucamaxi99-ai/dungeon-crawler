@@ -3,7 +3,7 @@
 // painted backdrop (a little bar behind a counter), Ozzle leaning on the
 // counter with a speech bubble, and a Borant terminal on the right:
 //   TALK          conversations with Ozzle (dialogue.js)
-//   TRADE         Thrum's Previously Owned: buy and sell (shop.js); Thrum
+//   TRADE         Sal's Previously Owned: buy and sell (shop.js); Sal
 //                 takes Ozzle's place at the counter while it is open
 //   LEVEL UP      spend attribute points (opens the character sheet)
 //   LOOT BOXES    open the boxes earned so far
@@ -21,7 +21,7 @@ import { MENTOR, paintOzzlePoses } from './mentor.js';
 import { ACHIEVEMENTS } from './achievements.js';
 import { TIER } from './lootboxes.js';
 import { drawBoxList, drawOpening, openingDone } from './lootbox-ui.js';
-import { paintThrumPoses } from './merchant.js';
+import { paintMerchantPoses } from './merchant.js';
 import { ITEMS, RARITY, itemStats } from './items.js';
 import { buyPrice, sellPrice } from './shop.js';
 
@@ -153,7 +153,7 @@ export class SafeRoomScreen {
     this.replyCursor = 0;
     this.shopTab = 'buy'; // 'buy' | 'sell'
     this.shopCursor = 0;
-    this.thrum = null;    // painted on first use
+    this.merchant = null; // painted on first use
     this.say = '';
     this.sayAt = 0;
     this.backdrop = null; // painted on first use
@@ -271,7 +271,7 @@ export class SafeRoomScreen {
     if (this.pending && now >= this.pending.at) this.talk(this.pending.line, now);
     fb.blit(this.backdrop, 0, 0);
     drawTally(fb, info.deaths || 0);
-    if (this.page === 'shop') this.drawThrum(fb, now); else this.drawOzzle(fb, now);
+    if (this.page === 'shop') this.drawMerchant(fb, now); else this.drawOzzle(fb, now);
     if (this.page === 'achievements') return this.drawAchievements(fb, info);
     this.drawBubble(fb, now);
     if (this.page === 'boxes') {
@@ -388,13 +388,13 @@ export class SafeRoomScreen {
     }
   }
 
-  // Thrum at the counter, in Ozzle's place: talking, idle, wings settling.
-  drawThrum(fb, now) {
-    if (!this.thrum) this.thrum = paintThrumPoses();
+  // Sal at the counter, in Ozzle's place: talking, idle, blinking.
+  drawMerchant(fb, now) {
+    if (!this.merchant) this.merchant = paintMerchantPoses();
     const t = now - this.sayAt;
     let pose = now % 2900 < 380 ? 'idle1' : 'idle0';
     if (t < Math.min(2600, 400 + this.say.length * 18)) pose = Math.floor(t / 160) % 2 ? 'talk' : 'idle0';
-    fb.blit(this.thrum[pose], OZ.x, OZ.y);
+    fb.blit(this.merchant[pose], OZ.x, OZ.y);
   }
 
   // The trade: BUY / SELL tabs, a list with prices on the terminal, the

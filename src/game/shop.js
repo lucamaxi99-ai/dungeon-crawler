@@ -1,7 +1,7 @@
-// Thrum's Previously Owned (M7): prices, stock and trades. Pure game logic.
+// Sal's Previously Owned (M7): prices, stock and trades. Pure game logic.
 //
 // Every item has a value: its rarity's base value, or its own `value`.
-// Thrum sells for twice the value and buys for half of it; charisma moves
+// Sal sells for twice the value and buys for half of it; charisma moves
 // both (GDD 4.5): each point of CHA above 5 takes 5 % off what he asks and
 // adds 5 % to what he pays, within limits. Stock is rolled once per floor
 // from the run's seed, so the same Safe Room keeps the same shelf.
@@ -11,7 +11,7 @@ import { seededRandom } from './loot.js';
 
 export const SHOP = {
   baseValue: { common: 6, uncommon: 18, rare: 45, epic: 110, legendary: 260 },
-  buyMarkup: 2,        // Thrum sells at twice the value
+  buyMarkup: 2,        // Sal sells at twice the value
   sellShare: 0.5,      // and buys at half of it
   chaStep: 0.05,       // per point of CHA above (or below) 5
   buyLimits: [0.6, 1.3],

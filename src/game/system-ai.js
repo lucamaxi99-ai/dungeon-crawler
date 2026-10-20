@@ -106,7 +106,7 @@ export const LINES = {
     'Welcome back, {name}. The ad break is over. Your viewers have returned, mostly out of spite.',
   ],
   shopOpen: [
-    'Thrum\'s Previously Owned is open for business. Borant takes a 40 percent cut of every sale. And of Thrum.',
+    'Sal\'s Previously Owned is open for business. Borant takes a 40 percent cut of every sale. Sal takes the rest. Sal always takes the rest.',
     'Commerce! The viewers love a montage of you counting coins.',
   ],
   // A run starts on Borant Encore after a death (GDD 2.1). {n} rerun number.

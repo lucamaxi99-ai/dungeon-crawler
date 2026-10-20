@@ -49,7 +49,7 @@ import { CAST, Conversation, topicsFor } from './game/dialogue.js';
 import { JOB, jobOpen, checkUnlocks, cleanName, NAME_MAX } from './game/jobs.js';
 import { CreationScreen } from './game/creation-ui.js';
 import { rollStock, buy, sell } from './game/shop.js';
-import { merchantLine } from './game/merchant.js';
+import { merchantLine, MERCHANT } from './game/merchant.js';
 import { saveRun, loadRun, clearRun, packSeen, unpackSeen, enemyState, crawlerState, restoreCrawler } from './game/save.js';
 import { Enemy } from './game/enemies.js';
 import { ACHIEVEMENTS } from './game/achievements.js';
@@ -492,22 +492,22 @@ function onTalkAction(action, dir) {
 
 // ------------------------------------------------------------ trading
 
-// Thrum takes over the counter. The shelf is rolled once per floor.
+// Sal takes over the counter. The shelf is rolled once per floor.
 function openShop() {
   if (!level.safeRoom.stock) level.safeRoom.stock = rollStock(run.seed, run.depth);
   safe.page = 'shop';
   safe.shopTab = 'buy';
   safe.shopCursor = 0;
-  const met = profile.hasSeen('thrumMet');
+  const met = profile.hasSeen('merchantMet');
   const topic = !met ? 'hello' : !run.shopVisits && run.rerun ? 'helloRerun' : 'helloAgain';
-  profile.see('thrumMet');
+  profile.see('merchantMet');
   run.shopVisits = (run.shopVisits || 0) + 1;
   safe.talk(merchantLine(topic), performance.now());
   log.push(line('shopOpen'), 'info');
 }
 
 function closeShop() {
-  log.push(`Thrum: "${merchantLine('bye')}"`, 'info');
+  log.push(`${MERCHANT.name}: "${merchantLine('bye')}"`, 'info');
   safe.page = 'menu';
   safe.talk(mentorLine('afterShop'), performance.now());
 }

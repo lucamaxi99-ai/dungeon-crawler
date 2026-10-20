@@ -12,7 +12,7 @@ import { JOBS, JOB, checkUnlocks, jobOpen, startAttrs, cleanName, NAMES, NAME_MA
 import { CreationScreen } from '../src/game/creation-ui.js';
 import { START, ATTRS } from '../src/game/crawler.js';
 import { SHOP, itemValue, buyPrice, sellPrice, rollStock, buy, sell } from '../src/game/shop.js';
-import { MERCHANT, MERCHANT_POSES, MERCHANT_LINES, paintThrum } from '../src/game/merchant.js';
+import { MERCHANT, MERCHANT_POSES, MERCHANT_LINES, paintMerchant } from '../src/game/merchant.js';
 import { MENTOR_LINES } from '../src/game/mentor.js';
 import { Inventory } from '../src/game/inventory.js';
 import { ITEMS } from '../src/game/items.js';
@@ -247,14 +247,14 @@ for (const [who, cast] of Object.entries(CAST)) {
 // ---------------------------------------------------------- merchant
 
 for (const pose of MERCHANT_POSES) {
-  const img = paintThrum(pose);
-  assert.equal(img.w, MERCHANT.w, `thrum ${pose}: width`);
-  assert.equal(img.h, MERCHANT.h, `thrum ${pose}: height`);
+  const img = paintMerchant(pose);
+  assert.equal(img.w, MERCHANT.w, `merchant ${pose}: width`);
+  assert.equal(img.h, MERCHANT.h, `merchant ${pose}: height`);
   const opaque = (x, y) => img.data[y * img.w + x] !== 255;
-  for (let y = 0; y < img.h; y++) assert.ok(!opaque(0, y) && !opaque(img.w - 1, y), `thrum ${pose}: cut off at the side (row ${y})`);
-  for (let x = 0; x < img.w; x++) assert.ok(!opaque(x, 0), `thrum ${pose}: cut off at the top`);
+  for (let y = 0; y < img.h; y++) assert.ok(!opaque(0, y) && !opaque(img.w - 1, y), `merchant ${pose}: cut off at the side (row ${y})`);
+  for (let x = 0; x < img.w; x++) assert.ok(!opaque(x, 0), `merchant ${pose}: cut off at the top`);
 }
-for (const [topic, lines] of Object.entries(MERCHANT_LINES)) assert.ok(lines.length && lines.every((l) => l.length < 190), `thrum ${topic}: lines fit the bubble`);
+for (const [topic, lines] of Object.entries(MERCHANT_LINES)) assert.ok(lines.length && lines.every((l) => l.length < 190), `merchant ${topic}: lines fit the bubble`);
 assert.ok(MENTOR_LINES.afterShop.every((l) => l.length < 190));
 
 {
