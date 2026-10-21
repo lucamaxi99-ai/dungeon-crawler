@@ -145,7 +145,7 @@ export const ENEMY_TYPES = {
       phase: { at: 0.5, atk: 1, dmg: 1 },
       morale: true,
     },
-    gold: [20, 40], loot: 'richChest', xp: 80,
+    gold: [20, 40], loot: 'richChest', page: 'contractPage1', xp: 80,
   },
   // Its backup: traffic cones that learned to fly.
   coneDrone: {

@@ -245,6 +245,15 @@ export const MENTOR_LINES = {
   afterWin: [
     'Look at him. Happy. I give it a week. Still: nice work out there. Don\'t let it go to your head.',
   ],
+  afterWinPage: [
+    'Look at him. Happy. I give it a week. Now: what is that yellow paper sticking out of your pocket? TALK to me before you go anywhere.',
+  ],
+  afterWinAgain: [
+    'Nice scrap. Nothing under the wiper this time, I know. That page is already on my wall. Go and get me the next one.',
+  ],
+  hasPage: [
+    'Is that yellow paper in your pocket what I think it is? Borant seal? TALK to me. Now. Please. I said please.',
+  ],
   afterShop: [
     'Is he gone? He sold me this mug. It belonged to a crawler. I try not to think about which one.',
     'Sal pays his rent in "previously owned" coffee. A human who chose to sell to crawlers instead of being one. Smartest one I ever met.',
@@ -267,11 +276,13 @@ export function mentorLine(topic, vars = {}) {
 //        points, boxes, kills, viewers, newSponsor (name, or null),
 //        rerun (0 for the premiere), met (has met the crawler before),
 //        explained (has explained reruns), last ({ won, depth, killer, record }),
-//        timesKilled (how often last.killer has done it) }
+//        timesKilled (how often last.killer has done it),
+//        hasPage (carries a page of his contract) }
 export function mentorGreeting(ctx) {
   const v = { p: ctx.points, n: ctx.boxes, k: ctx.kills, v: ctx.viewers, d: ctx.depth, s: ctx.newSponsor };
   if (!ctx.visits && ctx.rerun > 0 && ctx.met && ctx.last) return rerunGreeting(ctx);
   if (!ctx.visits) return mentorLine('firstVisit', v);
+  if (ctx.hasPage) return mentorLine('hasPage', v);
   if (ctx.hpShare <= 0.35) return mentorLine('lowHp', v);
   if (ctx.points > 0) return mentorLine('points', v);
   if (ctx.newSponsor) return mentorLine('sponsor', v);

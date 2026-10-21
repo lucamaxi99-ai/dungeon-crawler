@@ -39,7 +39,7 @@ export const sellPrice = (id, cha = 5) => Math.max(1, Math.floor(itemValue(id) *
 export function rollStock(seed, depth) {
   const rand = seededRandom(seed * 977 + depth * 131 + 7);
   const stock = [{ id: 'potion', n: SHOP.potions }];
-  const pool = Object.values(ITEMS).filter((d) => d.kind !== 'junk' && d.id !== 'potion');
+  const pool = Object.values(ITEMS).filter((d) => d.kind !== 'junk' && d.kind !== 'key' && d.id !== 'potion');
   // Rarity weights, shifted toward the rare end on deeper floors.
   const weights = RARITY_ORDER.map((r, i) => RARITY[r].weight * (1 + (depth - 1) * 0.6 * i));
   const total = weights.reduce((a, b) => a + b, 0);
@@ -74,6 +74,7 @@ export function buy(stock, i, inventory, cha) {
 export function sell(inventory, index, cha) {
   const s = inventory.bag[index];
   if (!s) return { ok: false, why: 'nothing' };
+  if (ITEMS[s.id].kind === 'key') return { ok: false, why: 'keyItem' };
   const price = sellPrice(s.id, cha);
   inventory.take(index, 1);
   inventory.gold += price;

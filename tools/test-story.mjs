@@ -211,6 +211,40 @@ for (const [who, cast] of Object.entries(CAST)) {
   assert.equal(win2.replies.length, 2);
 }
 
+// Page 1 of Ozzle's contract (GDD 2.3): handed over in the Safe Room, or
+// sent to him by the lost and found if the crawler died with it.
+{
+  const p = new Profile(null);
+  const bag = new Inventory();
+  const ctx = () => ({
+    profile: p, rerun: 0, deaths: 0, vars: {}, page: true, hasPage: bag.count('contractPage1') > 0,
+    give: (id) => bag.take(bag.bag.findIndex((s) => s.id === id), 1),
+  });
+  const ids = () => topicsFor('ozzle', ctx()).map((t) => t.id);
+  assert.ok(!ids().some((t) => /page|pinned/i.test(t)), 'no page topics before the page');
+  bag.add('contractPage1');
+  p.setFlag('contractPage1');
+  assert.ok(ids().includes('page') && !ids().includes('pageLost'), 'carrying the page opens the topic');
+  assert.equal(mentorGreeting({ visits: 2, floorVisits: 1, depth: 3, hpShare: 1, points: 0, boxes: 0, kills: 3, viewers: 80, hasPage: true }), MENTOR_LINES.hasPage[0], 'Ozzle spots the page first');
+  const c = new Conversation('ozzle', topicsFor('ozzle', ctx()).find((t) => t.id === 'page'), ctx());
+  let n = 0;
+  while (c.choose(0) && n++ < 10);
+  assert.equal(bag.count('contractPage1'), 0, 'the page goes to Ozzle');
+  assert.ok(p.flag('page1Given'));
+  assert.deepEqual(ids().filter((t) => /page|pinned/i.test(t)), ['pinned'], 'then it hangs on the wall');
+  // Died with it: the next rerun, Ozzle got it by mail.
+  const q = new Profile(null);
+  q.setFlag('contractPage1');
+  const lost = topicsFor('ozzle', { profile: q, rerun: 1, deaths: 1, vars: {}, hasPage: false });
+  assert.ok(lost.some((t) => t.id === 'pageLost') && !lost.some((t) => t.id === 'pinned'));
+  // Key items are not merchandise.
+  const b2 = new Inventory();
+  b2.add('contractPage1');
+  assert.equal(sell(b2, 0, 5).why, 'keyItem', 'Sal does not buy the page');
+  assert.equal(b2.count('contractPage1'), 1);
+  assert.ok(!rollStock(7, 3).some((s) => ITEMS[s.id].kind === 'key'), 'never on the shelf');
+}
+
 // ---------------------------------------------------------- jobs and intake
 
 {

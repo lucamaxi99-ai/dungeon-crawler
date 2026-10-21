@@ -366,6 +366,21 @@ export const ICONS = {
     '..eeeeeeee..',
     '..dddddddd..',
   ]),
+  // A yellow slip with a red Borant stamp: a page of Ozzle's contract.
+  contractPage1: icon('contractPage1', [
+    '............',
+    '.kkkkkkkk...',
+    '.kyyyyyyykk.',
+    '.kyhhhhhyggk',
+    '.kyyyyyyyyyk',
+    '.kyhhhhyhhyk',
+    '.kyyyyyyyyyk',
+    '.kyhhhyyRRyk',
+    '.kyyyyyRyyRk',
+    '.kyhhhyyRRyk',
+    '.kgggggggggk',
+    '.kkkkkkkkkkk',
+  ]),
   // ---------------------------------------------------------- tomes and potions
   tomeMissile: book('tomeMissile', '9', '8', '%', [
     '..#..',

@@ -25,6 +25,7 @@ const HYPE = {
   stolen: [0.06, 3],  // the audience loves a good robbery
   ticketed: [0.04, 2], // and bureaucracy, apparently
   bossPhase: [0.1, 8],
+  page: [0.15, 10],   // story progress on camera
   rout: [0.05, 3],
   crit: [0.04, 2],
   fightWon: (d) => (d.closeCall ? [0.18, 8] : [0.03, 1]),

@@ -35,7 +35,8 @@ export const SLOTS = [
 ];
 export const SLOT_BY_ID = Object.fromEntries(SLOTS.map((s) => [s.id, s]));
 
-// kind: 'gear' (has a slot), 'consumable' (can be used), 'junk'.
+// kind: 'gear' (has a slot), 'consumable' (can be used), 'junk', 'key'
+// (story items: never in loot, can't be dropped or sold).
 // short: name for tight spots like the combat menu (consumables).
 // atk/def: added to the crawler's stats while equipped (crawler.js).
 // heal: hit points restored on use. cat: kind of weapon ('blade', 'blunt'),
@@ -114,6 +115,11 @@ const DEFS = [
     desc: 'A tail. The rat is elsewhere. Possibly behind you.' },
   { id: 'trophy', name: 'Participation Trophy', kind: 'junk', rarity: 'legendary', value: 1,
     desc: 'Awarded for showing up. You did not have a choice. Congratulations anyway.' },
+  // ---------------------------------------------------------- key items
+  // Ozzle's contract, one page per story floor (GDD 2.1). Page 1 sits under
+  // the wiper of Officer Tow-Matic, the boss of floor 3 (GDD 2.3).
+  { id: 'contractPage1', name: 'Ozzle\'s Contract, Page 1 of 6', short: 'Contract Pg 1', kind: 'key', rarity: 'legendary',
+    desc: 'Filed under the wiper like a parking ticket. Clause 1: the undersigned will serve 300 seasons. Ozzle will want this.' },
 ];
 
 export const ITEMS = Object.fromEntries(DEFS.map((d) => [d.id, { atk: 0, def: 0, heal: 0, stack: false, ...d }]));
@@ -128,7 +134,7 @@ export function item(id) {
 export function itemStats(def) {
   const parts = [];
   if (def.kind === 'gear') parts.push(def.slot === 'offhand' ? 'OFF HAND' : def.slot.toUpperCase());
-  else parts.push(def.kind.toUpperCase());
+  else parts.push(def.kind === 'key' ? 'KEY ITEM' : def.kind.toUpperCase());
   if (def.atk) parts.push(`ATK +${def.atk}`);
   if (def.def) parts.push(`DEF +${def.def}`);
   if (def.heal) parts.push(`HEALS ${def.heal}`);

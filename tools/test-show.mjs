@@ -108,6 +108,8 @@ const unlockedBy = (tracker, kind, data) => tracker.note(kind, data).map((a) => 
   for (let i = 0; i < 8; i++) script.push(['kill', { type: 'goblinGrunt', family: 'goblin', blast: i === 0 }]);
   script.push(['kill', { type: 'roboVac', family: 'appliance' }], ['kill', { type: 'cartMimic', family: 'mimic' }]);
   script.push(['rout'], ['stolen'], ['goldBack'], ['spat']);
+  // M9: the story boss of floor 3 and its contract page.
+  script.push(['kill', { type: 'towBot', family: 'parking', rank: 'boss' }], ['page', { id: 'contractPage1' }]);
   for (const [k, d] of script) t.note(k, d);
   // The pacifist season needs a run of its own.
   const p = new Achievements();

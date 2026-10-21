@@ -108,6 +108,16 @@ export const LINES = {
   bossDown: [
     'The {name} is DOWN! The ratings needle just did something it has never done before. A producer somewhere is crying with joy.',
   ],
+  // The contract page under the boss's wiper (GDD 2.3).
+  pageFound: [
+    'Something yellow is stuck under its wiper. Not a ticket. It says CONTRACT, PAGE 1 OF 6. Somebody in the Safe Room will want that.',
+  ],
+  pageAgain: [
+    'Its wiper is empty this time. Somebody already took the paperwork. That somebody was you, a few deaths ago.',
+  ],
+  keepKey: [
+    'You cannot drop that. It is somebody else\'s contract. Littering with legal documents is a crime, even down here.',
+  ],
   bossPhase: [
     'Uh oh. The {name} has switched to TOWING MODE. Red and blue lights mean it is serious now. Or festive.',
   ],

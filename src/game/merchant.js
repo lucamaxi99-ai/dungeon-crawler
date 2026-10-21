@@ -172,6 +172,9 @@ export const MERCHANT_LINES = {
   nothing: [
     'Nothing to sell? Everybody has something to sell. Sometimes it\'s just a kidney.',
   ],
+  keyItem: [
+    'Ozzle\'s paperwork? Not touching it. He\'d stop renting me the counter. Keep it, give it to him.',
+  ],
   soldOut: [
     'Sold out. Come back next floor. People keep dying, so stock keeps coming.',
   ],

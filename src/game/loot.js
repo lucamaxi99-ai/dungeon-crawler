@@ -57,7 +57,7 @@ export function rollLoot(tableName, seed, extraLearn = 0) {
   const table = LOOT_TABLES[tableName];
   if (!table) throw new Error(`Unknown loot table '${tableName}'`);
   const rand = seededRandom(seed);
-  const pool = (table.pool || Object.keys(ITEMS)).map((id) => ITEMS[id]);
+  const pool = (table.pool || Object.keys(ITEMS)).map((id) => ITEMS[id]).filter((d) => d.kind !== 'key');
   const found = [];
   const rolls = between(rand, table.items);
   const learn = Math.min(0.8, (table.learn || 0) + extraLearn);

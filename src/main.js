@@ -448,6 +448,7 @@ function enterSafeRoom() {
     newSponsor: run.sponsors.length > run.sponsorsTold ? run.sponsors[run.sponsors.length - 1] : null,
     rerun: run.rerun, last: run.last, met: profile.hasSeen('ozzleMet'), explained: profile.hasSeen('rerunExplained'),
     timesKilled: run.last ? profile.timesKilledBy(run.last.killer) : 0,
+    hasPage: inventory.count('contractPage1') > 0,
   });
   if (!run.safeVisits && run.rerun > 0 && run.last && profile.hasSeen('ozzleMet')) profile.see('rerunExplained');
   const met = profile.hasSeen('ozzleMet');
@@ -488,7 +489,8 @@ function endCall() {
   safe.page = 'menu';
   safe.call = pendingCall();
   safe.cursor = 0;
-  safe.talk(mentorLine(id === 'win' ? 'afterWin' : 'afterCall'), performance.now());
+  const after = id !== 'win' ? 'afterCall' : run.page && inventory.count(run.page) ? 'afterWinPage' : profile.flag('contractPage1') ? 'afterWinAgain' : 'afterWin';
+  safe.talk(mentorLine(after), performance.now());
 }
 
 function leaveSafeRoom() {
@@ -500,7 +502,17 @@ function leaveSafeRoom() {
 
 // What conversations know about the crawler (dialogue.js).
 function talkContext() {
-  return { profile, rerun: run.rerun, deaths: profile.deaths, page: false, vars: { t: profile.deaths, r: run.rerun } };
+  return {
+    profile, rerun: run.rerun, deaths: profile.deaths, vars: { t: profile.deaths, r: run.rerun },
+    page: !!run.page, hasPage: inventory.count('contractPage1') > 0,
+    give: (id) => {
+      const i = inventory.bag.findIndex((st) => st.id === id);
+      if (i < 0) return;
+      inventory.take(i, 1);
+      log.push(`You hand over: ${ITEMS[id].name}.`, 'info');
+      note('pageGiven', { id });
+    },
+  };
 }
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -579,7 +591,7 @@ function trade() {
   }
   if (!inventory.bag.length) return safe.talk(merchantLine('nothing'), now);
   const r = sell(inventory, i, crawler.cha);
-  if (!r.ok) return;
+  if (!r.ok) return r.why === 'keyItem' ? safe.talk(merchantLine('keyItem'), now) : undefined;
   log.push(`Sold ${ITEMS[r.id].name} for ${r.price} gold.`, 'loot');
   note('sell', { id: r.id, price: r.price, junk: r.junk });
   safe.talk(merchantLine(r.junk ? 'sellJunk' : 'sell', { g: r.price, i: ITEMS[r.id].name }), now);
@@ -800,6 +812,7 @@ function inventoryCommand(cmd) {
   if (!sel.stack) return;
   const def = ITEMS[sel.stack.id];
   if (cmd === 'drop') {
+    if (def.kind === 'key') return log.push(line('keepKey'), 'info');
     const stack = sel.where === 'slot' ? inventory.takeEquipped(sel.slot) : inventory.take(sel.index);
     return dropStack(stack);
   }
@@ -1233,7 +1246,18 @@ function endCombat() {
       for (const [id, chance] of e.stats.drops) if (Math.random() < chance) { inventory.add(id); got[id] = (got[id] || 0) + 1; }
       const [g0, g1] = e.stats.gold;
       gold += g0 + Math.floor(Math.random() * (g1 - g0 + 1));
-      if (e.stats.loot) {
+      // The story boss carries a page of Ozzle's contract (GDD 2.3). Found
+      // once per soul; later reruns get the normal loot instead.
+      const page = e.stats.page;
+      if (page && !profile.flag(page)) {
+        inventory.add(page);
+        got[page] = 1;
+        profile.setFlag(page);
+        run.page = page;
+        log.push(line('pageFound'), 'warn');
+        note('page', { id: page });
+      } else if (e.stats.loot) {
+        if (page) log.push(line('pageAgain'));
         const extra = rollLoot(e.stats.loot, Math.floor(Math.random() * 1e9));
         gold += extra.gold;
         for (const { id, n } of extra.items) { inventory.add(id, n); got[id] = (got[id] || 0) + n; }
@@ -1510,6 +1534,7 @@ function loop(now) {
     points: crawler.points, boxes: ach.boxes, unlocked: ach.unlocked, total: ACHIEVEMENTS.length,
     rested: level.safeRoom.rested, hp: crawler.hp, hpMax: crawler.hpMax, mp: crawler.mp, mpMax: crawler.mpMax,
     viewers: formatViewers(viewers.count), deaths: profile.deaths,
+    pages: profile.flag('contractPage1') && !inventory.count('contractPage1') ? 1 : 0,
     newTopics: safe.open && topicsFor('ozzle', talkContext()).some((t) => t.fresh),
     shop: { stock: level.safeRoom.stock || [], bag: inventory.bag, cha: crawler.cha, gold: inventory.gold },
   });

@@ -10,7 +10,7 @@ import { ICONS, ICON } from '../src/game/icons.js';
 const slotKinds = new Set(SLOTS.map((s) => s.accepts));
 for (const def of Object.values(ITEMS)) {
   assert.ok(RARITY[def.rarity], `${def.id}: unknown rarity ${def.rarity}`);
-  assert.ok(['gear', 'consumable', 'junk'].includes(def.kind), `${def.id}: unknown kind`);
+  assert.ok(['gear', 'consumable', 'junk', 'key'].includes(def.kind), `${def.id}: unknown kind`);
   if (def.kind === 'gear') {
     assert.ok(slotKinds.has(def.slot), `${def.id}: no equipment slot takes '${def.slot}'`);
     assert.ok(!def.stack, `${def.id}: gear must not stack`);

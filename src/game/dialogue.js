@@ -4,13 +4,15 @@
 // A cast member has topics. A topic opens at a node:
 //   { id, label, start, when?(ctx), repeat? }
 // A node is what the speaker says plus the crawler's possible replies:
-//   { say, replies: [{ text, to?, if?(ctx), set?, unlock? }] }
+//   { say, replies: [{ text, to?, if?(ctx), set?, unlock?, give? }] }
 // `say` may be an array (one is picked, in turn) and may use {placeholders}
 // from ctx.vars. A reply without `to` ends the topic. `set` raises a story
-// flag in the profile, `unlock` unlocks something (jobs, later more).
+// flag in the profile, `unlock` unlocks something (jobs, later more),
+// `give` hands an item from the crawler's bag to the speaker (ctx.give).
 // The profile remembers every node heard, across reruns (GDD 4.9).
 //
-// ctx: { profile, rerun, deaths, vars }
+// ctx: { profile, rerun, deaths, vars, page (found a contract page this run),
+//        hasPage (carries page 1), give(id) }
 
 export const CAST = {
   ozzle: {
@@ -21,6 +23,11 @@ export const CAST = {
       { id: 'encore', label: 'BORANT ENCORE?', start: 'encore1', when: (c) => c.rerun > 0 },
       { id: 'tally', label: 'THE TALLY MARKS', start: 'tally1', when: (c) => c.deaths > 0 },
       { id: 'contract', label: 'YOUR CONTRACT', start: 'contract1', when: (c) => c.profile.flag('heardCancel') || c.rerun >= 3 },
+      // Page 1 of his contract (GDD 2.3): handed over, or sent to him by the
+      // lost and found after the crawler died with it. Then it hangs on the wall.
+      { id: 'page', label: 'THE YELLOW PAPER', start: 'page1', when: (c) => c.hasPage },
+      { id: 'pageLost', label: 'THE YELLOW PAPER', start: 'pageL1', when: (c) => !c.hasPage && c.profile.flag('contractPage1') && !c.profile.flag('page1Given') },
+      { id: 'pinned', label: 'THE PINNED PAGE', start: 'pin1', when: (c) => !c.hasPage && c.profile.flag('page1Given') },
       { id: 'advice', label: 'ANY ADVICE?', start: 'advice', repeat: true },
     ],
     // What he says when the crawler asks to talk, and when it is done.
@@ -138,6 +145,45 @@ export const CAST = {
       contract4: {
         say: 'Borant is still building the rest. Union dispute with the construction goblins. Give it time. I\'ve got 300 seasons.',
         replies: [{ text: 'I\'ll wait.' }],
+      },
+
+      page1: {
+        say: 'Hold on. Yellow paper, Borant seal, my tentacle print at the bottom. That\'s my contract. Page one. Where did you get that?',
+        replies: [{ text: 'Under a parking robot\'s wiper.', to: 'page2' }],
+      },
+      page2: {
+        say: 'Of course it was. Borant cut my contract into six pages and handed them to the guest stars. As props. My life is set dressing.',
+        replies: [
+          { text: 'Why cut it up?', to: 'page3' },
+          { text: 'Here. It\'s yours.', to: 'page4', give: 'contractPage1', set: 'page1Given' },
+        ],
+      },
+      page3: {
+        say: 'So nobody holds clause 18 and the signatures at the same time. One page per story floor. Whoever has all six has my release.',
+        replies: [{ text: 'Then take this one.', to: 'page4', give: 'contractPage1', set: 'page1Given' }],
+      },
+      page4: {
+        say: 'I\'ll pin it up next to the tally marks, where I can see it. One down, five to go. I\'m not excited. This is my excited face.',
+        replies: [{ text: 'Five to go.' }],
+      },
+      pageL1: {
+        say: 'You found a page of my contract last time. Then you died with it in your pocket. The System\'s lost and found sent it to me. Postage: one crawler.',
+        replies: [{ text: 'So you have it?', to: 'pageL2', set: 'page1Given' }],
+      },
+      pageL2: {
+        say: 'On the wall, next to the tally marks. One down, five to go. Next time hand it over before you die. Saves postage.',
+        replies: [{ text: 'Noted.' }],
+      },
+      pin1: {
+        say: 'Page one of six. Clause 1: three hundred seasons of service. The other clauses are on the other pages. Clause 18 is on page six. Borant has a sense of humour.',
+        replies: [
+          { text: 'Where are the other pages?', to: 'pin2' },
+          { text: 'Five more to find.' },
+        ],
+      },
+      pin2: {
+        say: 'With the other guest stars, on the other story floors. Every third floor, if Borant ever finishes building them. Bring a big pocket.',
+        replies: [{ text: 'I\'ll find them.' }],
       },
 
       advice: {
@@ -294,6 +340,7 @@ export class Conversation {
     if (!r) return true;
     if (r.set) this.ctx.profile.setFlag(r.set);
     if (r.unlock) this.ctx.profile.unlock(r.unlock);
+    if (r.give) this.ctx.give?.(r.give);
     if (!r.to) return false;
     this.goto(r.to);
     return true;

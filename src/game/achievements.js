@@ -69,6 +69,18 @@ export const ACHIEVEMENTS = [
     test: (s) => s.minibosses >= 3,
   },
   {
+    id: 'towedAway', name: 'Towed Away', reward: { box: 'gold' },
+    hint: 'Scrap the guest star of floor 3.',
+    text: 'You scrapped a parking enforcement unit on live television. Every crawler who ever got a ticket is cheering. That is all of them.',
+    test: (s) => (s.kill_towBot || 0) >= 1,
+  },
+  {
+    id: 'finePrint', name: 'Read the Fine Print', reward: null,
+    hint: 'Find a page of somebody else\'s contract.',
+    text: 'You found a page of somebody else\'s contract. Reading other people\'s paperwork is a gross invasion of privacy. The audience loved it.',
+    test: (s) => s.pages >= 1,
+  },
+  {
     id: 'regimeChange', name: 'Regime Change', reward: { box: 'bronze' },
     hint: 'Take out a leader and watch the rest run.',
     text: 'You removed the boss and the whole crew quit on the spot. Borant\'s HR department would like to study you.',
@@ -339,7 +351,7 @@ export const ACHIEVEMENT = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])
 const COUNT = {
   crit: 'crits', flee: 'flees', chest: 'chests', learn: 'learned', won: 'won',
   bump: 'bumps', wastedHeal: 'wastedHeals', lockedStairs: 'lockedStairs',
-  rout: 'routs', stolen: 'stolen', goldBack: 'goldBack', spat: 'spat',
+  rout: 'routs', stolen: 'stolen', page: 'pages', goldBack: 'goldBack', spat: 'spat',
   drop: 'drops', wave: 'waves', barrel: 'barrels', safeRoom: 'safeVisits', rest: 'rests', boxOpened: 'boxesOpened', sponsor: 'sponsors',
 };
 
@@ -386,7 +398,7 @@ export class Achievements {
       steps: 0, kills: 0, floorKills: 0, unarmedKills: 0, crits: 0, flees: 0,
       byAThread: 0, flawless: 0, level: 1, maxSkill: 1, learned: 0, slotsFilled: 0,
       fashion: 0, tails: 0, floors: 0, lateStairs: 0, peacefulFloors: 0, cleanFloors: 0,
-      minibosses: 0, routs: 0, blastKills: 0, stolen: 0, goldBack: 0, spat: 0,
+      minibosses: 0, pages: 0, routs: 0, blastKills: 0, stolen: 0, goldBack: 0, spat: 0,
       won: 0, viewers: 0, safeVisits: 0, rests: 0, skippedSafe: 0, boxesOpened: 0, sponsors: 0, bumps: 0, wastedHeals: 0, lockedStairs: 0, drops: 0, waves: 0, barrels: 0, chests: 0,
     };
     this.unlocked = [];  // ids in the order they were earned

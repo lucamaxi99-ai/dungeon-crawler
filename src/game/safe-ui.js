@@ -279,12 +279,13 @@ export class SafeRoomScreen {
     return null;
   }
 
-  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers, deaths, newTopics }
+  // info: { points, boxes (list), unlocked (ids), total, rested, hp, hpMax, mp, mpMax, viewers, deaths, pages, newTopics }
   draw(fb, now, info) {
     if (!this.open) return;
     if (this.pending && now >= this.pending.at) this.talk(this.pending.line, now);
     fb.blit(this.backdrop, 0, 0);
     drawTally(fb, info.deaths || 0);
+    drawPages(fb, info.pages || 0);
     if (this.page === 'shop') this.drawMerchant(fb, now); else this.drawOzzle(fb, now);
     if (this.page === 'achievements') return this.drawAchievements(fb, info);
     this.drawBubble(fb, now);
@@ -443,7 +444,7 @@ export class SafeRoomScreen {
       const sel = top + j === this.shopCursor;
       if (sel) fb.rect(x + 5, ry - 2, w - 10, SHOP_H, C.SHADOW);
       const price = this.shopTab === 'buy' ? buyPrice(it.id, shop.cha) : sellPrice(it.id, shop.cha);
-      const ps = String(price);
+      const ps = def.kind === 'key' ? '--' : String(price);
       const room = w - 22 - textWidth(ps) - 4;
       let name = def.short || def.name;
       if (it.n > 1) name = `${it.n}X ${name}`;
@@ -625,6 +626,23 @@ export function drawTally(fb, deaths) {
     }
   }
   if (deaths > TALLY.max) drawText(fb, '+', TALLY.x + 6, TALLY.y + TALLY.rows * 9, C.BONE);
+}
+
+// Pages of Ozzle's contract he already holds (GDD 2.1), pinned to the strip
+// of wallpaper left of the poster, overlapping like a pile of notes.
+export const PAGES = { x: 3, y: 40, step: 9, w: 8, h: 11 };
+export function drawPages(fb, n) {
+  for (let i = 0; i < n; i++) {
+    const x = PAGES.x + (i & 1), y = PAGES.y + i * PAGES.step;
+    fb.rect(x + 1, y + 1, PAGES.w, PAGES.h, C.SHADOW);      // drop shadow
+    fb.rect(x, y, PAGES.w, PAGES.h, C.YELLOW);
+    fb.rect(x + PAGES.w - 1, y + 1, 1, PAGES.h - 1, C.GOLD);
+    fb.rect(x, y + PAGES.h - 1, PAGES.w, 1, C.GOLD);
+    for (let l = 0; l < 3; l++) fb.rect(x + 1, y + 3 + l * 2, l === 1 ? 4 : 5, 1, C.WOOD_D);
+    fb.rect(x + 5, y + 7, 2, 2, C.RED);                       // Borant stamp
+    fb.set(x + 3, y, C.RED);                                  // pin
+    fb.set(x + 3, y + 1, C.BLOOD_D);
+  }
 }
 
 // The reward column: box tier, item, or a dash.
