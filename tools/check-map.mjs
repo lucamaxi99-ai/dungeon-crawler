@@ -5,7 +5,7 @@
 
 import { Level, TEST_FLOOR } from '../src/game/map.js';
 import { SPRITES, WALL } from '../src/game/assets.js';
-import { generateFloor, FINAL_DEPTH, FLOORS, STAIRS_OPEN_AT, foeCount } from '../src/game/floorgen.js';
+import { generateFloor, FINAL_DEPTH, FLOORS, STAIRS_OPEN_AT, foeCount, floorConfig } from '../src/game/floorgen.js';
 
 const D4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
@@ -61,8 +61,10 @@ const t = checkLevel(test);
 if (t.problems.length) fail('test floor', t.problems.filter((p) => !p.startsWith('unreachable floor')));
 console.log(`test floor: ${t.reachable} walkable cells, ${test.objects.length} objects, ${test.enemies.length} enemies`);
 
-const SEEDS = 150;
+// The three real floors get many seeds, the placeholder floors 4-18
+// (TODO(M10)) fewer: they are all built the same way.
 for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
+  const SEEDS = depth <= FLOORS.length ? 150 : 25;
   const sum = { turns: 0, stairs: 0, rats: 0, cells: 0, minRatGap: Infinity, minSlack: Infinity };
   for (let seed = 1; seed <= SEEDS; seed++) {
     const def = generateFloor(depth, seed);
@@ -72,7 +74,7 @@ for (let depth = 1; depth <= FINAL_DEPTH; depth++) {
     try { level = new Level(def); } catch (err) { fail(`floor ${depth} seed ${seed}`, [err.message]); continue; }
     const r = checkLevel(level);
     if (r.problems.length) fail(`floor ${depth} seed ${seed}`, r.problems);
-    if (level.enemies.length !== foeCount(FLOORS[depth - 1])) fail(`floor ${depth} seed ${seed}`, [`${level.enemies.length} enemies`]);
+    if (level.enemies.length !== foeCount(floorConfig(depth))) fail(`floor ${depth} seed ${seed}`, [`${level.enemies.length} enemies`]);
     // Story floors: the boss waits in its arena (the parking lot in the city).
     for (const e of level.enemies.filter((x) => x.stats.rank === 'boss')) {
       const arena = def.areas.find((r) => e.x >= r.x && e.y >= r.y && e.x < r.x + r.w && e.y < r.y + r.h);

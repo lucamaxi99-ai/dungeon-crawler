@@ -7,11 +7,11 @@ import { TRANSPARENT } from '../src/engine/framebuffer.js';
 import { rng } from '../src/engine/texgen.js';
 import { Inventory } from '../src/game/inventory.js';
 import { Crawler, START } from '../src/game/crawler.js';
-import { Enemy, ENEMY_TYPES, enemyTurns } from '../src/game/enemies.js';
+import { Enemy, ENEMY_TYPES, enemyTurns, scaledType } from '../src/game/enemies.js';
 import { Combat } from '../src/game/combat.js';
 import { CREATURES, SPRITES } from '../src/game/assets.js';
 import { stageZoom } from '../src/game/combat-ui.js';
-import { FLOORS } from '../src/game/floorgen.js';
+import { FLOORS, floorConfig } from '../src/game/floorgen.js';
 import { SKILLS } from '../src/game/skills.js';
 import { ITEMS } from '../src/game/items.js';
 import { LOOT_TABLES } from '../src/game/loot.js';
@@ -267,14 +267,22 @@ const READY = [
   { attrs: { str: 8, con: 8, dex: 8 }, gear: ['shiv', 'potLid', 'jerkin'] },
   { attrs: { str: 10, con: 10, dex: 10 }, gear: ['crowbar', 'jerkin', 'buckler'] },
 ];
-function battle(depth, squad, seed, boss) {
-  const t = (boss ? READY : TYPICAL)[depth - 1];
+// The placeholder floors after 3 (TODO(M10)): a crawler that keeps up
+// gains about a level per floor, a point each in STR, CON and DEX, and
+// finds better gear on the way.
+function deeper(depth, boss) {
+  const k = depth - 3 + (boss ? 1 : 0);
+  const v = 9 + k;
+  return { attrs: { str: v, con: v, dex: v }, gear: depth >= 6 ? ['sword', 'chainmail', 'buckler'] : ['crowbar', 'jerkin', 'buckler'] };
+}
+function battle(depth, squad, seed, boss, tier = 0) {
+  const t = depth <= 3 ? (boss ? READY : TYPICAL)[depth - 1] : deeper(depth, boss);
   const me = fresh(t.attrs);
   me.hp = me.hpMax;
   for (const g of t.gear) { me.inv.add(g); me.inv.equipFromBag(0); }
   let gold = 50;
-  const foes = squad.slice(0, 3).map((k, i) => new Enemy(k, i, 1));
-  const summon = (type) => new Enemy(type, 0, 2);
+  const foes = squad.slice(0, 3).map((k, i) => new Enemy(k, i, 1, null, tier));
+  const summon = (type) => new Enemy(type, 0, 2, null, tier);
   const fight = new Combat(me, foes, { rnd: rng(seed), purse: () => gold, summon });
   for (let n = 0; !fight.result && n < 200; n++) {
     if (!fight.crawlersTurn) { fight.enemyAct(); continue; }
@@ -304,6 +312,27 @@ FLOORS.forEach((f, i) => {
     if (!boss && !process.env.LOOSE) assert.ok(avg >= 0.2, `floor ${depth}: ${squad.join('+')} should hurt a bit`);
   }
 });
+// Placeholder floors: every squad of a few sample depths, fewer fights.
+for (const depth of [4, 6, 9, 12, 18]) {
+  const f = floorConfig(depth);
+  for (const { squad, where } of f.foes) {
+    let won = 0, lost = 0;
+    const N = 120;
+    for (let s = 1; s <= N; s++) {
+      const r = battle(depth, squad, s * 7919 + depth, where === 'boss', f.tier);
+      if (r.result === 'won') { won++; lost += r.lost; }
+    }
+    const rate = won / N, avg = won ? lost / won : 0;
+    report.push(`F${depth} ${squad.join('+').padEnd(36)} win ${(rate * 100).toFixed(0).padStart(3)}%  -${avg.toFixed(1)} HP`);
+    if (!process.env.LOOSE) assert.ok(rate >= (where === 'boss' ? 0.55 : 0.85), `floor ${depth}: ${squad.join('+')} should be beatable (${(rate * 100).toFixed(0)}%)`);
+  }
+}
+// Tiers only ever make an enemy tougher.
+for (const type of Object.keys(ENEMY_TYPES)) {
+  const a = scaledType(type, 0), b = scaledType(type, 5);
+  assert.ok(b.hp > a.hp && b.atk >= a.atk && b.xp >= a.xp, `${type}: tier 5 is tougher`);
+  assert.equal(new Enemy(type, 0, 0, null, 5).stats.hp, b.hp);
+}
 assert.ok(SKILLS.dirtyKick);
 
 console.log(`enemies OK (${Object.keys(ENEMY_TYPES).length} types; stage zoom: ${[...zooms].join(', ')})`);

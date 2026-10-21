@@ -333,6 +333,11 @@ export const LINES = {
     'Welcome to Floor {n}, Crawler. Bigger, darker and statistically worse. The viewers are thrilled.',
     'Floor {n}. The rats down here have heard about you. They are not impressed.',
   ],
+  // Placeholder floors after story floor 3 (TODO(M10)).
+  fillerFloor: [
+    'Floor {n}. The set department is on strike, so this floor is recycled from earlier episodes. Same monsters. Bigger stat budget.',
+    'Floor {n}. Borant is still building the real one. Please enjoy this rerun of a rerun. The monsters have been working out.',
+  ],
   storyFloor: [
     'Floor {n}: a STORY floor. Borant Encore has been granted an actual production budget for this episode. Do not get used to it.',
     'Welcome to the city, Crawler. Or what the set department could rebuild of it. Mind the painted sky, it is still wet.',

@@ -292,7 +292,7 @@ function descend() {
   const depth = run.depth + 1;
   enterFloor(depth);
   // Story floors (GDD 2.2) get their own billing on the title card.
-  const comment = line(level.story ? 'storyFloor' : depth >= FINAL_DEPTH ? 'finalFloor' : 'floorArrive').replace('{n}', depth);
+  const comment = line(level.story ? 'storyFloor' : depth >= FINAL_DEPTH ? 'finalFloor' : level.filler ? 'fillerFloor' : 'floorArrive').replace('{n}', depth);
   card = { at: performance.now(), title: level.name.toUpperCase(), sub: level.story ? 'STORY FLOOR' : depth >= FINAL_DEPTH ? 'SEASON FINALE' : '', comment };
   log.push(comment);
   if (level.objects.some((o) => o.type === 'sponsoredChest')) log.push(line('sponsorChest'), 'warn');
@@ -658,7 +658,7 @@ function resumeRun(snap) {
   banner = null;
   enterFloor(run.depth, { sponsored: run.floorSponsored });
   level.objects = snap.level.objects;
-  level.enemies = snap.level.enemies.map((e) => Object.assign(new Enemy(e.type, e.home.x, e.home.y), e));
+  level.enemies = snap.level.enemies.map((e) => Object.assign(new Enemy(e.type, e.home.x, e.home.y, null, e.tier || 0), e));
   unpackSeen(snap.level.seen, level.seen);
   level.safeRoom = snap.level.safeRoom;
   Object.assign(countdown, snap.countdown);
@@ -1006,7 +1006,7 @@ function callBackup(type, boss) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
       const x = c.x + dx, y = c.y + dy;
       if (!world.canEnter(x, y) || (x === player.x && y === player.y)) continue;
-      const e = new Enemy(type, x, y, boss.group);
+      const e = new Enemy(type, x, y, boss.group, boss.tier || 0);
       e.alerted = true;
       level.enemies.push(e);
       return e;

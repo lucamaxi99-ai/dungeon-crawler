@@ -23,7 +23,7 @@
 // floor 3 (brick facades, asphalt alleys, street lamps; GDD 2.3).
 
 import { seededRandom } from './loot.js';
-import { ENEMY_TYPES, fightWeight } from './enemies.js';
+import { scaledType, fightWeight } from './enemies.js';
 
 // Per depth (index 0 = Floor 1). size: map cells. rooms: [min, max].
 // chests / rich: plain and rich chests.
@@ -69,10 +69,44 @@ export const FLOORS = [
     ],
   },
 ];
+// A season has 18 floors (GDD 2.2); the stairs of the last one win the run.
+export const FINAL_DEPTH = 18;
+
+// TODO(M10): floors 4-18 get their own settings, enemies and story floors
+// (6, 9, ...). Until then every floor after story floor 3 is a dungeon floor
+// with the enemies there are, a little bigger and tougher each time (enemy
+// tier = depth - 3, see scaledType in enemies.js).
+const FILLER_SQUADS = [
+  ['rat', 'rat'], ['ratAlpha', 'rat', 'rat'], ['slime', 'slime'],
+  ['goblinGrunt', 'goblinGrunt'], ['goblinGrunt', 'goblinSapper'], ['goblinGrunt', 'goblinShaman'],
+  ['raccoon'], ['gnome', 'gnome'], ['gnomeCaptain', 'gnome'],
+];
+const FILLER_BOSSES = [['badLlama'], ['goblinBoss', 'goblinGrunt'], ['slimeXL', 'slime']];
+function fillerFloor(depth) {
+  const k = depth - FLOORS.length;
+  const side = Math.min(54, 42 + 2 * k);
+  const squads = Array.from({ length: 6 }, (_, j) => FILLER_SQUADS[(depth * 4 + j * 5) % FILLER_SQUADS.length]);
+  return {
+    size: [side, side], rooms: [Math.min(16, 11 + k), Math.min(17, 12 + k)], chests: 3, rich: k >= 3 ? 2 : 1, margin: 2.8,
+    tier: k, filler: true,
+    foes: [
+      ...squads.map((squad) => ({ squad, n: 1 })),
+      { squad: ['roboVac'], n: 1, where: 'anywhere' },
+      { squad: ['cartMimic'], n: 1, where: 'wall' },
+      { squad: FILLER_BOSSES[(depth - 4) % FILLER_BOSSES.length], n: 1, where: 'boss' },
+    ],
+  };
+}
+
+// The config of any floor of the season.
+export function floorConfig(depth) {
+  if (depth < 1 || depth > FINAL_DEPTH) return null;
+  return depth <= FLOORS.length ? FLOORS[depth - 1] : fillerFloor(depth);
+}
+
 // How many enemies a floor holds.
 export const foeCount = (cfg) => cfg.foes.reduce((s, f) => s + f.squad.length * f.n, 0);
 const FIGHT_TURNS = 10;
-export const FINAL_DEPTH = FLOORS.length;
 
 // The stairs open once this share of the countdown has passed.
 export const STAIRS_OPEN_AT = 1 / 3;
@@ -136,7 +170,7 @@ const DIRS4 = [[1, 0], [0, 1], [-1, 0], [0, -1]];
 const SIDE_NAME = ['E', 'S', 'W', 'N'];
 
 export function generateFloor(depth, seed, opts = {}) {
-  const cfg = FLOORS[Math.min(depth, FLOORS.length) - 1];
+  const cfg = floorConfig(depth);
   if (!cfg) throw new Error(`No floor config for depth ${depth}`);
   const setting = SETTINGS[cfg.setting || 'dungeon'];
   const THEMES = setting.themes;
@@ -514,7 +548,7 @@ export function generateFloor(depth, seed, opts = {}) {
       // The first one (the leader) anywhere, the rest as close as possible.
       const lead = cells[0];
       cells.sort((a, b) => Math.abs(a.x - lead.x) + Math.abs(a.y - lead.y) - Math.abs(b.x - lead.x) - Math.abs(b.y - lead.y));
-      squad.forEach((type, k) => enemies.push({ type, x: cells[k].x, y: cells[k].y, group }));
+      squad.forEach((type, k) => enemies.push({ type, x: cells[k].x, y: cells[k].y, group, ...(cfg.tier ? { tier: cfg.tier } : {}) }));
       group++;
       crowded.add(i);
       return true;
@@ -557,7 +591,7 @@ export function generateFloor(depth, seed, opts = {}) {
     pos = next;
   }
   tour += Math.max(0, walk(pos.x, pos.y)[at(stairs.in.x, stairs.in.y)]);
-  const fights = enemies.reduce((sum, e) => sum + fightWeight(ENEMY_TYPES[e.type]), 0);
+  const fights = enemies.reduce((sum, e) => sum + fightWeight(scaledType(e.type, e.tier)), 0);
   const turns = Math.round((tour * cfg.margin + fights * FIGHT_TURNS) / 50) * 50;
 
   // ------------------------------------------------------------ output
@@ -581,6 +615,7 @@ export function generateFloor(depth, seed, opts = {}) {
     seed,
     setting: cfg.setting || 'dungeon',
     story: !!cfg.story,
+    filler: !!cfg.filler,
     turns,
     tour,
     startDir,

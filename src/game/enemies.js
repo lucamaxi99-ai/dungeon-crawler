@@ -187,15 +187,42 @@ export function normalizeType(t) {
 // Countdown turns a fight with this enemy is worth (floorgen.js).
 export const fightWeight = (t) => Math.max(1, Math.round(t.hp / 5));
 
+// Tougher copies for the placeholder floors after story floor 3 (GDD 2.2,
+// TODO(M10): real floors 4-18 with their own enemies and settings).
+// tier k: +15 % HP, +20 % XP and +25 % gold per tier; +1 ATK and damage
+// every three tiers, +1 DEF and DEX every four.
+const tiered = {};
+export function scaledType(type, tier = 0) {
+  const t = ENEMY_TYPES[type];
+  if (!t) throw new Error(`Unknown enemy '${type}'`);
+  if (!tier) return t;
+  const key = `${type}@${tier}`;
+  if (tiered[key]) return tiered[key];
+  const up = (k) => Math.floor(tier / k);
+  tiered[key] = {
+    ...t,
+    hp: Math.round(t.hp * (1 + 0.15 * tier)),
+    atk: t.atk + up(3),
+    def: t.def + up(4),
+    dex: t.dex + up(4),
+    dmg: [t.dmg[0] + up(3), t.dmg[1] + up(3)],
+    xp: Math.round(t.xp * (1 + 0.2 * tier)),
+    gold: [Math.round(t.gold[0] * (1 + 0.25 * tier)), Math.round(t.gold[1] * (1 + 0.25 * tier))],
+    tier,
+  };
+  return tiered[key];
+}
+
 export const MOVE_MS = 170; // same pace as the crawler's steps
 
 export class Enemy {
   // group: enemies placed together (a pack, a squad) share an id and are
   // alerted together.
-  constructor(type, x, y, group = null) {
-    const t = ENEMY_TYPES[type];
-    if (!t) throw new Error(`Unknown enemy '${type}'`);
+  // tier: tougher copy on the placeholder floors (scaledType).
+  constructor(type, x, y, group = null, tier = 0) {
+    const t = scaledType(type, tier);
     this.type = type;
+    this.tier = tier;
     this.stats = t;
     this.x = x; this.y = y;
     this.home = { x, y };

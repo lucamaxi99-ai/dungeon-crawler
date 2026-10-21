@@ -100,6 +100,7 @@ export class Level {
     this.seed = def.seed ?? 1;
     this.setting = def.setting || 'dungeon'; // which texture skin (textures-city.js)
     this.story = !!def.story;                // a story floor (GDD 2.2)
+    this.filler = !!def.filler;              // a placeholder floor after 3 (TODO(M10))
     this.h = def.rows.length;
     this.w = def.rows[0].length;
     const n = this.w * this.h;
@@ -130,7 +131,7 @@ export class Level {
       });
     });
 
-    for (const e of def.enemies || []) this.enemies.push(new Enemy(e.type, e.x, e.y, e.group ?? null));
+    for (const e of def.enemies || []) this.enemies.push(new Enemy(e.type, e.x, e.y, e.group ?? null, e.tier || 0));
 
     // Materials and ambient light per area.
     const base = def.defaults || { floor: 'COBBLE', ceil: 'VAULT', ambient: 0.08, tint: 'neutral' };
